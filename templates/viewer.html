@@ -1,0 +1,1638 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mito SQL Viewer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f7f9;
+      color: #1d2733;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      padding: 18px 22px;
+      background: #ffffff;
+      border-bottom: 1px solid #d9dee7;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
+    .path { color: #607086; font-size: 13px; }
+    main { padding: 18px 22px 32px; }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      align-items: start;
+    }
+    .content { display: grid; gap: 18px; min-width: 0; }
+    .compare-panel {
+      position: sticky;
+      top: 78px;
+      max-height: calc(100vh - 96px);
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      background: #fff;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns:
+        minmax(120px, 0.8fr)
+        minmax(260px, 1.7fr)
+        minmax(110px, 0.7fr)
+        minmax(110px, 0.7fr)
+        minmax(110px, 0.7fr);
+      grid-template-areas: "subject tags position alt apply";
+      gap: 10px 10px;
+      align-items: end;
+      padding: 12px;
+      min-width: 0;
+    }
+    .filter-subject { grid-area: subject; }
+    .filter-tags { grid-area: tags; }
+    .filter-position { grid-area: position; }
+    .filter-alt { grid-area: alt; }
+    .filter-apply { grid-area: apply; width: 100%; }
+    label { display: grid; gap: 5px; font-size: 12px; color: #4a596d; font-weight: 650; min-width: 0; }
+    input, select, button {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid #c7cfdb;
+      border-radius: 6px;
+      background: #fff;
+      color: #1d2733;
+      font: inherit;
+      padding: 7px 9px;
+    }
+    button {
+      cursor: pointer;
+      background: #2457c5;
+      border-color: #2457c5;
+      color: #fff;
+      font-weight: 700;
+    }
+    .delete-derived-sample {
+      width: auto;
+      min-height: 26px;
+      margin-left: 8px;
+      padding: 3px 8px;
+      background: #ffffff;
+      border-color: #c94f4f;
+      color: #9f2f2f;
+      font-size: 12px;
+    }
+    .order-cell { width: 92px; white-space: nowrap; }
+    .drag-handle {
+      width: auto;
+      min-height: 26px;
+      padding: 3px 8px;
+      background: #f7f9fc;
+      border-color: #c7cfdb;
+      color: #35445a;
+      font-size: 12px;
+      cursor: grab;
+    }
+    .sample-order-button {
+      width: auto;
+      min-height: 26px;
+      margin-left: 4px;
+      padding: 3px 7px;
+      background: #ffffff;
+      border-color: #c7cfdb;
+      color: #35445a;
+      font-size: 12px;
+    }
+    tr.reorder-target td { box-shadow: inset 0 2px 0 #2457c5; }
+    section {
+      background: #fff;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .section-title {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e4e8ef;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .counts { color: #607086; font-weight: 600; font-size: 13px; }
+    .table-wrap { overflow: auto; max-height: 58vh; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid #edf0f4; padding: 7px 9px; text-align: left; vertical-align: top; }
+    th { position: sticky; top: 0; background: #f9fafc; z-index: 1; color: #3f4d60; }
+    tr:hover td { background: #f7faff; }
+    tr.selected-sample td {
+      background: #eef5ff;
+      box-shadow: inset 4px 0 0 #2457c5;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { color: #607086; }
+    .metadata-cell { max-width: 520px; cursor: help; }
+    .derived-metadata {
+      display: inline-block;
+      max-width: 520px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-bottom: 1px dotted #607086;
+    }
+    .metadata-popover {
+      position: fixed;
+      width: min(560px, calc(100vw - 28px));
+      max-height: min(560px, calc(100vh - 28px));
+      overflow: auto;
+      display: none;
+      z-index: 20;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px solid #b8c2d2;
+      border-radius: 8px;
+      box-shadow: 0 16px 40px rgba(28, 39, 55, 0.18);
+      color: #1d2733;
+    }
+    .metadata-popover.open { display: grid; gap: 12px; }
+    .metadata-popover h3 { margin: 0; font-size: 15px; }
+    .metadata-popover .expression {
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #f7f9fc;
+      border: 1px solid #e0e6ef;
+      font-size: 12px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .venn-wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; align-items: center; }
+    .venn-diagram { position: relative; width: 220px; height: 170px; }
+    .venn-circle {
+      position: absolute;
+      width: 112px;
+      height: 112px;
+      display: grid;
+      place-items: center;
+      padding: 8px;
+      border: 2px solid #6f88a7;
+      border-radius: 50%;
+      background: rgba(121, 167, 236, 0.22);
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #26364b;
+      overflow: hidden;
+    }
+    .venn-circle:nth-child(1) { left: 24px; top: 18px; }
+    .venn-circle:nth-child(2) { left: 84px; top: 18px; background: rgba(107, 184, 131, 0.22); }
+    .venn-circle:nth-child(3) { left: 54px; top: 58px; background: rgba(222, 183, 100, 0.22); }
+    .venn-circle:nth-child(4) { left: 54px; top: 0; background: rgba(196, 136, 210, 0.18); }
+    .venn-circle.excluded {
+      background: repeating-linear-gradient(135deg, rgba(201, 79, 79, 0.08), rgba(201, 79, 79, 0.08) 6px, rgba(255, 255, 255, 0.6) 6px, rgba(255, 255, 255, 0.6) 12px);
+      border-color: #c94f4f;
+    }
+    .venn-circle.excluded::before,
+    .venn-circle.excluded::after,
+    .intersection-core.crossed::before,
+    .intersection-core.crossed::after {
+      content: "";
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      top: 50%;
+      height: 3px;
+      background: #c94f4f;
+      border-radius: 999px;
+    }
+    .venn-circle.excluded::before,
+    .intersection-core.crossed::before { transform: rotate(38deg); }
+    .venn-circle.excluded::after,
+    .intersection-core.crossed::after { transform: rotate(-38deg); }
+    .intersection-core {
+      position: absolute;
+      left: 88px;
+      top: 70px;
+      width: 46px;
+      height: 34px;
+      border-radius: 999px;
+      border: 2px solid #2457c5;
+      background: rgba(36, 87, 197, 0.2);
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.64);
+    }
+    .intersection-core.partial {
+      width: 92px;
+      left: 64px;
+      border-color: #79a7ec;
+      background: rgba(121, 167, 236, 0.18);
+    }
+    .venn-notes { display: grid; gap: 7px; font-size: 12px; color: #4a596d; }
+    .venn-notes strong { color: #1d2733; }
+    .header-filter-button {
+      width: auto;
+      min-height: 28px;
+      padding: 3px 8px;
+      background: #ffffff;
+      border-color: #b9c5d6;
+      color: #35445a;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(29, 39, 51, 0.28);
+      z-index: 30;
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal {
+      width: min(440px, 100%);
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px solid #b8c2d2;
+      border-radius: 8px;
+      box-shadow: 0 18px 45px rgba(28, 39, 55, 0.22);
+    }
+    .modal h2 { margin: 0; font-size: 16px; }
+    .af-rule-editor {
+      display: grid;
+      grid-template-columns: minmax(100px, 0.8fr) minmax(120px, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .af-rule-list { display: grid; gap: 6px; }
+    .af-rule-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 8px;
+      border: 1px solid #e0e6ef;
+      border-radius: 6px;
+      background: #f9fbfe;
+    }
+    .af-rule-remove {
+      width: auto;
+      min-height: 28px;
+      padding: 3px 8px;
+      background: #ffffff;
+      border-color: #c94f4f;
+      color: #9f2f2f;
+      font-size: 12px;
+    }
+    .metadata-filter-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .metadata-filter-grid .full { grid-column: 1 / -1; }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .compare-options { padding: 12px; display: grid; gap: 10px; }
+    .compare-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .secondary-button {
+      background: #ffffff;
+      border-color: #c7cfdb;
+      color: #35445a;
+    }
+    .compare-summary {
+      border: 1px solid #e0e6ef;
+      border-radius: 6px;
+      background: #f9fbfe;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .compare-summary summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      color: #35445a;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .compare-summary-body {
+      display: grid;
+      gap: 6px;
+      padding: 0 10px 10px;
+      min-width: 0;
+    }
+    .compare-summary-expression {
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+      font-size: 12px;
+      color: #1d2733;
+    }
+    .compare-summary-sentence {
+      overflow-wrap: anywhere;
+      line-height: 1.4;
+      font-size: 12px;
+      color: #35445a;
+    }
+    .compare-summary-hint {
+      font-size: 11px;
+      color: #607086;
+    }
+    .checkline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #35445a;
+      font-weight: 600;
+    }
+    .checkline input { min-height: 0; }
+    .tag-picker {
+      min-height: 36px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      align-items: center;
+      align-content: center;
+      border: 1px solid #c7cfdb;
+      border-radius: 6px;
+      background: #fff;
+      padding: 7px 10px;
+      width: 100%;
+    }
+    .tag-picker label {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #35445a;
+      white-space: nowrap;
+    }
+    .tag-picker input { min-height: 0; padding: 0; }
+    .compare-list {
+      overflow-y: auto;
+      overflow-x: hidden;
+      border-top: 1px solid #e4e8ef;
+      padding: 8px 12px 12px;
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+    .compare-item {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      align-items: start;
+      border: 1px solid #e4e8ef;
+      border-radius: 6px;
+      padding: 9px;
+      background: #fbfcfe;
+      font-size: 13px;
+      min-width: 0;
+    }
+    .compare-item-header {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      min-width: 0;
+    }
+    .compare-item-title {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+    .compare-item-title strong {
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
+    .compare-meta {
+      display: grid;
+      gap: 2px;
+      color: #607086;
+      font-size: 11px;
+      line-height: 1.25;
+      min-width: 0;
+    }
+    .compare-meta span {
+      overflow-wrap: anywhere;
+    }
+    .sample-statuses {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 5px;
+      padding-top: 7px;
+      border-top: 1px solid #e4e8ef;
+      min-width: 0;
+    }
+    .sample-statuses label {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 5px;
+      min-height: 28px;
+      padding: 4px 7px;
+      border: 1px solid #dce2eb;
+      border-radius: 6px;
+      background: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4a596d;
+      min-width: 0;
+    }
+    .sample-statuses label:has(input:checked) {
+      border-color: #8aa9e6;
+      background: #eef5ff;
+      color: #24436e;
+    }
+    .sample-statuses input { width: auto; min-height: 0; padding: 0; flex: 0 0 auto; }
+    .legend { display: grid; gap: 6px; padding: 0 12px 12px; font-size: 12px; color: #4a596d; }
+    .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+    .swatch.common { background: #dff4e6; border: 1px solid #6bb883; }
+    .swatch.partial { background: #e0edff; border: 1px solid #79a7ec; }
+    .swatch.unique { background: #fff1cf; border: 1px solid #deb764; }
+    tr.common td { background: #f0fbf3; }
+    tr.partial td { background: #eef5ff; }
+    tr.unique td { background: #fff7e3; }
+    tr.common.group-even td { background: #edf9f1; }
+    tr.common.group-odd td { background: #e3f5ea; }
+    tr.partial.group-even td { background: #eef5ff; }
+    tr.partial.group-odd td { background: #e3efff; }
+    tr.unique.group-even td { background: #fff7e3; }
+    tr.unique.group-odd td { background: #ffefc9; }
+    tr.group-start td { border-top: 2px solid #8fb1d9; }
+    tr.group-end td { border-bottom: 2px solid #d1dae7; }
+    tr.grouped td:first-child {
+      border-left: 5px solid #6bb883;
+      font-weight: 700;
+    }
+    tr.partial.grouped td:first-child { border-left-color: #79a7ec; }
+    tr.unique.grouped td:first-child { border-left-color: #deb764; }
+    tr.grouped.group-middle td:first-child, tr.grouped.group-end td:first-child {
+      color: transparent;
+    }
+    tr.common:hover td { background: #e1f6e8; }
+    tr.partial:hover td { background: #deebff; }
+    tr.unique:hover td { background: #ffefc2; }
+    @media (max-width: 1250px) {
+      .toolbar {
+        grid-template-columns: minmax(130px, 1fr) minmax(260px, 2fr) minmax(160px, 1.2fr) minmax(110px, 0.8fr);
+        grid-template-areas:
+          "subject tags tags apply"
+          "position alt alt apply";
+      }
+      .filter-apply { align-self: stretch; }
+    }
+    @media (max-width: 900px) {
+      .toolbar {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "subject position"
+          "tags tags"
+          "alt alt"
+          "apply apply";
+      }
+      .workspace { grid-template-columns: 1fr; }
+      .compare-panel { position: static; max-height: none; }
+    }
+    @media (max-width: 560px) {
+      header { padding: 14px 14px; }
+      main { padding: 14px; }
+      .toolbar {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "subject"
+          "tags"
+          "position"
+          "alt"
+          "apply";
+      }
+      .section-title { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mito SQL Viewer</h1>
+    <div class="path">Database: <span class="mono">{{ db_path }}</span></div>
+  </header>
+  <main>
+    <div class="workspace">
+    <div class="content">
+    <section>
+      <div class="section-title">Filters <span id="counts" class="counts"></span></div>
+      <div class="toolbar">
+        <label class="filter-subject">Subject
+          <select id="subject"><option value="">All</option></select>
+        </label>
+        <label class="filter-tags">Tags
+          <div class="tag-picker" id="tag-picker">
+            <label><input class="tag-filter" type="checkbox" value="Base"> Base</label>
+            <label><input class="tag-filter" type="checkbox" value="EV"> EV</label>
+            <label><input class="tag-filter" type="checkbox" value="Raw"> Raw</label>
+            <label><input class="tag-filter" type="checkbox" value="PCR"> PCR</label>
+          </div>
+        </label>
+        <label class="filter-position">Position
+          <input id="position" inputmode="numeric" placeholder="e.g. 73">
+        </label>
+        <label class="filter-alt">ALT
+          <input id="alt" placeholder="e.g. G">
+        </label>
+        <button class="filter-apply" id="apply">Refresh</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">Samples <span class="counts" id="sample-count"></span></div>
+      <div class="table-wrap" style="max-height: 220px;">
+        <table>
+          <thead><tr><th>Order</th><th>Subject</th><th>Population Tags</th><th>Mutations</th><th>Source File</th></tr></thead>
+          <tbody id="samples"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">Mutations <span class="counts" id="mutation-count"></span></div>
+      <div class="table-wrap">
+        <table>
+          <thead id="mutation-head">
+            <tr>
+              <th>Subject</th><th>Population</th><th>Pos</th><th>Ref</th><th>VCF Ref</th>
+              <th>ALT</th><th>AF</th><th>Filter</th><th>Metadata</th>
+            </tr>
+          </thead>
+          <tbody id="mutations"></tbody>
+        </table>
+      </div>
+    </section>
+    </div>
+    <aside class="compare-panel">
+      <section style="display: contents;">
+        <div class="section-title">Compare <span class="counts" id="compare-count"></span></div>
+        <div class="compare-options">
+          <details class="compare-summary" open>
+            <summary>Comparison</summary>
+            <div class="compare-summary-body">
+              <div class="compare-summary-expression mono" id="compare-summary-expression">No samples selected.</div>
+              <div class="compare-summary-sentence" id="compare-summary-sentence">No comparison is active.</div>
+              <div class="compare-summary-hint" id="compare-summary-hint">Choose samples below to build a comparison.</div>
+            </div>
+          </details>
+          <div class="compare-actions">
+            <button id="create-derived-sample" type="button">Create sample</button>
+            <button class="secondary-button" id="clear-compare" type="button">Clear</button>
+          </div>
+        </div>
+        <div class="compare-list" id="compare-list"></div>
+      </section>
+    </aside>
+    </div>
+  </main>
+  <div id="metadata-popover" class="metadata-popover" role="dialog" aria-live="polite"></div>
+  <div id="af-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>AF Filter</h2>
+      <div class="af-rule-editor">
+        <label>Rule
+          <select id="af-rule-operator">
+            <option value="gt">&gt;</option>
+            <option value="gte">&gt;=</option>
+            <option value="lt">&lt;</option>
+            <option value="lte">&lt;=</option>
+            <option value="eq">=</option>
+            <option value="neq">!=</option>
+          </select>
+        </label>
+        <label>Value
+          <input id="af-rule-value" type="number" min="0" max="1" step="0.0001" placeholder="0.8">
+        </label>
+        <button id="add-af-rule" type="button">Add</button>
+      </div>
+      <div class="af-rule-list" id="af-rule-list"></div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="clear-af-rules" type="button">Clear all</button>
+        <button id="close-af-modal" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+  <div id="metadata-filter-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>REF / ALT Filters</h2>
+      <div class="metadata-filter-grid">
+        <label class="full">Polymorphism
+          <select id="meta-polymorphism">
+            <option value="">Any</option>
+            <option value="1">Polymorphism only</option>
+            <option value="0">Non-polymorphism only</option>
+          </select>
+        </label>
+        <label>Repeat base
+          <input id="meta-repeat-base" placeholder="A">
+        </label>
+        <label>Max repeat count
+          <input id="meta-repeat-count" type="number" min="0" placeholder="e.g. 3">
+        </label>
+        <label>2-base repeat
+          <input id="meta-repeat-2-bases" placeholder="AT">
+        </label>
+        <label>Max 2-base count
+          <input id="meta-repeat-2-count" type="number" min="0">
+        </label>
+        <label>3-base repeat
+          <input id="meta-repeat-3-bases" placeholder="ATC">
+        </label>
+        <label>Max 3-base count
+          <input id="meta-repeat-3-count" type="number" min="0">
+        </label>
+        <label class="full">Reference context contains
+          <input id="meta-reference-context" placeholder="e.g. ATGC">
+        </label>
+        <label class="full">Reference context single-base repeat
+          <select id="meta-reference-repeat">
+            <option value="">Any</option>
+            <option value="either">Either side</option>
+            <option value="one">One side only</option>
+            <option value="before">Before only</option>
+            <option value="after">After only</option>
+            <option value="both">Both sides</option>
+            <option value="none">No side</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="clear-metadata-filters" type="button">Clear</button>
+        <button id="close-metadata-filter-modal" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const state = {
+      subject: "",
+      tags: new Set(),
+      position: "",
+      alt: "",
+      compareSamples: new Set(),
+      compareStatuses: new Set(["common", "partial", "unique"]),
+      compareSampleStatuses: new Map(),
+      sampleOrder: [],
+      afRules: [],
+      metadataFilters: {}
+    };
+    const defaultSampleStatuses = ["present"];
+    const afOperatorLabels = {
+      gt: ">",
+      gte: ">=",
+      lt: "<",
+      lte: "<=",
+      eq: "=",
+      neq: "!="
+    };
+
+    const subjectSelect = document.getElementById("subject");
+    const tagFilterInputs = [...document.querySelectorAll(".tag-filter")];
+    const positionInput = document.getElementById("position");
+    const altInput = document.getElementById("alt");
+    const compareList = document.getElementById("compare-list");
+    const statusFilterInputs = [...document.querySelectorAll(".status-filter")];
+    const afModal = document.getElementById("af-modal");
+    const metadataFilterModal = document.getElementById("metadata-filter-modal");
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[char]));
+    }
+
+    async function getJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(await response.text());
+      return await response.json();
+    }
+
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(await response.text());
+      return await response.json();
+    }
+
+    async function deleteJson(url) {
+      const response = await fetch(url, { method: "DELETE" });
+      if (!response.ok) throw new Error(await response.text());
+      return await response.json();
+    }
+
+    function queryString(params) {
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item) search.append(key, item);
+          }
+        } else if (value) {
+          search.set(key, value);
+        }
+      }
+      return search.toString();
+    }
+
+    function sampleLabel(sample) {
+      return `${sample.subject_id} ${sample.population_key.replaceAll("|", "_")}`;
+    }
+
+    function samplePopulationText(sample) {
+      return String(sample.population_key || "").replaceAll("|", ", ");
+    }
+
+    function syncSampleOrder(samples) {
+      const ids = samples.map(sample => String(sample.id));
+      const known = new Set(ids);
+      state.sampleOrder = state.sampleOrder.filter(id => known.has(id));
+      for (const id of ids) {
+        if (!state.sampleOrder.includes(id)) {
+          state.sampleOrder.push(id);
+        }
+      }
+    }
+
+    function orderedSamples(samples) {
+      syncSampleOrder(samples);
+      const position = new Map(state.sampleOrder.map((id, index) => [id, index]));
+      return [...samples].sort((left, right) =>
+        position.get(String(left.id)) - position.get(String(right.id))
+      );
+    }
+
+    function orderedCompareSampleIds() {
+      return state.sampleOrder.filter(sampleId => state.compareSamples.has(sampleId));
+    }
+
+    function sampleById(samples) {
+      return new Map(samples.map(sample => [String(sample.id), sample]));
+    }
+
+    function listSentence(items) {
+      if (!items.length) return "";
+      if (items.length === 1) return items[0];
+      if (items.length === 2) return `${items[0]} and ${items[1]}`;
+      return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+    }
+
+    function compareSummarySentence(present, unique, absent) {
+      const sentences = [];
+      if (present.length) {
+        sentences.push(
+          `The samples shown are mutations that are present in ${listSentence(present)}.`
+        );
+      }
+      if (unique.length) {
+        sentences.push(
+          `The samples shown also include mutations unique to ${listSentence(unique)}.`
+        );
+      }
+      if (absent.length) {
+        sentences.push(
+          `The samples shown exclude mutations present in ${listSentence(absent)}.`
+        );
+      }
+      return sentences.join(" ") || "No comparison is active.";
+    }
+
+    function compareSummary(samples) {
+      const samplesById = sampleById(samples);
+      const present = [];
+      const unique = [];
+      const absent = [];
+
+      for (const sampleId of orderedCompareSampleIds()) {
+        const sample = samplesById.get(sampleId);
+        const label = sample ? sampleLabel(sample) : sampleId;
+        const statuses = state.compareSampleStatuses.get(sampleId) || new Set(defaultSampleStatuses);
+        if (!statuses.size) continue;
+        if (statuses.has("not_in")) {
+          absent.push(label);
+          continue;
+        }
+        if (statuses.has("present")) present.push(label);
+        if (statuses.has("unique")) unique.push(label);
+      }
+
+      const parts = [];
+      if (present.length === 1) {
+        parts.push(present[0]);
+      } else if (present.length > 1) {
+        parts.push(`AND(${present.join(", ")})`);
+      }
+      parts.push(...unique.map(label => `UNIQUE(${label})`));
+
+      let expression = parts.length ? parts.join(" OR ") : "No active sample constraints.";
+      if (absent.length) {
+        expression = `${parts.length > 1 ? `(${expression})` : expression} AND NOT(${absent.join(", ")})`;
+      }
+
+      return {
+        expression,
+        sentence: compareSummarySentence(present, unique, absent),
+        hint: `${state.compareSamples.size} selected · ${present.length} present · ${unique.length} unique · ${absent.length} not in`
+      };
+    }
+
+    function updateCompareSummary(samples) {
+      const summary = compareSummary(samples);
+      document.getElementById("compare-summary-expression").textContent = summary.expression;
+      document.getElementById("compare-summary-sentence").textContent = summary.sentence;
+      document.getElementById("compare-summary-hint").textContent = summary.hint;
+    }
+
+    function moveSample(sampleId, offset) {
+      const index = state.sampleOrder.indexOf(sampleId);
+      if (index < 0) return;
+      const nextIndex = Math.max(0, Math.min(state.sampleOrder.length - 1, index + offset));
+      if (index === nextIndex) return;
+      state.sampleOrder.splice(index, 1);
+      state.sampleOrder.splice(nextIndex, 0, sampleId);
+    }
+
+    function moveSampleBefore(sampleId, targetId) {
+      if (!sampleId || !targetId || sampleId === targetId) return;
+      state.sampleOrder = state.sampleOrder.filter(id => id !== sampleId);
+      const targetIndex = state.sampleOrder.indexOf(targetId);
+      if (targetIndex < 0) {
+        state.sampleOrder.push(sampleId);
+      } else {
+        state.sampleOrder.splice(targetIndex, 0, sampleId);
+      }
+    }
+
+    function parseMetadata(raw) {
+      try {
+        return JSON.parse(raw || "{}");
+      } catch {
+        return null;
+      }
+    }
+
+    function metadataMode(expression) {
+      if (expression.includes(" AND NOT(")) return "and_not";
+      if (expression.startsWith("AND(")) return "and";
+      if (expression.startsWith("XOR(") || expression.startsWith("EXACTLY_ONE(")) return "xor";
+      if (expression.startsWith("SOME_NOT_ALL(")) return "partial";
+      if (expression.startsWith("OR(")) return "or";
+      return "derived";
+    }
+
+    function metadataModeLabel(mode) {
+      return {
+        and_not: "Present in the included samples; absent from the crossed-out samples",
+        and: "AND: shared by every source sample",
+        or: "OR: present in any included source sample",
+        xor: "XOR: present in exactly one source sample; overlap is crossed out",
+        partial: "SOME NOT ALL: shared by a subset, but not every source sample",
+        derived: "Derived comparison set"
+      }[mode] || "Derived comparison set";
+    }
+
+    function excludedMetadataSamples(metadata) {
+      const absentSamples = String(metadata.DERIVED_ABSENT_SAMPLES || "")
+        .split(";")
+        .map(item => item.trim())
+        .filter(Boolean);
+      if (absentSamples.length) {
+        return absentSamples;
+      }
+      return String(metadata.DERIVED_SAMPLE_FILTERS || "")
+        .split(";")
+        .map(item => item.trim())
+        .filter(Boolean)
+        .filter(item => item.includes("NOT_IN") || item.includes("NONE"))
+        .map(item => item.split(" IS ")[0]);
+    }
+
+    function vennDiagramHtml(metadata) {
+      const expression = String(metadata.DERIVED_EXPRESSION || "");
+      const mode = metadataMode(expression);
+      const sourceSamples = String(metadata.DERIVED_SOURCE_SAMPLES || "")
+        .split(";")
+        .map(item => item.trim())
+        .filter(Boolean);
+      const excluded = new Set(excludedMetadataSamples(metadata));
+      const presentSamples = String(metadata.DERIVED_PRESENT_SAMPLES || "")
+        .split(";")
+        .map(item => item.trim())
+        .filter(Boolean);
+      const absentSamples = String(metadata.DERIVED_ABSENT_SAMPLES || "")
+        .split(";")
+        .map(item => item.trim())
+        .filter(Boolean);
+      const circles = sourceSamples.slice(0, 4).map(sample => `
+        <div class="venn-circle ${excluded.has(sample) ? "excluded" : ""}">
+          ${esc(sample)}
+        </div>
+      `).join("");
+      const coreClass = [
+        "intersection-core",
+        mode === "partial" ? "partial" : "",
+        mode === "xor" ? "crossed" : ""
+      ].filter(Boolean).join(" ");
+      const coreHtml = mode === "or" || mode === "derived" ? "" : `<div class="${coreClass}"></div>`;
+      const filterText = String(metadata.DERIVED_SAMPLE_FILTERS || "").trim();
+      const simpleText = [
+        presentSamples.length ? `Present in: ${presentSamples.join(", ")}` : "",
+        absentSamples.length ? `Absent from: ${absentSamples.join(", ")}` : ""
+      ].filter(Boolean).join(" / ");
+
+      return `
+        <div class="venn-wrap">
+          <div class="venn-diagram" aria-hidden="true">
+            ${circles}
+            ${coreHtml}
+          </div>
+          <div class="venn-notes">
+            <div><strong>${esc(metadataModeLabel(mode))}</strong></div>
+            ${simpleText ? `<div><strong>Simple:</strong> ${esc(simpleText)}</div>` : ""}
+            ${filterText ? `<div><strong>Crossed out:</strong> ${esc(filterText)}</div>` : ""}
+            <div><strong>Sources:</strong> ${sourceSamples.map(esc).join(", ") || "Unknown"}</div>
+            <div><strong>Statuses:</strong> ${esc(metadata.DERIVED_SET_STATUSES || "")}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function showMetadataPopover(cell, event) {
+      const metadata = parseMetadata(cell.dataset.metadata);
+      if (!metadata || !metadata.DERIVED_EXPRESSION) {
+        return;
+      }
+
+      const popover = document.getElementById("metadata-popover");
+      popover.innerHTML = `
+        <h3>${esc(metadata.DERIVED_LABEL || "Derived comparison")}</h3>
+        ${vennDiagramHtml(metadata)}
+        <div class="expression mono">${esc(metadata.DERIVED_EXPRESSION)}</div>
+      `;
+      popover.classList.add("open");
+
+      const width = popover.offsetWidth;
+      const height = popover.offsetHeight;
+      const left = Math.min(event.clientX + 18, window.innerWidth - width - 14);
+      const top = Math.min(event.clientY + 18, window.innerHeight - height - 14);
+      popover.style.left = `${Math.max(14, left)}px`;
+      popover.style.top = `${Math.max(14, top)}px`;
+    }
+
+    function hideMetadataPopover() {
+      document.getElementById("metadata-popover").classList.remove("open");
+    }
+
+    function setupMetadataPopovers() {
+      document.querySelectorAll(".metadata-cell[data-metadata]").forEach(cell => {
+        cell.addEventListener("mouseenter", event => showMetadataPopover(cell, event));
+        cell.addEventListener("mousemove", event => showMetadataPopover(cell, event));
+        cell.addEventListener("mouseleave", hideMetadataPopover);
+      });
+    }
+
+    function metadataCellHtml(rawMetadata) {
+      const metadata = parseMetadata(rawMetadata);
+      if (metadata && metadata.DERIVED_EXPRESSION) {
+        return `<span class="derived-metadata">${esc(metadata.DERIVED_EXPRESSION)}</span>`;
+      }
+      return esc(rawMetadata);
+    }
+
+    function metadataList(metadata, key) {
+      return String(metadata?.[key] || "")
+        .split(";")
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function derivedRowStatus(metadata) {
+      const expression = String(metadata?.DERIVED_EXPRESSION || "");
+      if (metadataList(metadata, "DERIVED_UNIQUE_SAMPLES").length || expression.includes("UNIQUE(")) {
+        return "unique";
+      }
+      if (metadataList(metadata, "DERIVED_ABSENT_SAMPLES").length || expression.includes("NOT(")) {
+        return "partial";
+      }
+      if (expression.startsWith("AND(")) {
+        return "common";
+      }
+      return "partial";
+    }
+
+    function renderListCell(items) {
+      return items.length ? items.map(item => esc(item)).join("<br>") : '<span class="muted">-</span>';
+    }
+
+    function renderDerivedMutationRows(mutations) {
+      return mutations.map(mutation => {
+        const metadata = parseMetadata(mutation.metadata_json) || {};
+        const status = derivedRowStatus(metadata);
+        const expression = metadata.DERIVED_EXPRESSION || "";
+        return `
+          <tr class="${esc(status)}">
+            <td>${esc(status.replaceAll("_", " "))}</td>
+            <td class="mono">${mutation.pos}</td>
+            <td class="mono">${esc(mutation.ref)}</td>
+            <td class="mono">${esc(mutation.alt)}</td>
+            <td class="mono">${esc(mutation.af)}</td>
+            <td>${renderListCell(metadataList(metadata, "DERIVED_PRESENT_SAMPLES"))}</td>
+            <td>${renderListCell(metadataList(metadata, "DERIVED_UNIQUE_SAMPLES"))}</td>
+            <td>${renderListCell(metadataList(metadata, "DERIVED_ABSENT_SAMPLES"))}</td>
+            <td class="mono metadata-cell" data-metadata="${esc(mutation.metadata_json)}">
+              ${expression ? `<span class="derived-metadata">${esc(expression)}</span>` : metadataCellHtml(mutation.metadata_json)}
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function afRuleText(rule) {
+      return `${afOperatorLabels[rule.operator] || rule.operator} ${rule.value}`;
+    }
+
+    function afHeaderLabel(baseLabel) {
+      if (!state.afRules.length) return baseLabel;
+      return `${baseLabel} (${state.afRules.map(afRuleText).join(", ")})`;
+    }
+
+    function afRuleParams() {
+      return state.afRules.map(rule => `${rule.operator}:${rule.value}`);
+    }
+
+    function metadataFilterParams() {
+      const filters = state.metadataFilters;
+      const params = [];
+      if (filters.polymorphism) params.push(`polymorphism:${filters.polymorphism}`);
+      if (filters.repeat_base) params.push(`repeat_base:${filters.repeat_base}`);
+      if (filters.repeat_count) params.push(`repeat_count:lte|${filters.repeat_count}`);
+      if (filters.repeat_2_bases) params.push(`repeat_2_bases:${filters.repeat_2_bases}`);
+      if (filters.repeat_2_count) params.push(`repeat_2_count:lte|${filters.repeat_2_count}`);
+      if (filters.repeat_3_bases) params.push(`repeat_3_bases:${filters.repeat_3_bases}`);
+      if (filters.repeat_3_count) params.push(`repeat_3_count:lte|${filters.repeat_3_count}`);
+      if (filters.reference_context) params.push(`reference_context:${filters.reference_context}`);
+      if (filters.reference_repeat) params.push(`reference_repeat:${filters.reference_repeat}`);
+      return params;
+    }
+
+    function metadataFilterSummary() {
+      const labels = [];
+      const filters = state.metadataFilters;
+      if (filters.polymorphism === "1") labels.push("poly");
+      if (filters.polymorphism === "0") labels.push("non-poly");
+      if (filters.repeat_base) labels.push(`repeat ${filters.repeat_base}`);
+      if (filters.repeat_count) labels.push(`repeat <= ${filters.repeat_count}`);
+      if (filters.repeat_2_bases) labels.push(`2-repeat ${filters.repeat_2_bases}`);
+      if (filters.repeat_2_count) labels.push(`2-count <= ${filters.repeat_2_count}`);
+      if (filters.repeat_3_bases) labels.push(`3-repeat ${filters.repeat_3_bases}`);
+      if (filters.repeat_3_count) labels.push(`3-count <= ${filters.repeat_3_count}`);
+      if (filters.reference_context) labels.push(`ctx ${
+        filters.reference_context
+      }`);
+      const referenceRepeatLabels = {
+        either: "ctx repeat either",
+        one: "ctx repeat one",
+        before: "ctx repeat before",
+        after: "ctx repeat after",
+        both: "ctx repeat both",
+        none: "ctx repeat none"
+      };
+      if (filters.reference_repeat) labels.push(referenceRepeatLabels[filters.reference_repeat] || "ctx repeat");
+      return labels.join(", ");
+    }
+
+    function refAltHeaderLabel(baseLabel) {
+      const summary = metadataFilterSummary();
+      return summary ? `${baseLabel} (${summary})` : baseLabel;
+    }
+
+    function renderAfRules() {
+      const list = document.getElementById("af-rule-list");
+      list.innerHTML = state.afRules.length ? state.afRules.map((rule, index) => `
+        <div class="af-rule-item">
+          <span class="mono">AF ${esc(afRuleText(rule))}</span>
+          <button class="af-rule-remove" type="button" data-index="${index}">Remove</button>
+        </div>
+      `).join("") : '<div class="muted">No AF rules active.</div>';
+
+      list.querySelectorAll(".af-rule-remove").forEach(button => {
+        button.addEventListener("click", async () => {
+          state.afRules.splice(Number(button.dataset.index), 1);
+          renderAfRules();
+          await loadMutations();
+        });
+      });
+    }
+
+    function openAfModal() {
+      renderAfRules();
+      afModal.classList.add("open");
+      document.getElementById("af-rule-value").focus();
+    }
+
+    function closeAfModal() {
+      afModal.classList.remove("open");
+    }
+
+    function metadataFilterValue(id) {
+      return document.getElementById(id).value.trim();
+    }
+
+    function syncMetadataFilterState() {
+      state.metadataFilters = {
+        polymorphism: metadataFilterValue("meta-polymorphism"),
+        repeat_base: metadataFilterValue("meta-repeat-base").toUpperCase(),
+        repeat_count: metadataFilterValue("meta-repeat-count"),
+        repeat_2_bases: metadataFilterValue("meta-repeat-2-bases").toUpperCase(),
+        repeat_2_count: metadataFilterValue("meta-repeat-2-count"),
+        repeat_3_bases: metadataFilterValue("meta-repeat-3-bases").toUpperCase(),
+        repeat_3_count: metadataFilterValue("meta-repeat-3-count"),
+        reference_context: metadataFilterValue("meta-reference-context").toUpperCase(),
+        reference_repeat: metadataFilterValue("meta-reference-repeat")
+      };
+    }
+
+    function populateMetadataFilterModal() {
+      const filters = state.metadataFilters;
+      document.getElementById("meta-polymorphism").value = filters.polymorphism || "";
+      document.getElementById("meta-repeat-base").value = filters.repeat_base || "";
+      document.getElementById("meta-repeat-count").value = filters.repeat_count || "";
+      document.getElementById("meta-repeat-2-bases").value = filters.repeat_2_bases || "";
+      document.getElementById("meta-repeat-2-count").value = filters.repeat_2_count || "";
+      document.getElementById("meta-repeat-3-bases").value = filters.repeat_3_bases || "";
+      document.getElementById("meta-repeat-3-count").value = filters.repeat_3_count || "";
+      document.getElementById("meta-reference-context").value = filters.reference_context || "";
+      document.getElementById("meta-reference-repeat").value = filters.reference_repeat || "";
+    }
+
+    function openMetadataFilterModal() {
+      populateMetadataFilterModal();
+      metadataFilterModal.classList.add("open");
+    }
+
+    function closeMetadataFilterModal() {
+      syncMetadataFilterState();
+      metadataFilterModal.classList.remove("open");
+      loadMutations();
+    }
+
+    function renderMutationHead(mode) {
+      document.getElementById("mutation-head").innerHTML = mode === "compare" ? `
+        <tr>
+          <th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th>
+          <th>Present In</th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AFs"))}</button></th><th>Missing From</th>
+        </tr>
+      ` : mode === "derived" ? `
+        <tr>
+          <th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th>
+          <th>Present</th><th>Unique</th><th>Absent</th><th>Expression</th>
+        </tr>
+      ` : `
+        <tr>
+          <th>Subject</th><th>Population</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th>VCF Ref</th>
+          <th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th><th>Filter</th><th>Metadata</th>
+        </tr>
+      `;
+      document.querySelectorAll(".af-header-filter").forEach(button => {
+        button.addEventListener("click", openAfModal);
+      });
+      document.querySelectorAll(".metadata-header-filter").forEach(button => {
+        button.addEventListener("click", openMetadataFilterModal);
+      });
+    }
+
+    function comparisonParams(limit = 2000) {
+      const compareSamples = orderedCompareSampleIds();
+      const selectedStatuses = [...state.compareStatuses];
+      const sampleStatusParams = [];
+      for (const sampleId of compareSamples) {
+        const statuses = state.compareSampleStatuses.get(sampleId)
+          || new Set(defaultSampleStatuses);
+        if (statuses.size === 0) {
+          sampleStatusParams.push(`${sampleId}:__none__`);
+        } else {
+          for (const status of statuses) {
+            sampleStatusParams.push(`${sampleId}:${status}`);
+          }
+        }
+      }
+
+      return {
+        compare_sample_id: compareSamples,
+        status: selectedStatuses.length ? selectedStatuses : ["__none__"],
+        sample_status: sampleStatusParams,
+        position: state.position,
+        alt: state.alt,
+        af_rule: afRuleParams(),
+        metadata_filter: metadataFilterParams(),
+        limit
+      };
+    }
+
+    async function loadSubjects() {
+      const subjects = await getJson("/api/subjects");
+      subjectSelect.innerHTML = '<option value="">All</option>' + subjects.map(subject =>
+        `<option value="${esc(subject.subject_id)}">${esc(subject.subject_id)} (${subject.sample_count})</option>`
+      ).join("");
+    }
+
+    async function loadCounts() {
+      const counts = await getJson("/api/counts");
+      document.getElementById("counts").textContent =
+        `${counts.subjects} subjects, ${counts.samples} samples, ${counts.mutations} mutations`;
+    }
+
+    async function loadSamples() {
+      const params = {};
+      if (state.subject) params.subject = state.subject;
+      params.tag = [...state.tags];
+      const samples = orderedSamples(await getJson(`/api/samples?${queryString(params)}`));
+      document.getElementById("sample-count").textContent = `${samples.length} shown`;
+      document.getElementById("samples").innerHTML = samples.map(sample => `
+        <tr data-sample="${sample.id}" class="${state.compareSamples.has(String(sample.id)) ? "selected-sample" : ""}">
+          <td class="order-cell">
+            <button class="drag-handle" type="button" draggable="true" data-sample="${esc(sample.id)}">Drag</button>
+            <button class="sample-order-button" type="button" data-sample="${esc(sample.id)}" data-offset="-1">Up</button>
+            <button class="sample-order-button" type="button" data-sample="${esc(sample.id)}" data-offset="1">Down</button>
+          </td>
+          <td class="mono">${esc(sample.subject_id)}</td>
+          <td>${esc(sample.population_key.replaceAll("|", ", "))}</td>
+          <td>${sample.mutation_count}</td>
+          <td class="mono muted">
+            ${esc(sample.source_file)}
+            ${sample.is_derived ? `<button class="delete-derived-sample" type="button" data-sample="${esc(sample.id)}">Delete</button>` : ""}
+          </td>
+        </tr>
+      `).join("");
+      document.querySelectorAll("tr[data-sample]").forEach(row => {
+        row.addEventListener("dragover", event => {
+          if (!Array.from(event.dataTransfer.types).includes("text/plain")) return;
+          event.preventDefault();
+          row.classList.add("reorder-target");
+        });
+        row.addEventListener("dragleave", () => {
+          row.classList.remove("reorder-target");
+        });
+        row.addEventListener("drop", async event => {
+          event.preventDefault();
+          row.classList.remove("reorder-target");
+          moveSampleBefore(event.dataTransfer.getData("text/plain"), row.dataset.sample);
+          await loadSamples();
+          await loadMutations();
+        });
+        row.addEventListener("click", () => {
+          const sampleId = row.dataset.sample;
+          if (state.compareSamples.has(sampleId)) {
+            state.compareSamples.delete(sampleId);
+            state.compareSampleStatuses.delete(sampleId);
+          } else {
+            state.compareSamples.add(sampleId);
+            state.compareSampleStatuses.set(
+              sampleId,
+              new Set(defaultSampleStatuses)
+            );
+          }
+          renderCompareList(samples);
+          loadMutations();
+        });
+      });
+      document.querySelectorAll(".drag-handle").forEach(button => {
+        button.addEventListener("click", event => event.stopPropagation());
+        button.addEventListener("dragstart", event => {
+          event.stopPropagation();
+          event.dataTransfer.setData("text/plain", button.dataset.sample);
+          event.dataTransfer.effectAllowed = "move";
+        });
+      });
+      document.querySelectorAll(".sample-order-button").forEach(button => {
+        button.addEventListener("click", async event => {
+          event.stopPropagation();
+          moveSample(button.dataset.sample, Number(button.dataset.offset));
+          await loadSamples();
+          await loadMutations();
+        });
+      });
+      document.querySelectorAll(".delete-derived-sample").forEach(button => {
+        button.addEventListener("click", async event => {
+          event.stopPropagation();
+          const sampleId = button.dataset.sample;
+          await deleteJson(`/api/derived-samples/${encodeURIComponent(sampleId)}`);
+          state.compareSamples.delete(sampleId);
+          state.compareSampleStatuses.delete(sampleId);
+          state.sampleOrder = state.sampleOrder.filter(id => id !== sampleId);
+          await loadSamples();
+          await loadMutations();
+        });
+      });
+      renderCompareList(samples);
+    }
+
+    function renderCompareList(samples) {
+      samples = orderedSamples(samples);
+      state.compareSamples = new Set(
+        [...state.compareSamples].filter(sampleId =>
+          samples.some(sample => String(sample.id) === sampleId)
+        )
+      );
+      for (const sampleId of [...state.compareSampleStatuses.keys()]) {
+        if (!state.compareSamples.has(sampleId)) {
+          state.compareSampleStatuses.delete(sampleId);
+        }
+      }
+      const available = samples;
+      document.getElementById("compare-count").textContent = `${state.compareSamples.size} selected`;
+      updateCompareSummary(samples);
+
+      compareList.innerHTML = available.length ? available.map(sample => {
+        const id = String(sample.id);
+        const checked = state.compareSamples.has(id) ? "checked" : "";
+        const sampleStatuses = state.compareSampleStatuses.get(id)
+          || new Set(defaultSampleStatuses);
+        const showStatuses = state.compareSamples.has(id);
+        const statusControls = showStatuses ? `
+          <div class="sample-statuses" data-sample-statuses="${id}">
+            <label><input class="sample-status-filter" data-sample="${id}" type="checkbox" value="present" ${sampleStatuses.has("present") ? "checked" : ""}> Present</label>
+            <label><input class="sample-status-filter" data-sample="${id}" type="checkbox" value="unique" ${sampleStatuses.has("unique") ? "checked" : ""}> Unique</label>
+            <label><input class="sample-status-filter exclusive" data-sample="${id}" type="checkbox" value="not_in" ${sampleStatuses.has("not_in") ? "checked" : ""}> Not In</label>
+            <label><input class="sample-status-filter exclusive" data-sample="${id}" type="checkbox" value="none" ${sampleStatuses.size === 0 ? "checked" : ""}> None</label>
+          </div>
+        ` : "";
+        return `
+          <div class="compare-item">
+            <div class="compare-item-header">
+              <input class="compare-sample-toggle" type="checkbox" value="${id}" ${checked} aria-label="Compare ${esc(sampleLabel(sample))}">
+              <div class="compare-item-title">
+                <strong>${esc(sample.subject_id)} · ${esc(samplePopulationText(sample))}</strong>
+                <div class="compare-meta">
+                  <span>${sample.mutation_count} mutations${sample.is_derived ? " · derived sample" : ""}</span>
+                  <span class="mono">${esc(sample.source_file)}</span>
+                </div>
+              </div>
+            </div>
+            ${statusControls}
+          </div>
+        `;
+      }).join("") : '<div class="muted">No samples match the current filters.</div>';
+
+      compareList.querySelectorAll(".compare-sample-toggle").forEach(input => {
+        input.addEventListener("change", () => {
+          if (input.checked) {
+            state.compareSamples.add(input.value);
+            if (!state.compareSampleStatuses.has(input.value)) {
+              state.compareSampleStatuses.set(
+                input.value,
+                new Set(defaultSampleStatuses)
+              );
+            }
+          } else {
+            state.compareSamples.delete(input.value);
+            state.compareSampleStatuses.delete(input.value);
+          }
+          document.getElementById("compare-count").textContent = `${state.compareSamples.size} selected`;
+          renderCompareList(samples);
+          loadMutations();
+        });
+      });
+      compareList.querySelectorAll(".sample-status-filter").forEach(input => {
+        input.addEventListener("change", () => {
+          const sampleId = input.dataset.sample;
+          const statuses = new Set(state.compareSampleStatuses.get(sampleId) || defaultSampleStatuses);
+          if (input.value === "none" && input.checked) {
+            state.compareSampleStatuses.set(sampleId, new Set());
+          } else if (input.value === "not_in" && input.checked) {
+            state.compareSampleStatuses.set(sampleId, new Set(["not_in"]));
+          } else if (input.value === "not_in") {
+            state.compareSampleStatuses.set(sampleId, new Set());
+          } else {
+            statuses.delete("not_in");
+            if (input.checked) {
+              statuses.add(input.value);
+            } else {
+              statuses.delete(input.value);
+            }
+            state.compareSampleStatuses.set(sampleId, statuses);
+          }
+          renderCompareList(samples);
+          loadMutations();
+        });
+      });
+    }
+
+    async function loadMutations() {
+      const compareSamples = [...state.compareSamples];
+      const orderedCompareSamples = orderedCompareSampleIds();
+      if (orderedCompareSamples.length >= 2) {
+        hideMetadataPopover();
+        renderMutationHead("compare");
+        const params = comparisonParams(2000);
+        const rows = await getJson(`/api/compare?${queryString(params)}`);
+        document.getElementById("mutation-count").textContent = `${rows.length} comparison rows`;
+        const groupNumbers = new Map();
+        let nextGroupNumber = 0;
+        document.getElementById("mutations").innerHTML = rows.map(row => {
+          const present = row.present || [];
+          const missing = row.missing || [];
+          if (!groupNumbers.has(row.group_key)) {
+            groupNumbers.set(row.group_key, nextGroupNumber++);
+          }
+          const groupNumber = groupNumbers.get(row.group_key);
+          const groupClasses = [
+            row.status,
+            row.group_size > 1 ? "grouped" : "single",
+            row.group_start ? "group-start" : "group-middle",
+            row.group_end ? "group-end" : "",
+            groupNumber % 2 === 0 ? "group-even" : "group-odd"
+          ].filter(Boolean).join(" ");
+          return `
+            <tr class="${esc(groupClasses)}">
+              <td>${esc(row.status.replaceAll("_", " "))}</td>
+              <td class="mono">${row.pos}</td>
+              <td class="mono">${esc(row.ref)}</td>
+              <td class="mono">${esc(row.alt)}</td>
+              <td>${present.map(item => esc(item.label)).join("<br>")}</td>
+              <td class="mono">${present.map(item => esc(item.af_text || "")).join("<br>")}</td>
+              <td>${missing.map(item => esc(item.label)).join("<br>")}</td>
+            </tr>
+          `;
+        }).join("");
+        return;
+      }
+
+      hideMetadataPopover();
+      const params = {
+        sample_id: orderedCompareSamples.length === 1 ? orderedCompareSamples[0] : "",
+        position: state.position,
+        alt: state.alt,
+        af_rule: afRuleParams(),
+        metadata_filter: metadataFilterParams(),
+        limit: 1000
+      };
+      const mutations = await getJson(`/api/mutations?${queryString(params)}`);
+      document.getElementById("mutation-count").textContent = `${mutations.length} shown`;
+      const showingDerivedSample = orderedCompareSamples.length === 1
+        && orderedCompareSamples[0].startsWith("derived:");
+      if (showingDerivedSample) {
+        renderMutationHead("derived");
+        document.getElementById("mutations").innerHTML = renderDerivedMutationRows(mutations);
+        setupMetadataPopovers();
+        return;
+      }
+
+      renderMutationHead("normal");
+      document.getElementById("mutations").innerHTML = mutations.map(mutation => `
+        <tr>
+          <td class="mono">${esc(mutation.subject_id)}</td>
+          <td>${esc(mutation.population_key.replaceAll("|", ", "))}</td>
+          <td class="mono">${mutation.pos}</td>
+          <td class="mono">${esc(mutation.ref)}</td>
+          <td class="mono">${esc(mutation.vcf_ref)}</td>
+          <td class="mono">${esc(mutation.alt)}</td>
+          <td class="mono">${esc(mutation.af)}</td>
+          <td>${esc(mutation.filter)}</td>
+          <td class="mono metadata-cell" data-metadata="${esc(mutation.metadata_json)}">
+            ${metadataCellHtml(mutation.metadata_json)}
+          </td>
+        </tr>
+      `).join("");
+      setupMetadataPopovers();
+    }
+
+    async function createDerivedSampleFromComparison() {
+      syncState();
+      const compareSamples = [...state.compareSamples];
+      if (compareSamples.length < 2) {
+        return;
+      }
+
+      const label = window.prompt("Name this comparison sample:", `Comparison ${Date.now()}`);
+      if (label === null) {
+        return;
+      }
+
+      const sample = await postJson("/api/derived-samples", {
+        ...comparisonParams(2000),
+        label: label.trim()
+      });
+      const sampleId = String(sample.id);
+      if (!state.sampleOrder.includes(sampleId)) {
+        state.sampleOrder.push(sampleId);
+      }
+      state.compareSamples.add(sampleId);
+      state.compareSampleStatuses.set(sampleId, new Set(defaultSampleStatuses));
+      await loadSamples();
+      await loadMutations();
+    }
+
+    async function clearComparison() {
+      state.compareSamples.clear();
+      state.compareSampleStatuses.clear();
+      await loadSamples();
+      await loadMutations();
+    }
+
+    function syncState() {
+      state.subject = subjectSelect.value;
+      state.tags = new Set(
+        tagFilterInputs
+          .filter(input => input.checked)
+          .map(input => input.value)
+      );
+      state.position = positionInput.value.trim();
+      state.alt = altInput.value.trim();
+      if (statusFilterInputs.length) {
+        state.compareStatuses = new Set(
+          statusFilterInputs
+            .filter(input => input.checked)
+            .map(input => input.value)
+        );
+      }
+    }
+
+    async function refreshFromFilters() {
+      syncState();
+      await loadSamples();
+      await loadMutations();
+    }
+
+    function debounce(fn, delay = 250) {
+      let timeoutId;
+      return (...args) => {
+        window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => fn(...args), delay);
+      };
+    }
+
+    const refreshFromTextFilters = debounce(refreshFromFilters, 250);
+
+    document.getElementById("apply").addEventListener("click", refreshFromFilters);
+
+    subjectSelect.addEventListener("change", refreshFromFilters);
+    tagFilterInputs.forEach(input => {
+      input.addEventListener("change", refreshFromFilters);
+    });
+    [positionInput, altInput].forEach(input => {
+      input.addEventListener("input", refreshFromTextFilters);
+      input.addEventListener("change", refreshFromFilters);
+    });
+    statusFilterInputs.forEach(input => {
+      input.addEventListener("change", async () => {
+        syncState();
+        await loadMutations();
+      });
+    });
+    document.getElementById("create-derived-sample").addEventListener("click", async () => {
+      await createDerivedSampleFromComparison();
+    });
+    document.getElementById("clear-compare").addEventListener("click", async () => {
+      await clearComparison();
+    });
+    document.getElementById("add-af-rule").addEventListener("click", async () => {
+      const operator = document.getElementById("af-rule-operator").value;
+      const valueInput = document.getElementById("af-rule-value");
+      const value = Number(valueInput.value);
+      if (!Number.isFinite(value) || value < 0 || value > 1) {
+        return;
+      }
+      state.afRules.push({ operator, value });
+      valueInput.value = "";
+      renderAfRules();
+      await loadMutations();
+    });
+    document.getElementById("clear-af-rules").addEventListener("click", async () => {
+      state.afRules = [];
+      renderAfRules();
+      await loadMutations();
+    });
+    document.getElementById("close-af-modal").addEventListener("click", closeAfModal);
+    afModal.addEventListener("click", event => {
+      if (event.target === afModal) {
+        closeAfModal();
+      }
+    });
+    document.getElementById("close-metadata-filter-modal").addEventListener("click", closeMetadataFilterModal);
+    document.getElementById("clear-metadata-filters").addEventListener("click", async () => {
+      state.metadataFilters = {};
+      populateMetadataFilterModal();
+      metadataFilterModal.classList.remove("open");
+      await loadMutations();
+    });
+    metadataFilterModal.addEventListener("click", event => {
+      if (event.target === metadataFilterModal) {
+        closeMetadataFilterModal();
+      }
+    });
+
+    loadSubjects().then(loadCounts).then(loadSamples).then(loadMutations);
+  </script>
+</body>
+</html>
