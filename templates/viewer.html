@@ -540,6 +540,7 @@
       </div>
       <label class="database-picker">Database
         <select id="database-select"></select>
+        <input id="database-upload" type="file" accept=".db,.sqlite,.sqlite3" hidden>
       </label>
     </div>
   </header>
@@ -706,6 +707,7 @@
       afRules: [],
       metadataFilters: {}
     };
+    const uploadDatabaseAction = "__upload_database__";
     const defaultSampleStatuses = ["present"];
     const afOperatorLabels = {
       gt: ">",
@@ -717,6 +719,7 @@
     };
 
     const databaseSelect = document.getElementById("database-select");
+    const databaseUpload = document.getElementById("database-upload");
     const databasePath = document.getElementById("database-path");
     const subjectSelect = document.getElementById("subject");
     const tagPicker = document.getElementById("tag-picker");
@@ -747,6 +750,39 @@
         body: JSON.stringify({ ...payload, db: state.database })
       });
       if (!response.ok) throw new Error(await response.text());
+      return await response.json();
+    }
+
+    async function responseErrorMessage(response) {
+      const text = await response.text();
+      try {
+        const payload = JSON.parse(text);
+        return payload.error || text;
+      } catch {
+        return text;
+      }
+    }
+
+    async function uploadDatabaseFile(file) {
+      const existing = state.databases.some(database => database.id === file.name);
+      const replace = existing && window.confirm(
+        `${file.name} already exists. Replace it?`
+      );
+      if (existing && !replace) return null;
+
+      const formData = new FormData();
+      formData.append("database", file);
+      if (replace) {
+        formData.append("replace", "1");
+      }
+
+      const response = await fetch("/api/upload-database", {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        throw new Error(await responseErrorMessage(response));
+      }
       return await response.json();
     }
 
@@ -783,18 +819,23 @@
     }
 
     function renderDatabaseSelector() {
-      databaseSelect.innerHTML = state.databases.map(database => `
+      const databaseOptions = state.databases.map(database => `
         <option value="${esc(database.id)}" ${database.id === state.database ? "selected" : ""}>
           ${esc(database.label)}
         </option>
       `).join("");
+      databaseSelect.innerHTML = `
+        ${databaseOptions}
+        <option value="${uploadDatabaseAction}">Upload selected database...</option>
+      `;
       const selected = selectedDatabaseOption();
       if (selected) {
         databasePath.textContent = selected.path;
+        databaseSelect.value = selected.id;
       }
     }
 
-    async function loadDatabases() {
+    async function loadDatabases(preferredDatabase = "") {
       const response = await fetch("/api/databases");
       if (!response.ok) throw new Error(await response.text());
       state.databases = await response.json();
@@ -802,9 +843,16 @@
       const requestedIsAvailable = state.databases.some(
         database => database.id === requestedDatabase
       );
+      const preferredIsAvailable = state.databases.some(
+        database => database.id === preferredDatabase
+      );
       const selected = state.databases.find(database => database.selected)
         || state.databases[0];
-      state.database = requestedIsAvailable ? requestedDatabase : selected?.id || "";
+      if (preferredIsAvailable) {
+        state.database = preferredDatabase;
+      } else {
+        state.database = requestedIsAvailable ? requestedDatabase : selected?.id || "";
+      }
       renderDatabaseSelector();
     }
 
@@ -1704,7 +1752,33 @@
     const refreshFromTextFilters = debounce(refreshFromFilters, 250);
 
     databaseSelect.addEventListener("change", async () => {
-      await changeDatabase(databaseSelect.value);
+      const selectedValue = databaseSelect.value;
+      if (selectedValue === uploadDatabaseAction) {
+        databaseSelect.value = state.database;
+        databaseUpload.click();
+        return;
+      }
+      await changeDatabase(selectedValue);
+    });
+    databaseUpload.addEventListener("change", async () => {
+      const file = databaseUpload.files[0];
+      databaseUpload.value = "";
+      if (!file) return;
+      try {
+        const result = await uploadDatabaseFile(file);
+        if (!result) return;
+        await loadDatabases(result.database);
+        resetDatabaseScopedState();
+        syncDatabaseUrl();
+        await loadSubjects();
+        await loadTags();
+        await loadCounts();
+        await loadSamples();
+        await loadMutations();
+      } catch (error) {
+        window.alert(error.message);
+        renderDatabaseSelector();
+      }
     });
     document.getElementById("apply").addEventListener("click", refreshFromFilters);
 

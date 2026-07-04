@@ -2,10 +2,12 @@
 """Small web viewer for the SQLite mutation database."""
 
 import argparse
+import email.policy
 import html
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -14,7 +16,7 @@ import vcf_parser
 
 
 DATABASE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
-DEFAULT_DATABASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DATABASE_DIR = Path(".")
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
 DEFAULT_COMPARE_STATUSES = {"common", "partial", "unique"}
 DEFAULT_SAMPLE_COMPARE_STATUSES = {"present"}
@@ -177,6 +179,61 @@ def database_options(database_dir, default_db_id, selected_db_id=None):
         }
         for database_id, path in databases.items()
     ]
+
+
+def is_probable_sqlite_database(content):
+    return content.startswith(b"SQLite format 3\x00")
+
+
+def parse_multipart_form(headers, body):
+    content_type = headers.get("Content-Type", "")
+    message_bytes = (
+        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
+        + body
+    )
+    message = BytesParser(policy=email.policy.default).parsebytes(message_bytes)
+    fields = {}
+    files = {}
+    if not message.is_multipart():
+        return fields, files
+
+    for part in message.iter_parts():
+        name = part.get_param("name", header="content-disposition")
+        if not name:
+            continue
+        filename = part.get_filename()
+        payload = part.get_payload(decode=True) or b""
+        if filename:
+            files[name] = {
+                "filename": filename,
+                "content": payload,
+            }
+        else:
+            fields[name] = payload.decode(part.get_content_charset() or "utf-8")
+    return fields, files
+
+
+def save_uploaded_database(database_dir, filename, content, replace=False):
+    safe_name = Path(filename or "").name
+    if not safe_name:
+        raise ValueError("Choose a database file to upload.")
+    if Path(safe_name).suffix.lower() not in DATABASE_EXTENSIONS:
+        extensions = ", ".join(sorted(DATABASE_EXTENSIONS))
+        raise ValueError(f"Database uploads must use one of these extensions: {extensions}.")
+    if not is_probable_sqlite_database(content):
+        raise ValueError("Uploaded file does not look like a SQLite database.")
+
+    database_dir = Path(database_dir).resolve()
+    target_path = (database_dir / safe_name).resolve()
+    if target_path.parent != database_dir:
+        raise ValueError("Invalid database filename.")
+    if target_path.exists() and not replace:
+        raise FileExistsError(f"Database already exists: {safe_name}")
+
+    temp_path = target_path.with_name(f".{target_path.name}.uploading")
+    temp_path.write_bytes(content)
+    temp_path.replace(target_path)
+    return target_path
 
 
 def is_derived_sample_id(sample_id):
@@ -1350,6 +1407,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(content_length).decode("utf-8")
         return json.loads(body or "{}")
 
+    def read_body(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        if content_length <= 0:
+            return b""
+        return self.rfile.read(content_length)
+
     @classmethod
     def allocate_derived_sample_id(cls, db_id):
         next_id = cls.next_derived_sample_ids.get(db_id, 1)
@@ -1446,7 +1509,28 @@ class ViewerHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
-            if parsed.path == "/api/derived-samples":
+            if parsed.path == "/api/upload-database":
+                fields, files = parse_multipart_form(self.headers, self.read_body())
+                upload = files.get("database")
+                if not upload:
+                    json_response(self, {"error": "Choose a database file to upload."}, status=400)
+                    return
+                replace = fields.get("replace") == "1"
+                db_path = save_uploaded_database(
+                    self.database_dir,
+                    upload["filename"],
+                    upload["content"],
+                    replace=replace,
+                )
+                json_response(
+                    self,
+                    {
+                        "database": database_id_for_path(db_path),
+                        "path": str(db_path),
+                    },
+                    status=201,
+                )
+            elif parsed.path == "/api/derived-samples":
                 payload = self.read_json_body()
                 db_id, db_path = self.resolve_database(
                     payload.get("db") or self.database_id_from_query(query)
@@ -1487,6 +1571,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 json_response(self, {"error": "Not found"}, status=404)
         except ValueError as exc:
             json_response(self, {"error": str(exc)}, status=400)
+        except FileExistsError as exc:
+            json_response(self, {"error": str(exc)}, status=409)
         except Exception as exc:
             json_response(self, {"error": str(exc)}, status=500)
 
