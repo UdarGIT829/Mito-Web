@@ -23,6 +23,20 @@
     }
     h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
     .path { color: #607086; font-size: 13px; }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+    }
+    .database-picker {
+      width: min(320px, 100%);
+    }
+    .database-picker select {
+      min-height: 34px;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
     main { padding: 18px 22px 32px; }
     .workspace {
       display: grid;
@@ -501,6 +515,8 @@
     }
     @media (max-width: 560px) {
       header { padding: 14px 14px; }
+      .header-row { display: grid; gap: 12px; }
+      .database-picker { width: 100%; }
       main { padding: 14px; }
       .toolbar {
         grid-template-columns: 1fr;
@@ -517,8 +533,15 @@
 </head>
 <body>
   <header>
-    <h1>Mito SQL Viewer</h1>
-    <div class="path">Database: <span class="mono">{{ db_path }}</span></div>
+    <div class="header-row">
+      <div>
+        <h1>Mito SQL Viewer</h1>
+        <div class="path">Database: <span class="mono" id="database-path">{{ db_path }}</span></div>
+      </div>
+      <label class="database-picker">Database
+        <select id="database-select"></select>
+      </label>
+    </div>
   </header>
   <main>
     <div class="workspace">
@@ -531,10 +554,7 @@
         </label>
         <label class="filter-tags">Tags
           <div class="tag-picker" id="tag-picker">
-            <label><input class="tag-filter" type="checkbox" value="Base"> Base</label>
-            <label><input class="tag-filter" type="checkbox" value="EV"> EV</label>
-            <label><input class="tag-filter" type="checkbox" value="Raw"> Raw</label>
-            <label><input class="tag-filter" type="checkbox" value="PCR"> PCR</label>
+            <span class="muted">Loading tags...</span>
           </div>
         </label>
         <label class="filter-position">Position
@@ -673,6 +693,8 @@
   </div>
   <script>
     const state = {
+      database: "",
+      databases: [],
       subject: "",
       tags: new Set(),
       position: "",
@@ -694,8 +716,11 @@
       neq: "!="
     };
 
+    const databaseSelect = document.getElementById("database-select");
+    const databasePath = document.getElementById("database-path");
     const subjectSelect = document.getElementById("subject");
-    const tagFilterInputs = [...document.querySelectorAll(".tag-filter")];
+    const tagPicker = document.getElementById("tag-picker");
+    let tagFilterInputs = [...document.querySelectorAll(".tag-filter")];
     const positionInput = document.getElementById("position");
     const altInput = document.getElementById("alt");
     const compareList = document.getElementById("compare-list");
@@ -710,25 +735,33 @@
     }
 
     async function getJson(url) {
-      const response = await fetch(url);
+      const response = await fetch(apiUrl(url));
       if (!response.ok) throw new Error(await response.text());
       return await response.json();
     }
 
     async function postJson(url, payload) {
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(url), {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, db: state.database })
       });
       if (!response.ok) throw new Error(await response.text());
       return await response.json();
     }
 
     async function deleteJson(url) {
-      const response = await fetch(url, { method: "DELETE" });
+      const response = await fetch(apiUrl(url), { method: "DELETE" });
       if (!response.ok) throw new Error(await response.text());
       return await response.json();
+    }
+
+    function apiUrl(url) {
+      const nextUrl = new URL(url, window.location.origin);
+      if (state.database) {
+        nextUrl.searchParams.set("db", state.database);
+      }
+      return `${nextUrl.pathname}${nextUrl.search}`;
     }
 
     function queryString(params) {
@@ -745,8 +778,85 @@
       return search.toString();
     }
 
+    function selectedDatabaseOption() {
+      return state.databases.find(database => database.id === state.database) || null;
+    }
+
+    function renderDatabaseSelector() {
+      databaseSelect.innerHTML = state.databases.map(database => `
+        <option value="${esc(database.id)}" ${database.id === state.database ? "selected" : ""}>
+          ${esc(database.label)}
+        </option>
+      `).join("");
+      const selected = selectedDatabaseOption();
+      if (selected) {
+        databasePath.textContent = selected.path;
+      }
+    }
+
+    async function loadDatabases() {
+      const response = await fetch("/api/databases");
+      if (!response.ok) throw new Error(await response.text());
+      state.databases = await response.json();
+      const requestedDatabase = new URLSearchParams(window.location.search).get("db");
+      const requestedIsAvailable = state.databases.some(
+        database => database.id === requestedDatabase
+      );
+      const selected = state.databases.find(database => database.selected)
+        || state.databases[0];
+      state.database = requestedIsAvailable ? requestedDatabase : selected?.id || "";
+      renderDatabaseSelector();
+    }
+
+    function syncDatabaseUrl() {
+      const url = new URL(window.location.href);
+      if (state.database) {
+        url.searchParams.set("db", state.database);
+      } else {
+        url.searchParams.delete("db");
+      }
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
+
+    function resetDatabaseScopedState() {
+      state.subject = "";
+      state.tags.clear();
+      state.position = "";
+      state.alt = "";
+      state.compareSamples.clear();
+      state.compareStatuses = new Set(["common", "partial", "unique"]);
+      state.compareSampleStatuses.clear();
+      state.sampleOrder = [];
+      state.afRules = [];
+      state.metadataFilters = {};
+      subjectSelect.value = "";
+      tagFilterInputs.forEach(input => {
+        input.checked = false;
+      });
+      positionInput.value = "";
+      altInput.value = "";
+      statusFilterInputs.forEach(input => {
+        input.checked = state.compareStatuses.has(input.value);
+      });
+      hideMetadataPopover();
+    }
+
+    async function changeDatabase(databaseId) {
+      if (!databaseId || databaseId === state.database) return;
+      state.database = databaseId;
+      resetDatabaseScopedState();
+      renderDatabaseSelector();
+      syncDatabaseUrl();
+      await loadSubjects();
+      await loadTags();
+      await loadCounts();
+      await loadSamples();
+      await loadMutations();
+    }
+
     function sampleLabel(sample) {
-      return `${sample.subject_id} ${sample.population_key.replaceAll("|", "_")}`;
+      const population = String(sample.population_key || "").replaceAll("|", "_");
+      return population ? `${sample.subject_id} ${population}` : sample.subject_id;
     }
 
     function samplePopulationText(sample) {
@@ -1246,6 +1356,25 @@
       ).join("");
     }
 
+    async function loadTags() {
+      const tags = await getJson("/api/tags");
+      state.tags = new Set(
+        [...state.tags].filter(tag =>
+          tags.some(row => row.tag === tag)
+        )
+      );
+      tagPicker.innerHTML = tags.length ? tags.map(row => `
+        <label>
+          <input class="tag-filter" type="checkbox" value="${esc(row.tag)}" ${state.tags.has(row.tag) ? "checked" : ""}>
+          ${esc(row.tag)} <span class="muted">(${row.sample_count})</span>
+        </label>
+      `).join("") : '<span class="muted">No tags in this database.</span>';
+      tagFilterInputs = [...document.querySelectorAll(".tag-filter")];
+      tagFilterInputs.forEach(input => {
+        input.addEventListener("change", refreshFromFilters);
+      });
+    }
+
     async function loadCounts() {
       const counts = await getJson("/api/counts");
       document.getElementById("counts").textContent =
@@ -1372,7 +1501,7 @@
             <div class="compare-item-header">
               <input class="compare-sample-toggle" type="checkbox" value="${id}" ${checked} aria-label="Compare ${esc(sampleLabel(sample))}">
               <div class="compare-item-title">
-                <strong>${esc(sample.subject_id)} · ${esc(samplePopulationText(sample))}</strong>
+                <strong>${esc(sampleLabel(sample))}</strong>
                 <div class="compare-meta">
                   <span>${sample.mutation_count} mutations${sample.is_derived ? " · derived sample" : ""}</span>
                   <span class="mono">${esc(sample.source_file)}</span>
@@ -1574,6 +1703,9 @@
 
     const refreshFromTextFilters = debounce(refreshFromFilters, 250);
 
+    databaseSelect.addEventListener("change", async () => {
+      await changeDatabase(databaseSelect.value);
+    });
     document.getElementById("apply").addEventListener("click", refreshFromFilters);
 
     subjectSelect.addEventListener("change", refreshFromFilters);
@@ -1632,7 +1764,15 @@
       }
     });
 
-    loadSubjects().then(loadCounts).then(loadSamples).then(loadMutations);
+    loadDatabases()
+      .then(() => {
+        syncDatabaseUrl();
+        return loadSubjects();
+      })
+      .then(loadTags)
+      .then(loadCounts)
+      .then(loadSamples)
+      .then(loadMutations);
   </script>
 </body>
 </html>

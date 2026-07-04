@@ -29,8 +29,8 @@ class VCFMutation:
 
     @property
     def afs(self):
-        """Return allele fractions from metadata AF as floats when possible."""
-        af = self.metadata.get("AF", "")
+        """Return allele fractions from metadata AF/VF as floats when possible."""
+        af = self.allele_fraction_text
         if not af:
             return []
 
@@ -41,6 +41,11 @@ class VCFMutation:
             except ValueError:
                 values.append(value)
         return values
+
+    @property
+    def allele_fraction_text(self):
+        """Return the allele fraction field used by this VCF row."""
+        return self.metadata.get("AF", self.metadata.get("VF", ""))
 
     @property
     def alt_afs(self):

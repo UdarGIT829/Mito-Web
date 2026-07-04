@@ -1,4 +1,6 @@
+import argparse
 import json
+import re
 import sqlite3
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -66,6 +68,8 @@ class Sample:
     @property
     def label(self):
         """Return a compact subject/population label."""
+        if not self.population:
+            return self.sample_id
         return f"{self.sample_id}_{'_'.join(self.population)}"
 
     def has_any(self, tags):
@@ -141,17 +145,36 @@ def is_vcf_file(path):
     return name.endswith(".vcf") or name.endswith(".vcf.gz")
 
 
-def parse_sample_filename(path):
-    """Return sample metadata inferred from a filtered VCF filename."""
-    tokens = Path(path).name.split("_")
-    sample_id = tokens[0]
-    source = "EV" if "EV" in tokens or "0EV" in tokens else "Base"
-    preparation = "PCR" if "PCR" in tokens else "Raw"
-    population = [source, preparation]
+def strip_vcf_suffix(path):
+    """Return a VCF filename without .vcf or .vcf.gz."""
+    name = Path(path).name
+    if name.endswith(".vcf.gz"):
+        return name[:-len(".vcf.gz")]
+    if name.endswith(".vcf"):
+        return name[:-len(".vcf")]
+    return Path(path).stem
 
-    expected_sample_ids = {"AP4", "C4", "C10", "C19"}
-    if sample_id not in expected_sample_ids:
-        raise ValueError(f"Unexpected sample ID in filename: {Path(path).name}")
+
+def default_sample_id(path):
+    """Return a generic sample ID inferred from a VCF filename."""
+    stem = strip_vcf_suffix(path)
+    return re.sub(r"_S\d+$", "", stem)
+
+
+def parse_sample_filename(path, input_dir=None):
+    """Return generic sample metadata inferred from a VCF path."""
+    sample_id = default_sample_id(path)
+    population = []
+    if input_dir is not None:
+        try:
+            relative_parent = Path(path).parent.relative_to(Path(input_dir))
+        except ValueError:
+            relative_parent = Path()
+        population = [
+            part
+            for part in relative_parent.parts
+            if part and part != "."
+        ]
 
     return sample_id, population
 
@@ -241,18 +264,18 @@ def reference_context(reference, position, flank_size=6):
     return before, after
 
 
-def iter_variant_files(call_set="strict_filtered_calls"):
-    """Yield one VCF per sample from ./variant_calls/<call_set>/."""
-    base_dir = Path(__file__).resolve().parent / "variant_calls" / call_set
+def iter_variant_files(input_dir):
+    """Yield one VCF per sample from an input directory."""
+    base_dir = Path(input_dir)
     if not base_dir.exists():
-        return
+        raise FileNotFoundError(f"Input directory not found: {base_dir}")
 
     selected_paths = {}
-    for path in sorted(base_dir.iterdir()):
+    for path in sorted(base_dir.rglob("*")):
         if not path.is_file() or not is_vcf_file(path):
             continue
 
-        sample_id, population = parse_sample_filename(path)
+        sample_id, population = parse_sample_filename(path, base_dir)
         sample_key = (sample_id, tuple(population))
         existing_path = selected_paths.get(sample_key)
         if existing_path is None or existing_path.suffix == ".gz":
@@ -262,9 +285,9 @@ def iter_variant_files(call_set="strict_filtered_calls"):
         yield path
 
 
-def load_sample(path):
+def load_sample(path, input_dir=None):
     """Build a Sample from a filtered VCF path and its mutations."""
-    sample_id, population = parse_sample_filename(path)
+    sample_id, population = parse_sample_filename(path, input_dir)
     sample = Sample(
         sample_id=sample_id,
         population=population,
@@ -278,11 +301,11 @@ def load_sample(path):
     return sample
 
 
-def load_samples(call_set="strict_filtered_calls"):
+def load_samples(input_dir):
     """Load all logical samples from a variant call set."""
     return [
-        load_sample(path)
-        for path in iter_variant_files(call_set)
+        load_sample(path, input_dir)
+        for path in iter_variant_files(input_dir)
     ]
 
 
@@ -368,9 +391,9 @@ def mutation_alt_text(mutations):
 def mutation_af_text(mutations):
     """Return comma-packed AF values for one sample at one position."""
     return ",".join(
-        mutation.metadata.get("AF", "")
+        mutation.allele_fraction_text
         for mutation in mutations
-        if mutation.metadata.get("AF", "")
+        if mutation.allele_fraction_text
     )
 
 
@@ -429,10 +452,10 @@ def append_sample_sheet(workbook, sample, reference):
     for mutation in sample.mutations:
         worksheet.append([
             mutation.position,
-            reference[mutation.position],
+            reference.get(mutation.position, ""),
             mutation.ref,
             mutation.alt,
-            mutation.metadata.get("AF", ""),
+            mutation.allele_fraction_text,
             mutation.filter,
             ",".join(mutation.alts),
             ",".join(str(af) for af in mutation.afs),
@@ -443,8 +466,8 @@ def append_sample_sheet(workbook, sample, reference):
 
 
 def make_master_xlsx(
-    output_path="master.xlsx",
-    call_set="strict_filtered_calls",
+    output_path,
+    input_dir,
     reference_path=DEFAULT_MITO_REFERENCE_PATH,
 ):
     """Write a master mutation table as an XLSX workbook."""
@@ -456,7 +479,7 @@ def make_master_xlsx(
             "Install it with: python3 -m pip install openpyxl"
         ) from exc
 
-    samples = load_samples(call_set)
+    samples = load_samples(input_dir)
     reference = load_mito_reference(reference_path)
     mutation_lookup = {}
 
@@ -652,7 +675,7 @@ def insert_mutation(connection, sample_db_id, mutation, reference):
             reference[mutation.position],
             mutation.ref,
             mutation.alt,
-            mutation.metadata.get("AF", ""),
+            mutation.allele_fraction_text,
             polymorphism,
             repeat_base,
             repeat_count,
@@ -701,23 +724,33 @@ def insert_mutation(connection, sample_db_id, mutation, reference):
 
 
 def make_sql_database(
-    output_path="master.sqlite",
-    call_set="strict_filtered_calls",
+    output_path,
+    input_dir,
     reference_path=DEFAULT_MITO_REFERENCE_PATH,
 ):
     """Create a SQLite database for subjects, samples, populations, and mutations."""
-    samples = load_samples(call_set)
+    samples = load_samples(input_dir)
     reference = load_mito_reference(reference_path)
     output_path = Path(output_path)
 
     with sqlite3.connect(output_path) as connection:
         create_database_schema(connection)
+        skipped_out_of_reference = 0
 
         for sample in samples:
             subject_db_id = insert_subject(connection, sample.sample_id)
             sample_db_id = insert_sample(connection, sample, subject_db_id)
             for mutation in sample.mutations:
+                if mutation.position not in reference:
+                    skipped_out_of_reference += 1
+                    continue
                 insert_mutation(connection, sample_db_id, mutation, reference)
+
+    if skipped_out_of_reference:
+        print(
+            f"Skipped {skipped_out_of_reference} mutation(s) outside the "
+            f"{len(reference)} bp reference."
+        )
 
     return output_path
 
@@ -736,11 +769,41 @@ def print_sample(sample, path):
         print(format_mutation(mutation))
 
 
-def list_variant_files():
+def list_variant_files(input_dir):
     """Parse filtered VCFs and print each file's parsed mutations."""
-    for path in iter_variant_files("strict_filtered_calls"):
-        sample = load_sample(path)
+    for path in iter_variant_files(input_dir):
+        sample = load_sample(path, input_dir)
         print_sample(sample, path)
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Build mutation SQLite/XLSX outputs from VCF files.",
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        required=True,
+        help="Directory containing VCF files for the study.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="SQLite output path.",
+    )
+    parser.add_argument(
+        "--reference",
+        type=Path,
+        default=DEFAULT_MITO_REFERENCE_PATH,
+        help=f"Mitochondrial reference FASTA. Default: {DEFAULT_MITO_REFERENCE_PATH}",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Print parsed VCF summaries instead of creating a SQLite database.",
+    )
+    return parser.parse_args(argv)
 
 def file_in_folder_matching(path, match):
     """Return True if any parent folder name contains the given string."""
@@ -753,5 +816,13 @@ def file_in_folder_matching(path, match):
 
 
 if __name__ == "__main__":
-    # print(make_master_xlsx())
-    make_sql_database()
+    args = parse_args()
+    if args.list:
+        list_variant_files(input_dir=args.input_dir)
+    else:
+        output_path = make_sql_database(
+            output_path=args.output,
+            input_dir=args.input_dir,
+            reference_path=args.reference,
+        )
+        print(f"Wrote {output_path}")

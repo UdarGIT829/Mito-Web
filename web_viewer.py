@@ -13,7 +13,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 import vcf_parser
 
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent / "master.sqlite"
+DATABASE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
+DEFAULT_DATABASE_DIR = Path(__file__).resolve().parent
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
 DEFAULT_COMPARE_STATUSES = {"common", "partial", "unique"}
 DEFAULT_SAMPLE_COMPARE_STATUSES = {"present"}
@@ -143,6 +144,39 @@ def connect_database(db_path):
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def is_sqlite_database_path(path):
+    return path.is_file() and path.suffix.lower() in DATABASE_EXTENSIONS
+
+
+def discover_databases(database_dir):
+    """Return approved SQLite databases keyed by browser-facing ID."""
+    database_dir = Path(database_dir)
+    databases = {}
+    if database_dir.exists():
+        for path in sorted(database_dir.iterdir(), key=lambda item: item.name.lower()):
+            if is_sqlite_database_path(path):
+                databases[path.name] = path.resolve()
+    return databases
+
+
+def database_id_for_path(db_path):
+    return Path(db_path).name
+
+
+def database_options(database_dir, default_db_id, selected_db_id=None):
+    databases = discover_databases(database_dir)
+    selected_db_id = selected_db_id or default_db_id
+    return [
+        {
+            "id": database_id,
+            "label": database_id,
+            "path": str(path),
+            "selected": database_id == selected_db_id,
+        }
+        for database_id, path in databases.items()
+    ]
 
 
 def is_derived_sample_id(sample_id):
@@ -377,6 +411,18 @@ def fetch_subjects(connection):
         LEFT JOIN samples ON samples.subject_id = subjects.id
         GROUP BY subjects.id
         ORDER BY subjects.subject_id
+    """).fetchall()
+    return [dict(row) for row in rows]
+
+
+def fetch_population_tags(connection):
+    rows = connection.execute("""
+        SELECT
+            tag,
+            COUNT(DISTINCT sample_id) AS sample_count
+        FROM sample_population_tags
+        GROUP BY tag
+        ORDER BY tag
     """).fetchall()
     return [dict(row) for row in rows]
 
@@ -683,6 +729,7 @@ def fetch_allele_calls(
             mutation_alts.alt,
             mutation_alts.af,
             mutation_alts.af_text,
+            mutations.af AS mutation_af,
             mutations.metadata_json
             {metadata_select_sql}
         FROM mutation_alts
@@ -712,12 +759,19 @@ def fetch_allele_calls(
         for _column, alias, key in alt_metadata_fields:
             if alias in row_keys and row[alias] not in (None, ""):
                 call_metadata[key] = str(row[alias])
+        af_text = (
+            row["af_text"]
+            or source_metadata.get("AF", "")
+            or source_metadata.get("VF", "")
+            or row["mutation_af"]
+            or ""
+        )
         calls.append(SampleAlleleCall(
             allele=allele,
             sample_id=row["sample_id"],
             label=f"{row['subject_id']} {row['population_key'].replace('|', '_')}",
             af=row["af"],
-            af_text=row["af_text"],
+            af_text=af_text,
             filter=row["filter"],
             vcf_ref=row["vcf_ref"],
             metadata=call_metadata,
@@ -1248,20 +1302,46 @@ def page_html(db_path):
 
 
 class ViewerHandler(BaseHTTPRequestHandler):
-    db_path = DEFAULT_DB_PATH
-    derived_samples = {}
-    next_derived_sample_id = 1
+    default_db_id = ""
+    database_dir = None
+    derived_samples_by_db = {}
+    next_derived_sample_ids = {}
 
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}")
 
-    def open_database(self):
-        if not self.db_path.exists():
+    @classmethod
+    def default_database_id(cls):
+        return cls.default_db_id
+
+    @classmethod
+    def available_databases(cls):
+        return discover_databases(cls.database_dir)
+
+    @classmethod
+    def resolve_database(cls, db_id=None):
+        db_id = db_id or cls.default_database_id()
+        databases = cls.available_databases()
+        if db_id not in databases:
+            available = ", ".join(databases) or "none"
+            raise ValueError(f"Unknown database: {db_id}. Available databases: {available}.")
+        return db_id, databases[db_id]
+
+    @staticmethod
+    def database_id_from_query(query):
+        return query.get("db", [""])[0] or None
+
+    @classmethod
+    def derived_samples(cls, db_id):
+        return cls.derived_samples_by_db.setdefault(db_id, {})
+
+    def open_database(self, db_path):
+        if not db_path.exists():
             raise FileNotFoundError(
-                f"Database not found: {self.db_path}. "
+                f"Database not found: {db_path}. "
                 "Create it with main.make_sql_database() first."
             )
-        return connect_database(self.db_path)
+        return connect_database(db_path)
 
     def read_json_body(self):
         content_length = int(self.headers.get("Content-Length", "0"))
@@ -1271,9 +1351,10 @@ class ViewerHandler(BaseHTTPRequestHandler):
         return json.loads(body or "{}")
 
     @classmethod
-    def allocate_derived_sample_id(cls):
-        derived_id = f"{DERIVED_SAMPLE_PREFIX}{cls.next_derived_sample_id}"
-        cls.next_derived_sample_id += 1
+    def allocate_derived_sample_id(cls, db_id):
+        next_id = cls.next_derived_sample_ids.get(db_id, 1)
+        derived_id = f"{DERIVED_SAMPLE_PREFIX}{next_id}"
+        cls.next_derived_sample_ids[db_id] = next_id + 1
         return derived_id
 
     def do_GET(self):
@@ -1281,27 +1362,42 @@ class ViewerHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            db_id, db_path = self.resolve_database(self.database_id_from_query(query))
+            derived_samples = self.derived_samples(db_id)
+
             if parsed.path == "/":
-                html_response(self, page_html(self.db_path))
+                html_response(self, page_html(db_path))
+            elif parsed.path == "/api/databases":
+                json_response(
+                    self,
+                    database_options(
+                        self.database_dir,
+                        self.default_database_id(),
+                        selected_db_id=db_id,
+                    ),
+                )
             elif parsed.path == "/api/counts":
-                with self.open_database() as connection:
+                with self.open_database(db_path) as connection:
                     json_response(self, database_counts(connection))
             elif parsed.path == "/api/subjects":
-                with self.open_database() as connection:
+                with self.open_database(db_path) as connection:
                     json_response(self, fetch_subjects(connection))
+            elif parsed.path == "/api/tags":
+                with self.open_database(db_path) as connection:
+                    json_response(self, fetch_population_tags(connection))
             elif parsed.path == "/api/samples":
-                with self.open_database() as connection:
+                with self.open_database(db_path) as connection:
                     json_response(
                         self,
                         fetch_samples(
                             connection,
                             subject_id=query.get("subject", [""])[0],
                             tags=parse_tags(query),
-                            derived_samples=self.derived_samples,
+                            derived_samples=derived_samples,
                         ),
                     )
             elif parsed.path == "/api/mutations":
-                with self.open_database() as connection:
+                with self.open_database(db_path) as connection:
                     json_response(
                         self,
                         fetch_mutations(
@@ -1314,11 +1410,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
                                 query.get("metadata_filter", [])
                             ),
                             limit=int(query.get("limit", ["500"])[0]),
-                            derived_samples=self.derived_samples,
+                            derived_samples=derived_samples,
                         ),
                     )
             elif parsed.path == "/api/compare":
-                with self.open_database() as connection:
+                with self.open_database(db_path) as connection:
                     json_response(
                         self,
                         fetch_compare(
@@ -1335,20 +1431,27 @@ class ViewerHandler(BaseHTTPRequestHandler):
                                 query.get("sample_status", [])
                             ),
                             limit=int(query.get("limit", ["2000"])[0]),
-                            derived_samples=self.derived_samples,
+                            derived_samples=derived_samples,
                         ),
                     )
             else:
                 json_response(self, {"error": "Not found"}, status=404)
+        except ValueError as exc:
+            json_response(self, {"error": str(exc)}, status=400)
         except Exception as exc:
             json_response(self, {"error": str(exc)}, status=500)
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
 
         try:
             if parsed.path == "/api/derived-samples":
                 payload = self.read_json_body()
+                db_id, db_path = self.resolve_database(
+                    payload.get("db") or self.database_id_from_query(query)
+                )
+                derived_samples = self.derived_samples(db_id)
                 compare_sample_ids = payload.get("compare_sample_id", [])
                 if len(compare_sample_ids) < 2:
                     json_response(
@@ -1358,12 +1461,13 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     )
                     return
 
-                label = payload.get("label") or f"Comparison {self.next_derived_sample_id}"
-                with self.open_database() as connection:
+                next_id = self.next_derived_sample_ids.get(db_id, 1)
+                label = payload.get("label") or f"Comparison {next_id}"
+                with self.open_database(db_path) as connection:
                     sample = create_derived_sample(
                         connection,
-                        self.derived_samples,
-                        self.allocate_derived_sample_id(),
+                        derived_samples,
+                        self.allocate_derived_sample_id(db_id),
                         label,
                         compare_sample_ids=compare_sample_ids,
                         position=payload.get("position", ""),
@@ -1381,13 +1485,19 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 json_response(self, sample.sample_row(), status=201)
             else:
                 json_response(self, {"error": "Not found"}, status=404)
+        except ValueError as exc:
+            json_response(self, {"error": str(exc)}, status=400)
         except Exception as exc:
             json_response(self, {"error": str(exc)}, status=500)
 
     def do_DELETE(self):
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
 
         try:
+            db_id, _db_path = self.resolve_database(self.database_id_from_query(query))
+            derived_samples = self.derived_samples(db_id)
+
             prefix = "/api/derived-samples/"
             if parsed.path.startswith(prefix):
                 sample_id = unquote(parsed.path[len(prefix):])
@@ -1398,31 +1508,81 @@ class ViewerHandler(BaseHTTPRequestHandler):
                         status=400,
                     )
                     return
-                removed = self.derived_samples.pop(sample_id, None)
+                removed = derived_samples.pop(sample_id, None)
                 if removed is None:
                     json_response(self, {"error": "Derived sample not found."}, status=404)
                     return
                 json_response(self, removed.sample_row())
             else:
                 json_response(self, {"error": "Not found"}, status=404)
+        except ValueError as exc:
+            json_response(self, {"error": str(exc)}, status=400)
         except Exception as exc:
             json_response(self, {"error": str(exc)}, status=500)
 
 
-def run_server(db_path=DEFAULT_DB_PATH, host="127.0.0.1", port=8000):
-    ViewerHandler.db_path = Path(db_path)
+def first_database_id(databases):
+    return next(iter(databases), "")
+
+
+def configure_databases(db_path=None, database_dir=None):
+    if db_path is not None:
+        db_path = Path(db_path).resolve()
+        database_dir = db_path.parent
+        default_db_id = database_id_for_path(db_path)
+    else:
+        database_dir = Path(database_dir).resolve()
+        default_db_id = ""
+
+    databases = discover_databases(database_dir)
+    if not databases:
+        raise FileNotFoundError(f"No SQLite databases found in: {database_dir}")
+
+    if not default_db_id:
+        default_db_id = first_database_id(databases)
+    if default_db_id not in databases:
+        raise FileNotFoundError(f"Database not found: {database_dir / default_db_id}")
+
+    ViewerHandler.database_dir = database_dir
+    ViewerHandler.default_db_id = default_db_id
+    return databases[default_db_id], databases
+
+
+def run_server(db_path=None, database_dir=None, host="127.0.0.1", port=8000):
+    selected_db_path, databases = configure_databases(
+        db_path=db_path,
+        database_dir=database_dir,
+    )
     server = ThreadingHTTPServer((host, port), ViewerHandler)
-    print(f"Serving {ViewerHandler.db_path} at http://{host}:{port}")
+    database_names = ", ".join(databases)
+    print(f"Serving {selected_db_path} at http://{host}:{port}")
+    print(f"Available databases: {database_names}")
     server.serve_forever()
 
 
 def main():
     parser = argparse.ArgumentParser(description="View the mito SQLite database.")
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
+        "--db",
+        type=Path,
+        help="SQLite database to open initially.",
+    )
+    source.add_argument(
+        "--db-dir",
+        type=Path,
+        default=DEFAULT_DATABASE_DIR,
+        help="Directory containing SQLite databases for the dropdown.",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18000)
     args = parser.parse_args()
-    run_server(args.db, args.host, args.port)
+    run_server(
+        db_path=args.db,
+        database_dir=None if args.db else args.db_dir,
+        host=args.host,
+        port=args.port,
+    )
 
 
 if __name__ == "__main__":
