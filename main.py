@@ -2,6 +2,8 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +15,7 @@ MITOCHONDRIAL_LENGTH = 16569
 DEFAULT_MITO_REFERENCE_PATH = (
     Path(__file__).resolve().parent / "reference" / "hg38_chrM.fa"
 )
+DEFAULT_SUBJECT_REGEX = r"^(.*)$"
 
 
 class mitochondrial_base_positions(Iterator):
@@ -137,6 +140,15 @@ class Sample:
             common &= sample.mutation_alleles
 
         return union - common
+
+
+@dataclass
+class ImportPlanItem:
+    """One VCF file and the metadata that will be used during import."""
+
+    source_path: Path
+    sample_id: str
+    population: list[str] = field(default_factory=list)
 
 
 def is_vcf_file(path):
@@ -285,6 +297,41 @@ def iter_variant_files(input_dir):
         yield path
 
 
+def build_import_plan(input_dir):
+    """Return editable import metadata for all logical VCF samples."""
+    plan = []
+    for path in iter_variant_files(input_dir):
+        sample_id, population = parse_sample_filename(path, input_dir)
+        plan.append(ImportPlanItem(
+            source_path=path,
+            sample_id=sample_id,
+            population=population,
+        ))
+    return plan
+
+
+def split_tags(text):
+    """Return normalized tags from comma, semicolon, or pipe separated text."""
+    return [
+        tag.strip()
+        for tag in re.split(r"[,;|]", text)
+        if tag.strip()
+    ]
+
+
+def subject_id_from_regex(path, pattern):
+    """Return a subject ID extracted from a VCF filename with a regex."""
+    text = strip_vcf_suffix(path)
+    match = re.search(pattern, text)
+    if not match:
+        return ""
+
+    if match.groups():
+        return (match.group(1) or "").strip()
+
+    return (match.group(0) or "").strip()
+
+
 def load_sample(path, input_dir=None):
     """Build a Sample from a filtered VCF path and its mutations."""
     sample_id, population = parse_sample_filename(path, input_dir)
@@ -301,12 +348,32 @@ def load_sample(path, input_dir=None):
     return sample
 
 
+def load_sample_from_plan(item):
+    """Build a Sample from editable import metadata."""
+    sample = Sample(
+        sample_id=item.sample_id,
+        population=list(item.population),
+        source_path=Path(item.source_path),
+    )
+
+    with vcf_parser.VCFIterator(str(item.source_path)) as rows:
+        for mutation in rows:
+            sample.mutations.append(mutation)
+
+    return sample
+
+
 def load_samples(input_dir):
     """Load all logical samples from a variant call set."""
     return [
         load_sample(path, input_dir)
         for path in iter_variant_files(input_dir)
     ]
+
+
+def load_samples_from_plan(plan):
+    """Load all samples from an editable import plan."""
+    return [load_sample_from_plan(item) for item in plan]
 
 
 def load_mito_reference(path=DEFAULT_MITO_REFERENCE_PATH):
@@ -730,6 +797,33 @@ def make_sql_database(
 ):
     """Create a SQLite database for subjects, samples, populations, and mutations."""
     samples = load_samples(input_dir)
+    return make_sql_database_from_samples(
+        output_path=output_path,
+        samples=samples,
+        reference_path=reference_path,
+    )
+
+
+def make_sql_database_from_plan(
+    output_path,
+    plan,
+    reference_path=DEFAULT_MITO_REFERENCE_PATH,
+):
+    """Create a SQLite database from editable import plan metadata."""
+    samples = load_samples_from_plan(plan)
+    return make_sql_database_from_samples(
+        output_path=output_path,
+        samples=samples,
+        reference_path=reference_path,
+    )
+
+
+def make_sql_database_from_samples(
+    output_path,
+    samples,
+    reference_path=DEFAULT_MITO_REFERENCE_PATH,
+):
+    """Create a SQLite database from already-loaded samples."""
     reference = load_mito_reference(reference_path)
     output_path = Path(output_path)
 
@@ -776,20 +870,391 @@ def list_variant_files(input_dir):
         print_sample(sample, path)
 
 
+class ImportWindow:
+    """Basic Tkinter importer for previewing files and editing tags."""
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mito Variant Importer")
+        self.plan = []
+        self.items_by_iid = {}
+
+        base_dir = Path(__file__).resolve().parent
+        default_input = base_dir / "variant_calls" / "strict_filtered_calls"
+        if not default_input.exists():
+            default_input = base_dir
+
+        self.input_dir = tk.StringVar(value=str(default_input))
+        self.output_path = tk.StringVar(value=str(base_dir / "mito_import.sqlite"))
+        self.reference_path = tk.StringVar(value=str(DEFAULT_MITO_REFERENCE_PATH))
+        self.subject_regex = tk.StringVar(value=DEFAULT_SUBJECT_REGEX)
+        self.subject_text = tk.StringVar()
+        self.tags_text = tk.StringVar()
+        self.status_text = tk.StringVar(value="Load a preview, edit tags, then run the import.")
+
+        self._build_widgets()
+        self.load_preview()
+
+    def _build_widgets(self):
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
+
+        paths = ttk.Frame(self.root, padding=10)
+        paths.grid(row=0, column=0, sticky="ew")
+        paths.columnconfigure(1, weight=1)
+
+        self._path_row(paths, 0, "Input", self.input_dir, self.browse_input_dir)
+        self._path_row(paths, 1, "Output", self.output_path, self.browse_output_path)
+        self._path_row(paths, 2, "Reference", self.reference_path, self.browse_reference_path)
+        self._path_row(
+            paths,
+            3,
+            "Subject regex",
+            self.subject_regex,
+            self.apply_subject_regex_to_all,
+            button_text="Apply",
+        )
+
+        ttk.Button(paths, text="Refresh Preview", command=self.load_preview).grid(
+            row=4,
+            column=2,
+            sticky="e",
+            pady=(8, 0),
+        )
+
+        table_frame = ttk.Frame(self.root, padding=(10, 0, 10, 8))
+        table_frame.grid(row=1, column=0, sticky="nsew")
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+
+        columns = ("subject", "tags", "file", "status")
+        self.tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            selectmode="extended",
+        )
+        self.tree.heading("subject", text="Subject")
+        self.tree.heading("tags", text="Tags")
+        self.tree.heading("file", text="File")
+        self.tree.heading("status", text="Status")
+        self.tree.column("subject", width=180, anchor="w")
+        self.tree.column("tags", width=260, anchor="w")
+        self.tree.column("file", width=420, anchor="w")
+        self.tree.column("status", width=110, anchor="w")
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        self.tree.bind("<<TreeviewSelect>>", self.sync_selection_fields)
+
+        yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
+        yscroll.grid(row=0, column=1, sticky="ns")
+        self.tree.configure(yscrollcommand=yscroll.set)
+
+        controls = ttk.Frame(self.root, padding=(10, 0, 10, 10))
+        controls.grid(row=2, column=0, sticky="ew")
+        controls.columnconfigure(1, weight=1)
+
+        ttk.Label(controls, text="Subject ID").grid(row=0, column=0, sticky="w")
+        ttk.Entry(controls, textvariable=self.subject_text).grid(
+            row=0,
+            column=1,
+            sticky="ew",
+            padx=6,
+            pady=(0, 6),
+        )
+        ttk.Button(
+            controls,
+            text="Set Selected",
+            command=self.replace_selected_subjects,
+        ).grid(row=0, column=2, sticky="ew", padx=(0, 6), pady=(0, 6))
+
+        ttk.Label(controls, text="Tags").grid(row=1, column=0, sticky="w")
+        ttk.Entry(controls, textvariable=self.tags_text).grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=6,
+        )
+        ttk.Button(controls, text="Replace Selected", command=self.replace_selected_tags).grid(
+            row=1,
+            column=2,
+            padx=(0, 6),
+        )
+        ttk.Button(controls, text="Add to Selected", command=self.add_selected_tags).grid(
+            row=1,
+            column=3,
+        )
+
+        footer = ttk.Frame(self.root, padding=(10, 0, 10, 10))
+        footer.grid(row=3, column=0, sticky="ew")
+        footer.columnconfigure(0, weight=1)
+
+        ttk.Label(footer, textvariable=self.status_text).grid(row=0, column=0, sticky="w")
+        self.go_button = ttk.Button(footer, text="Go", command=self.start_import)
+        self.go_button.grid(row=0, column=1, padx=(8, 6))
+        ttk.Button(footer, text="Quit", command=self.root.destroy).grid(row=0, column=2)
+
+    def _path_row(self, parent, row, label, variable, command, button_text="Browse"):
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=2)
+        ttk.Entry(parent, textvariable=variable).grid(
+            row=row,
+            column=1,
+            sticky="ew",
+            padx=6,
+            pady=2,
+        )
+        ttk.Button(parent, text=button_text, command=command).grid(
+            row=row,
+            column=2,
+            sticky="e",
+            pady=2,
+        )
+
+    def browse_input_dir(self):
+        path = filedialog.askdirectory(initialdir=self.input_dir.get() or ".")
+        if path:
+            self.input_dir.set(path)
+            self.load_preview()
+
+    def browse_output_path(self):
+        path = filedialog.asksaveasfilename(
+            initialfile=Path(self.output_path.get()).name,
+            defaultextension=".sqlite",
+            filetypes=[("SQLite databases", "*.sqlite *.sqlite3 *.db"), ("All files", "*.*")],
+        )
+        if path:
+            self.output_path.set(path)
+
+    def browse_reference_path(self):
+        path = filedialog.askopenfilename(
+            initialdir=str(Path(self.reference_path.get()).parent),
+            filetypes=[("FASTA files", "*.fa *.fasta"), ("All files", "*.*")],
+        )
+        if path:
+            self.reference_path.set(path)
+
+    def derive_subject_id(self, item):
+        return subject_id_from_regex(
+            item.source_path,
+            self.subject_regex.get() or DEFAULT_SUBJECT_REGEX,
+        )
+
+    def apply_subject_regex_to_item(self, iid):
+        item = self.items_by_iid[iid]
+        item.sample_id = self.derive_subject_id(item)
+        self.tree.set(iid, "subject", item.sample_id)
+        self.tree.set(iid, "status", "Ready")
+        return item.sample_id
+
+    def apply_subject_regex_to_all(self):
+        try:
+            re.compile(self.subject_regex.get() or DEFAULT_SUBJECT_REGEX)
+        except re.error as exc:
+            messagebox.showerror("Invalid subject regex", str(exc))
+            return
+
+        selected = self.tree.selection()
+        target_iids = selected or self.tree.get_children()
+        if not target_iids:
+            messagebox.showinfo("No rows", "Load a preview before applying the regex.")
+            return
+
+        for iid in target_iids:
+            self.apply_subject_regex_to_item(iid)
+
+        self.sync_selection_fields()
+        target = "selected" if selected else "previewed"
+        self.status_text.set(
+            f"Applied subject regex to {len(target_iids)} {target} file(s)."
+        )
+
+    def load_preview(self):
+        try:
+            self.plan = build_import_plan(Path(self.input_dir.get()))
+            re.compile(self.subject_regex.get() or DEFAULT_SUBJECT_REGEX)
+        except Exception as exc:
+            messagebox.showerror("Preview failed", str(exc))
+            self.status_text.set("Preview failed.")
+            return
+
+        self.tree.delete(*self.tree.get_children())
+        self.items_by_iid.clear()
+        for index, item in enumerate(self.plan):
+            iid = str(index)
+            self.items_by_iid[iid] = item
+            item.sample_id = self.derive_subject_id(item)
+            self.tree.insert(
+                "",
+                "end",
+                iid=iid,
+                values=(
+                    item.sample_id,
+                    ", ".join(item.population),
+                    item.source_path.name,
+                    "Ready",
+                ),
+            )
+
+        self.status_text.set(f"Previewing {len(self.plan)} file(s).")
+
+    def sync_selection_fields(self, _event=None):
+        selected = self.tree.selection()
+        if not selected:
+            self.subject_text.set("")
+            self.tags_text.set("")
+            return
+
+        if any(not self.items_by_iid[iid].sample_id for iid in selected):
+            try:
+                re.compile(self.subject_regex.get() or DEFAULT_SUBJECT_REGEX)
+            except re.error as exc:
+                messagebox.showerror("Invalid subject regex", str(exc))
+                return
+
+            for iid in selected:
+                item = self.items_by_iid[iid]
+                if not item.sample_id:
+                    self.apply_subject_regex_to_item(iid)
+
+        subjects = [
+            self.items_by_iid[iid].sample_id
+            for iid in selected
+        ]
+        first_subject = subjects[0]
+        if all(subject == first_subject for subject in subjects):
+            self.subject_text.set(first_subject)
+        else:
+            self.subject_text.set("")
+
+        merged_tags = []
+        for iid in selected:
+            for tag in self.items_by_iid[iid].population:
+                if tag not in merged_tags:
+                    merged_tags.append(tag)
+
+        self.tags_text.set(", ".join(merged_tags))
+        if len(selected) > 1:
+            self.status_text.set(
+                f"Showing merged tags for {len(selected)} selected file(s)."
+            )
+
+    def replace_selected_subjects(self):
+        subject_id = self.subject_text.get().strip()
+        if not subject_id:
+            messagebox.showinfo("Missing subject ID", "Enter a subject ID first.")
+            return
+
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("No rows selected", "Select one or more files first.")
+            return
+
+        for iid in selected:
+            item = self.items_by_iid[iid]
+            item.sample_id = subject_id
+            self.tree.set(iid, "subject", item.sample_id)
+            self.tree.set(iid, "status", "Ready")
+
+        self.status_text.set(f"Updated subject ID for {len(selected)} file(s).")
+
+    def replace_selected_tags(self):
+        tags = split_tags(self.tags_text.get())
+        self.update_selected_tags(lambda _existing: tags)
+
+    def add_selected_tags(self):
+        tags_to_add = split_tags(self.tags_text.get())
+
+        def add_tags(existing):
+            updated = list(existing)
+            for tag in tags_to_add:
+                if tag not in updated:
+                    updated.append(tag)
+            return updated
+
+        self.update_selected_tags(add_tags)
+
+    def update_selected_tags(self, update_func):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("No rows selected", "Select one or more files first.")
+            return
+
+        for iid in selected:
+            item = self.items_by_iid[iid]
+            item.population = update_func(item.population)
+            self.tree.set(iid, "tags", ", ".join(item.population))
+            self.tree.set(iid, "status", "Ready")
+
+        self.status_text.set(f"Updated tags for {len(selected)} file(s).")
+
+    def start_import(self):
+        if not self.plan:
+            messagebox.showinfo("Nothing to import", "Load a preview before importing.")
+            return
+
+        self.go_button.configure(state="disabled")
+        for iid in self.items_by_iid:
+            self.tree.set(iid, "status", "Queued")
+        self.status_text.set("Import running...")
+
+        thread = threading.Thread(target=self.run_import, daemon=True)
+        thread.start()
+
+    def run_import(self):
+        try:
+            output_path = make_sql_database_from_plan(
+                output_path=Path(self.output_path.get()),
+                plan=self.plan,
+                reference_path=Path(self.reference_path.get()),
+            )
+        except Exception as exc:
+            self.root.after(0, self.import_failed, str(exc))
+            return
+
+        self.root.after(0, self.import_finished, output_path)
+
+    def import_finished(self, output_path):
+        for iid in self.items_by_iid:
+            self.tree.set(iid, "status", "Imported")
+        self.go_button.configure(state="normal")
+        self.status_text.set(f"Wrote {output_path}")
+        messagebox.showinfo("Import complete", f"Wrote {output_path}")
+
+    def import_failed(self, error):
+        for iid in self.items_by_iid:
+            self.tree.set(iid, "status", "Error")
+        self.go_button.configure(state="normal")
+        self.status_text.set("Import failed.")
+        messagebox.showerror("Import failed", error)
+
+
+def launch_gui():
+    global filedialog, messagebox, tk, ttk
+
+    import tkinter as tk
+    from tkinter import filedialog, messagebox, ttk
+
+    root = tk.Tk()
+    ImportWindow(root)
+    root.mainloop()
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Build mutation SQLite/XLSX outputs from VCF files.",
     )
     parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Open the interactive Tkinter importer.",
+    )
+    parser.add_argument(
         "--input-dir",
         type=Path,
-        required=True,
         help="Directory containing VCF files for the study.",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        required=True,
         help="SQLite output path.",
     )
     parser.add_argument(
@@ -816,10 +1281,24 @@ def file_in_folder_matching(path, match):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        launch_gui()
+        raise SystemExit
+
     args = parse_args()
+    if args.gui:
+        launch_gui()
+        raise SystemExit
+
+    if args.input_dir is None:
+        raise SystemExit("--input-dir is required outside of GUI mode.")
+
     if args.list:
         list_variant_files(input_dir=args.input_dir)
     else:
+        if args.output is None:
+            raise SystemExit("--output is required when creating a database.")
+
         output_path = make_sql_database(
             output_path=args.output,
             input_dir=args.input_dir,

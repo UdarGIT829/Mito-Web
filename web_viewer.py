@@ -17,6 +17,7 @@ import vcf_parser
 
 DATABASE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
 DEFAULT_DATABASE_DIR = Path(".")
+NO_TAGS_FILTER = "__NO_TAGS__"
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
 DEFAULT_COMPARE_STATUSES = {"common", "partial", "unique"}
 DEFAULT_SAMPLE_COMPARE_STATUSES = {"present"}
@@ -481,7 +482,25 @@ def fetch_population_tags(connection):
         GROUP BY tag
         ORDER BY tag
     """).fetchall()
-    return [dict(row) for row in rows]
+    tags = [dict(row) for row in rows]
+    if tags:
+        untagged_count = connection.execute("""
+            SELECT COUNT(*)
+            FROM samples
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM sample_population_tags
+                WHERE sample_population_tags.sample_id = samples.id
+            )
+        """).fetchone()[0]
+        if untagged_count:
+            tags.append({
+                "tag": NO_TAGS_FILTER,
+                "label": "<NONE>",
+                "sample_count": untagged_count,
+            })
+
+    return tags
 
 
 def fetch_samples(connection, subject_id=None, tags=None, derived_samples=None):
@@ -495,6 +514,16 @@ def fetch_samples(connection, subject_id=None, tags=None, derived_samples=None):
         where_params.append(subject_id)
 
     for index, tag in enumerate(tags or []):
+        if tag == NO_TAGS_FILTER:
+            where_clauses.append("""
+                NOT EXISTS (
+                    SELECT 1
+                    FROM sample_population_tags no_tag
+                    WHERE no_tag.sample_id = samples.id
+                )
+            """)
+            continue
+
         alias = f"tag_{index}"
         tag_joins.append(
             f"""

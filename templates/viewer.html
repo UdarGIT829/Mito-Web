@@ -1414,7 +1414,7 @@
       tagPicker.innerHTML = tags.length ? tags.map(row => `
         <label>
           <input class="tag-filter" type="checkbox" value="${esc(row.tag)}" ${state.tags.has(row.tag) ? "checked" : ""}>
-          ${esc(row.tag)} <span class="muted">(${row.sample_count})</span>
+          ${esc(row.label || row.tag)} <span class="muted">(${row.sample_count})</span>
         </label>
       `).join("") : '<span class="muted">No tags in this database.</span>';
       tagFilterInputs = [...document.querySelectorAll(".tag-filter")];
