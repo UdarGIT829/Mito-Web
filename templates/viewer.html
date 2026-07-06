@@ -32,6 +32,27 @@
     .database-picker {
       width: min(320px, 100%);
     }
+    .header-actions {
+      display: grid;
+      grid-template-columns: auto minmax(220px, 320px);
+      gap: 12px;
+      align-items: end;
+    }
+    .roadmap-link {
+      min-height: 34px;
+      display: inline-grid;
+      place-items: center;
+      padding: 7px 11px;
+      border: 1px solid #c7cfdb;
+      border-radius: 6px;
+      background: #f7f9fc;
+      color: #24436e;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .roadmap-link:hover { background: #eef5ff; border-color: #9db5de; }
     .database-picker select {
       min-height: 34px;
       padding: 6px 8px;
@@ -516,6 +537,7 @@
     @media (max-width: 560px) {
       header { padding: 14px 14px; }
       .header-row { display: grid; gap: 12px; }
+      .header-actions { grid-template-columns: 1fr; }
       .database-picker { width: 100%; }
       main { padding: 14px; }
       .toolbar {
@@ -538,10 +560,13 @@
         <h1>Mito SQL Viewer</h1>
         <div class="path">Database: <span class="mono" id="database-path">{{ db_path }}</span></div>
       </div>
-      <label class="database-picker">Database
-        <select id="database-select"></select>
-        <input id="database-upload" type="file" accept=".db,.sqlite,.sqlite3" hidden>
-      </label>
+      <div class="header-actions">
+        <a class="roadmap-link" href="/roadmap">Roadmap</a>
+        <label class="database-picker">Database
+          <select id="database-select"></select>
+          <input id="database-upload" type="file" accept=".db,.sqlite,.sqlite3" hidden>
+        </label>
+      </div>
     </div>
   </header>
   <main>

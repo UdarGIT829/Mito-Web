@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roadmap</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f7f9;
+      color: #1d2733;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      padding: 18px 22px;
+      background: #ffffff;
+      border-bottom: 1px solid #d9dee7;
+      position: sticky;
+      top: 0;
+      z-index: 4;
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
+    .subtitle { color: #607086; font-size: 13px; }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(160px, 220px) auto;
+      gap: 10px;
+      align-items: end;
+      width: min(760px, 100%);
+    }
+    label { display: grid; gap: 5px; font-size: 12px; color: #4a596d; font-weight: 650; min-width: 0; }
+    input, select, button, textarea {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid #c7cfdb;
+      border-radius: 6px;
+      background: #fff;
+      color: #1d2733;
+      font: inherit;
+      padding: 7px 9px;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .system-notes-input { min-height: 96px; }
+    button {
+      cursor: pointer;
+      background: #2457c5;
+      border-color: #2457c5;
+      color: #fff;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .secondary-button {
+      background: #ffffff;
+      border-color: #c7cfdb;
+      color: #35445a;
+    }
+    .danger-button {
+      background: #b73737;
+      border-color: #b73737;
+      color: #ffffff;
+    }
+    main { padding: 18px 22px 32px; }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(230px, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    .lane {
+      min-height: calc(100vh - 164px);
+      display: grid;
+      grid-template-rows: auto minmax(160px, 1fr);
+      background: #ffffff;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .lane-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e4e8ef;
+      background: #fbfcfe;
+    }
+    .lane-title { display: grid; gap: 2px; min-width: 0; }
+    .lane-title strong { font-size: 14px; }
+    .lane-title span { color: #607086; font-size: 12px; }
+    .count {
+      min-width: 28px;
+      min-height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: #eef2f7;
+      color: #4a596d;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .cards {
+      display: grid;
+      align-content: start;
+      gap: 9px;
+      min-height: 160px;
+      padding: 10px;
+    }
+    .cards.drag-over { background: #f0f6ff; }
+    .card {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #dce2eb;
+      border-left: 4px solid #6f88a7;
+      border-radius: 6px;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(28, 39, 55, 0.05);
+      cursor: grab;
+    }
+    .card[data-priority="High"] { border-left-color: #c94f4f; }
+    .card[data-priority="Medium"] { border-left-color: #deb764; }
+    .card[data-priority="Low"] { border-left-color: #6bb883; }
+    .card[data-priority="None"] { border-left-color: #2457c5; }
+    .card:active { cursor: grabbing; }
+    .card:focus {
+      outline: 3px solid rgba(36, 87, 197, 0.25);
+      outline-offset: 2px;
+    }
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: start;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .card-title span { overflow-wrap: anywhere; }
+    .delete-card {
+      width: auto;
+      min-width: 28px;
+      min-height: 26px;
+      padding: 2px 8px;
+      background: #ffffff;
+      border-color: #d8a0a0;
+      color: #9f2f2f;
+      font-size: 15px;
+      line-height: 1;
+    }
+    .card-body {
+      color: #4a596d;
+      font-size: 13px;
+      line-height: 1.38;
+      overflow-wrap: anywhere;
+    }
+    .system-notes {
+      display: grid;
+      gap: 4px;
+      padding: 8px;
+      border: 1px solid #dce6f5;
+      border-radius: 6px;
+      background: #f4f8ff;
+      color: #35445a;
+      font-size: 12px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .system-notes strong {
+      color: #24436e;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .pill {
+      min-height: 22px;
+      display: inline-grid;
+      place-items: center;
+      padding: 3px 7px;
+      border: 1px solid #d5dce7;
+      border-radius: 999px;
+      background: #f7f9fc;
+      color: #4a596d;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .empty {
+      min-height: 92px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed #c7cfdb;
+      border-radius: 6px;
+      color: #7a8798;
+      font-size: 13px;
+      text-align: center;
+      padding: 12px;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(27, 38, 51, 0.32);
+      z-index: 20;
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal {
+      width: min(560px, 100%);
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid #c7cfdb;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 44px rgba(28, 39, 55, 0.22);
+    }
+    .modal h2 { margin: 0; font-size: 18px; }
+    .modal p {
+      margin: 0;
+      color: #4a596d;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .full { grid-column: 1 / -1; }
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    @media (max-width: 1100px) {
+      .board { grid-template-columns: repeat(2, minmax(230px, 1fr)); }
+      .lane { min-height: 420px; }
+    }
+    @media (max-width: 720px) {
+      header { padding: 14px; }
+      .header-row { display: grid; gap: 12px; }
+      .toolbar { grid-template-columns: 1fr; }
+      main { padding: 14px; }
+      .board { grid-template-columns: 1fr; }
+      .lane { min-height: 340px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .full { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Feature Roadmap</h1>
+        <div class="subtitle">Track viewer improvements from active work through shipped features.</div>
+      </div>
+      <div class="toolbar">
+        <label>Search
+          <input id="search" placeholder="Filter cards">
+        </label>
+        <label>Priority
+          <select id="priority-filter">
+            <option value="">All priorities</option>
+            <option>None</option>
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
+        </label>
+        <button id="open-add-card" type="button">Add feature</button>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="board" id="board" aria-live="polite"></div>
+  </main>
+  <div class="modal-backdrop" id="card-modal" role="dialog" aria-modal="true">
+    <form class="modal" id="card-form">
+      <h2 id="card-modal-title">Add feature</h2>
+      <div class="form-grid">
+        <label class="full">Title
+          <input id="card-title" required placeholder="Feature name">
+        </label>
+        <label class="full">Notes
+          <textarea id="card-notes" placeholder="What should this unlock?"></textarea>
+        </label>
+        <label class="full">System notes
+          <textarea class="system-notes-input" id="card-system-notes" placeholder="Implementation details, files, APIs, edge cases"></textarea>
+        </label>
+        <label>Status
+          <select id="card-status"></select>
+        </label>
+        <label>Priority
+          <select id="card-priority">
+            <option>None</option>
+            <option>Medium</option>
+            <option>High</option>
+            <option>Low</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancel-card" type="button">Cancel</button>
+        <button id="save-card" type="submit">Add</button>
+      </div>
+    </form>
+  </div>
+  <div class="modal-backdrop" id="remove-modal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Remove card</h2>
+      <p id="remove-card-message">Remove this roadmap card?</p>
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancel-remove-card" type="button">Cancel</button>
+        <button class="danger-button" id="confirm-remove-card" type="button">Remove</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const lanes = [
+      { id: "now", title: "Now", hint: "Current focus" },
+      { id: "next", title: "Next", hint: "Ready to pick up" },
+      { id: "later", title: "Later", hint: "Ideas worth keeping" },
+      { id: "done", title: "Done", hint: "Completed work" }
+    ];
+    const roadmapApiPath = "/api/roadmap";
+    const board = document.getElementById("board");
+    const searchInput = document.getElementById("search");
+    const priorityFilter = document.getElementById("priority-filter");
+    const modal = document.getElementById("card-modal");
+    const modalTitle = document.getElementById("card-modal-title");
+    const form = document.getElementById("card-form");
+    const saveCardButton = document.getElementById("save-card");
+    const removeModal = document.getElementById("remove-modal");
+    const removeCardMessage = document.getElementById("remove-card-message");
+    const confirmRemoveCardButton = document.getElementById("confirm-remove-card");
+    const statusSelect = document.getElementById("card-status");
+    const titleInput = document.getElementById("card-title");
+    const notesInput = document.getElementById("card-notes");
+    const systemNotesInput = document.getElementById("card-system-notes");
+    const priorityInput = document.getElementById("card-priority");
+    let cards = [];
+    let editingCardId = "";
+    let removingCardId = "";
+
+    async function loadCards() {
+      const response = await fetch(roadmapApiPath);
+      if (!response.ok) {
+        throw new Error("Unable to load roadmap.");
+      }
+      const payload = await response.json();
+      cards = Array.isArray(payload.cards) ? payload.cards : [];
+    }
+
+    async function saveCards() {
+      const response = await fetch(roadmapApiPath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cards })
+      });
+      if (!response.ok) {
+        throw new Error("Unable to save roadmap.");
+      }
+      const payload = await response.json();
+      cards = Array.isArray(payload.cards) ? payload.cards : cards;
+    }
+
+    function visibleCardsForLane(laneId) {
+      const search = searchInput.value.trim().toLowerCase();
+      const priority = priorityFilter.value;
+      return cards.filter((card) => {
+        const matchesLane = card.status === laneId;
+        const matchesPriority = !priority || card.priority === priority;
+        const haystack = `${card.title} ${card.notes} ${card.system_notes || ""}`.toLowerCase();
+        const matchesSearch = !search || haystack.includes(search);
+        return matchesLane && matchesPriority && matchesSearch;
+      });
+    }
+
+    function renderBoard() {
+      board.innerHTML = lanes.map((lane) => {
+        const laneCards = visibleCardsForLane(lane.id);
+        const cardHtml = laneCards.map(renderCard).join("");
+        const empty = laneCards.length ? "" : '<div class="empty">No cards here.</div>';
+        return `
+          <section class="lane" aria-labelledby="lane-${lane.id}">
+            <div class="lane-header">
+              <div class="lane-title">
+                <strong id="lane-${lane.id}">${lane.title}</strong>
+                <span>${lane.hint}</span>
+              </div>
+              <span class="count">${laneCards.length}</span>
+            </div>
+            <div class="cards" data-lane="${lane.id}">${cardHtml}${empty}</div>
+          </section>
+        `;
+      }).join("");
+      attachDragHandlers();
+      attachEditHandlers();
+      attachDeleteHandlers();
+    }
+
+    function renderCard(card) {
+      const priorityPill = card.priority === "None"
+        ? ""
+        : `<span class="pill">${escapeHtml(card.priority)}</span>`;
+      const systemNotes = card.system_notes
+        ? `<div class="system-notes"><strong>System notes</strong><span>${escapeHtml(card.system_notes)}</span></div>`
+        : "";
+      return `
+        <article class="card" draggable="true" tabindex="0" data-card-id="${card.id}" data-priority="${card.priority}">
+          <div class="card-title">
+            <span>${escapeHtml(card.title)}</span>
+            <button class="delete-card" type="button" data-delete-id="${card.id}" aria-label="Delete ${escapeHtml(card.title)}">x</button>
+          </div>
+          <div class="card-body">${escapeHtml(card.notes || "No notes yet.")}</div>
+          ${systemNotes}
+          <div class="meta">
+            ${priorityPill}
+          </div>
+        </article>
+      `;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[character]);
+    }
+
+    function attachDragHandlers() {
+      document.querySelectorAll(".card").forEach((card) => {
+        card.addEventListener("dragstart", (event) => {
+          event.dataTransfer.setData("text/plain", card.dataset.cardId);
+        });
+      });
+      document.querySelectorAll(".cards").forEach((lane) => {
+        lane.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          lane.classList.add("drag-over");
+        });
+        lane.addEventListener("dragleave", () => lane.classList.remove("drag-over"));
+        lane.addEventListener("drop", async (event) => {
+          event.preventDefault();
+          lane.classList.remove("drag-over");
+          const cardId = event.dataTransfer.getData("text/plain");
+          const card = cards.find((item) => item.id === cardId);
+          if (card) {
+            card.status = lane.dataset.lane;
+            await saveCards();
+            renderBoard();
+          }
+        });
+      });
+    }
+
+    function attachEditHandlers() {
+      document.querySelectorAll(".card").forEach((cardElement) => {
+        cardElement.addEventListener("click", (event) => {
+          if (event.target.closest("button")) {
+            return;
+          }
+          openEditModal(cardElement.dataset.cardId);
+        });
+        cardElement.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openEditModal(cardElement.dataset.cardId);
+          }
+        });
+      });
+    }
+
+    function attachDeleteHandlers() {
+      document.querySelectorAll("[data-delete-id]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openRemoveModal(button.dataset.deleteId);
+        });
+      });
+    }
+
+    function openAddModal() {
+      editingCardId = "";
+      form.reset();
+      modalTitle.textContent = "Add feature";
+      saveCardButton.textContent = "Add";
+      statusSelect.value = "next";
+      priorityInput.value = "Medium";
+      modal.classList.add("open");
+      titleInput.focus();
+    }
+
+    function openEditModal(cardId) {
+      const card = cards.find((item) => item.id === cardId);
+      if (!card) {
+        return;
+      }
+      editingCardId = card.id;
+      modalTitle.textContent = "Edit feature";
+      saveCardButton.textContent = "Save";
+      titleInput.value = card.title;
+      notesInput.value = card.notes || "";
+      systemNotesInput.value = card.system_notes || "";
+      statusSelect.value = card.status;
+      priorityInput.value = card.priority;
+      modal.classList.add("open");
+      titleInput.focus();
+    }
+
+    function closeModal() {
+      modal.classList.remove("open");
+      editingCardId = "";
+    }
+
+    function openRemoveModal(cardId) {
+      const card = cards.find((item) => item.id === cardId);
+      if (!card) {
+        return;
+      }
+      removingCardId = card.id;
+      removeCardMessage.textContent = `Remove "${card.title}" from the roadmap?`;
+      removeModal.classList.add("open");
+      confirmRemoveCardButton.focus();
+    }
+
+    function closeRemoveModal() {
+      removeModal.classList.remove("open");
+      removingCardId = "";
+    }
+
+    statusSelect.innerHTML = lanes.map((lane) => `<option value="${lane.id}">${lane.title}</option>`).join("");
+    document.getElementById("open-add-card").addEventListener("click", openAddModal);
+    document.getElementById("cancel-card").addEventListener("click", closeModal);
+    document.getElementById("cancel-remove-card").addEventListener("click", closeRemoveModal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        closeModal();
+      }
+    });
+    removeModal.addEventListener("click", (event) => {
+      if (event.target === removeModal) {
+        closeRemoveModal();
+      }
+    });
+    confirmRemoveCardButton.addEventListener("click", async () => {
+      cards = cards.filter((card) => card.id !== removingCardId);
+      await saveCards();
+      closeRemoveModal();
+      renderBoard();
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const cardData = {
+        title: titleInput.value.trim(),
+        notes: notesInput.value.trim(),
+        system_notes: systemNotesInput.value.trim(),
+        status: statusSelect.value,
+        priority: priorityInput.value
+      };
+      const existingCard = cards.find((card) => card.id === editingCardId);
+      if (existingCard) {
+        Object.assign(existingCard, cardData);
+      } else {
+        cards.push({
+          id: `feature-${Date.now()}`,
+          ...cardData
+        });
+      }
+      await saveCards();
+      closeModal();
+      renderBoard();
+    });
+    searchInput.addEventListener("input", renderBoard);
+    priorityFilter.addEventListener("change", renderBoard);
+    loadCards()
+      .then(renderBoard)
+      .catch((error) => {
+        board.innerHTML = `<section class="lane"><div class="cards"><div class="empty">${escapeHtml(error.message)}</div></div></section>`;
+      });
+  </script>
+</body>
+</html>

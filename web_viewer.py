@@ -19,9 +19,13 @@ DATABASE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
 DEFAULT_DATABASE_DIR = Path(".")
 NO_TAGS_FILTER = "__NO_TAGS__"
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
+ROADMAP_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "roadmap.html"
+ROADMAP_DATA_PATH = Path(__file__).resolve().parent / "roadmap.json"
 DEFAULT_COMPARE_STATUSES = {"common", "partial", "unique"}
 DEFAULT_SAMPLE_COMPARE_STATUSES = {"present"}
 DERIVED_SAMPLE_PREFIX = "derived:"
+ROADMAP_STATUSES = {"now", "next", "later", "done"}
+ROADMAP_PRIORITIES = {"None", "Low", "Medium", "High"}
 AF_OPERATORS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "=", "neq": "!="}
 METADATA_FILTER_FIELDS = {
     "polymorphism": ("mutation_alts.polymorphism", "integer"),
@@ -1125,6 +1129,77 @@ def html_response(handler, body, status=200):
     handler.wfile.write(encoded)
 
 
+def normalize_roadmap_card(card):
+    if not isinstance(card, dict):
+        raise ValueError("Each roadmap card must be an object.")
+
+    card_id = str(card.get("id") or "").strip()
+    title = str(card.get("title") or "").strip()
+    notes = str(card.get("notes") or "").strip()
+    system_notes = str(card.get("system_notes") or "").strip()
+    status = str(card.get("status") or "next")
+    priority = str(card.get("priority") or "None")
+
+    if not card_id:
+        raise ValueError("Roadmap cards must include an id.")
+    if not title:
+        raise ValueError("Roadmap cards must include a title.")
+    if status not in ROADMAP_STATUSES:
+        raise ValueError(f"Invalid roadmap status: {status}")
+    if priority not in ROADMAP_PRIORITIES:
+        raise ValueError(f"Invalid roadmap priority: {priority}")
+
+    return {
+        "id": card_id,
+        "title": title,
+        "notes": notes,
+        "system_notes": system_notes,
+        "status": status,
+        "priority": priority,
+    }
+
+
+def normalize_roadmap_payload(payload):
+    if isinstance(payload, list):
+        cards = payload
+    elif isinstance(payload, dict):
+        cards = payload.get("cards", [])
+    else:
+        raise ValueError("Roadmap payload must be an object or list.")
+
+    if not isinstance(cards, list):
+        raise ValueError("Roadmap cards must be a list.")
+
+    seen_ids = set()
+    normalized_cards = []
+    for card in cards:
+        normalized_card = normalize_roadmap_card(card)
+        if normalized_card["id"] in seen_ids:
+            raise ValueError(f"Duplicate roadmap card id: {normalized_card['id']}")
+        seen_ids.add(normalized_card["id"])
+        normalized_cards.append(normalized_card)
+
+    return {"cards": normalized_cards}
+
+
+def read_roadmap():
+    if not ROADMAP_DATA_PATH.exists():
+        return {"cards": []}
+    payload = json.loads(ROADMAP_DATA_PATH.read_text(encoding="utf-8"))
+    return normalize_roadmap_payload(payload)
+
+
+def write_roadmap(payload):
+    normalized_payload = normalize_roadmap_payload(payload)
+    temp_path = ROADMAP_DATA_PATH.with_name(f".{ROADMAP_DATA_PATH.name}.saving")
+    temp_path.write_text(
+        json.dumps(normalized_payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(ROADMAP_DATA_PATH)
+    return normalized_payload
+
+
 def parse_tags(query):
     tags = []
     for value in query.get("tag", []):
@@ -1387,6 +1462,10 @@ def page_html(db_path):
     return template.replace("{{ db_path }}", escaped_path)
 
 
+def roadmap_html():
+    return ROADMAP_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+
 class ViewerHandler(BaseHTTPRequestHandler):
     default_db_id = ""
     database_dir = None
@@ -1454,6 +1533,13 @@ class ViewerHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            if parsed.path == "/roadmap":
+                html_response(self, roadmap_html())
+                return
+            if parsed.path == "/api/roadmap":
+                json_response(self, read_roadmap())
+                return
+
             db_id, db_path = self.resolve_database(self.database_id_from_query(query))
             derived_samples = self.derived_samples(db_id)
 
@@ -1538,7 +1624,9 @@ class ViewerHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
-            if parsed.path == "/api/upload-database":
+            if parsed.path == "/api/roadmap":
+                json_response(self, write_roadmap(self.read_json_body()))
+            elif parsed.path == "/api/upload-database":
                 fields, files = parse_multipart_form(self.headers, self.read_body())
                 upload = files.get("database")
                 if not upload:
