@@ -4,11 +4,13 @@ import re
 import sqlite3
 import sys
 import threading
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import vcf_parser
+import annotation_api
 
 
 MITOCHONDRIAL_LENGTH = 16569
@@ -16,6 +18,13 @@ DEFAULT_MITO_REFERENCE_PATH = (
     Path(__file__).resolve().parent / "reference" / "hg38_chrM.fa"
 )
 DEFAULT_SUBJECT_REGEX = r"^(.*)$"
+DEFAULT_ANNOTATION_DATABASE_PATH = (
+    Path(__file__).resolve().parent / "mutation_annotations.sqlite"
+)
+ANNOTATION_PROVIDERS = ("ensembl", "clinvar", "mitomap")
+SKIPPED_ANNOTATION_PROVIDERS = {
+    "mitomap": "Skipping until api works",
+}
 
 
 class mitochondrial_base_positions(Iterator):
@@ -661,6 +670,313 @@ def create_database_schema(connection):
     """)
 
 
+def create_annotation_database_schema(connection):
+    """Create or upgrade the persistent, cross-import annotation cache."""
+    connection.executescript("""
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE IF NOT EXISTS annotation_variants (
+            id INTEGER PRIMARY KEY,
+            pos INTEGER NOT NULL,
+            ref TEXT NOT NULL,
+            alt TEXT NOT NULL,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            UNIQUE(pos, ref, alt)
+        );
+
+        CREATE TABLE IF NOT EXISTS provider_annotations (
+            variant_id INTEGER NOT NULL,
+            provider TEXT NOT NULL,
+            annotation_json TEXT,
+            error TEXT,
+            retrieved_at TEXT,
+            last_attempted_at TEXT NOT NULL,
+            PRIMARY KEY(variant_id, provider),
+            FOREIGN KEY(variant_id) REFERENCES annotation_variants(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_annotation_variants_pos_alt
+        ON annotation_variants(pos, alt);
+    """)
+
+
+def imported_annotation_alleles(samples):
+    """Return every unique VCF allele represented by imported mutations."""
+    return sorted({
+        (mutation.position, mutation.ref.upper(), alt.upper())
+        for sample in samples
+        for mutation in sample.mutations
+        for alt in mutation.alts
+        if alt and alt != "."
+    })
+
+
+def annotate_imported_mutations(
+    annotation_db_path,
+    samples,
+    *,
+    fetcher=None,
+):
+    """Fetch/cache annotations for alleles in newly imported samples."""
+    return annotate_alleles(
+        annotation_db_path,
+        imported_annotation_alleles(samples),
+        fetcher=fetcher,
+    )
+
+
+def annotate_alleles(
+    annotation_db_path,
+    alleles,
+    *,
+    fetcher=None,
+    progress_callback=None,
+):
+    """Fetch missing annotations into one cache shared by all imports.
+
+    Successful provider responses are never fetched again. Failed or missing
+    providers remain eligible for retry on the next importer execution.
+    """
+    annotation_db_path = Path(annotation_db_path)
+    annotation_db_path.parent.mkdir(parents=True, exist_ok=True)
+    alleles = sorted(set(alleles))
+    total_steps = len(alleles) * len(ANNOTATION_PROVIDERS)
+    completed_steps = 0
+
+    def report(position, ref, alt, provider, status):
+        nonlocal completed_steps
+        completed_steps += 1
+        if progress_callback is not None:
+            progress_callback(
+                completed_steps,
+                total_steps,
+                position,
+                ref,
+                alt,
+                provider,
+                status,
+            )
+
+    with sqlite3.connect(annotation_db_path) as connection:
+        create_annotation_database_schema(connection)
+        for position, ref, alt in alleles:
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            connection.execute(
+                """
+                INSERT INTO annotation_variants(
+                    pos, ref, alt, first_seen_at, last_seen_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(pos, ref, alt) DO UPDATE SET
+                    last_seen_at = excluded.last_seen_at
+                """,
+                (position, ref, alt, now, now),
+            )
+            variant_id = connection.execute(
+                "SELECT id FROM annotation_variants WHERE pos = ? AND ref = ? AND alt = ?",
+                (position, ref, alt),
+            ).fetchone()[0]
+            completed = {
+                row[0]
+                for row in connection.execute(
+                    """
+                    SELECT provider FROM provider_annotations
+                    WHERE variant_id = ? AND annotation_json IS NOT NULL
+                      AND error IS NULL
+                    """,
+                    (variant_id,),
+                )
+            }
+            missing = set(ANNOTATION_PROVIDERS) - completed
+            for provider in ANNOTATION_PROVIDERS:
+                if provider in completed:
+                    report(position, ref, alt, provider, "cached")
+            if not missing:
+                continue
+
+            results = {
+                provider: {
+                    "source": provider,
+                    "status": message,
+                    "skipped": True,
+                }
+                for provider, message in SKIPPED_ANNOTATION_PROVIDERS.items()
+                if provider in missing
+            }
+            fetch_missing = missing - set(SKIPPED_ANNOTATION_PROVIDERS)
+
+            if fetcher is not None and fetch_missing:
+                fetched_results = fetcher(
+                    position, ref, alt, continue_on_error=True
+                )
+                results.update({
+                    provider: fetched_results.get(provider)
+                    for provider in fetch_missing
+                })
+            else:
+                provider_fetchers = {
+                    "ensembl": lambda: annotation_api.fetch_ensembl_vep(
+                        "MT", position, ref, alt
+                    ),
+                    "clinvar": lambda: annotation_api.fetch_clinvar_mito_variant(
+                        position, ref, alt
+                    ),
+                    "mitomap": lambda: annotation_api.fetch_mitomap(
+                        position, ref, alt
+                    ),
+                }
+                for provider in fetch_missing:
+                    try:
+                        results[provider] = provider_fetchers[provider]()
+                    except (annotation_api.AnnotationAPIError, ValueError) as exc:
+                        results[provider] = {"source": provider, "error": str(exc)}
+
+            attempted_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            for provider in missing:
+                result = results.get(provider)
+                error = None
+                annotation_json = None
+                retrieved_at = None
+                if result is None:
+                    error = "Provider returned no result"
+                elif isinstance(result, dict) and result.get("error"):
+                    error = str(result["error"])
+                else:
+                    annotation_json = json.dumps(result, sort_keys=True)
+                    if isinstance(result, dict):
+                        retrieved_at = result.get("retrieved_at")
+                connection.execute(
+                    """
+                    INSERT INTO provider_annotations(
+                        variant_id, provider, annotation_json, error,
+                        retrieved_at, last_attempted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(variant_id, provider) DO UPDATE SET
+                        annotation_json = excluded.annotation_json,
+                        error = excluded.error,
+                        retrieved_at = excluded.retrieved_at,
+                        last_attempted_at = excluded.last_attempted_at
+                    """,
+                    (
+                        variant_id, provider, annotation_json, error,
+                        retrieved_at, attempted_at,
+                    ),
+                )
+                connection.commit()
+                report(
+                    position,
+                    ref,
+                    alt,
+                    provider,
+                    (
+                        "error"
+                        if error
+                        else "skipped"
+                        if provider in SKIPPED_ANNOTATION_PROVIDERS
+                        else "saved"
+                    ),
+                )
+    return annotation_db_path
+
+
+def annotation_alleles_from_database(database_path):
+    """Read unique alleles from a current or legacy imported study database."""
+    database_path = Path(database_path)
+    if not database_path.is_file():
+        raise FileNotFoundError(f"Database not found: {database_path}")
+
+    with sqlite3.connect(database_path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        if "mutations" not in tables:
+            raise ValueError(f"{database_path.name} has no mutations table")
+
+        mutation_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(mutations)")
+        }
+        if "pos" not in mutation_columns:
+            raise ValueError(f"{database_path.name} has no mutations.pos column")
+        ref_column = "vcf_ref" if "vcf_ref" in mutation_columns else "ref"
+        if ref_column not in mutation_columns:
+            raise ValueError(f"{database_path.name} has no mutation reference column")
+
+        if "mutation_alts" in tables:
+            alt_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(mutation_alts)")
+            }
+        else:
+            alt_columns = set()
+
+        if {"mutation_id", "alt"} <= alt_columns:
+            rows = connection.execute(
+                f"""
+                SELECT mutations.pos, mutations.{ref_column}, mutation_alts.alt
+                FROM mutation_alts
+                JOIN mutations ON mutations.id = mutation_alts.mutation_id
+                """
+            )
+        elif "alt" in mutation_columns:
+            rows = connection.execute(
+                f"SELECT pos, {ref_column}, alt FROM mutations"
+            )
+        else:
+            raise ValueError(f"{database_path.name} has no mutation ALT column")
+
+        alleles = set()
+        for position, ref, alt_text in rows:
+            for alt in str(alt_text or "").split(","):
+                alt = alt.strip().upper()
+                if alt and alt != ".":
+                    alleles.add((int(position), str(ref or "").upper(), alt))
+        return alleles
+
+
+def annotate_existing_databases(
+    annotation_db_path,
+    database_paths,
+    *,
+    fetcher=None,
+    progress_callback=None,
+):
+    """Populate the shared cache from one or more previously imported DBs."""
+    annotation_db_path = Path(annotation_db_path)
+    alleles = set()
+    for database_path in database_paths:
+        database_path = Path(database_path)
+        if database_path.resolve() == annotation_db_path.resolve():
+            raise ValueError("The annotation database cannot be used as a study database.")
+        alleles.update(annotation_alleles_from_database(database_path))
+    annotate_alleles(
+        annotation_db_path,
+        alleles,
+        fetcher=fetcher,
+        progress_callback=progress_callback,
+    )
+    return annotation_db_path, len(alleles)
+
+
+def clear_annotation_database(annotation_db_path):
+    """Remove all cached variants and provider responses without deleting the DB."""
+    annotation_db_path = Path(annotation_db_path)
+    annotation_db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(annotation_db_path) as connection:
+        create_annotation_database_schema(connection)
+        provider_count = connection.execute(
+            "SELECT COUNT(*) FROM provider_annotations"
+        ).fetchone()[0]
+        variant_count = connection.execute(
+            "SELECT COUNT(*) FROM annotation_variants"
+        ).fetchone()[0]
+        connection.execute("DELETE FROM provider_annotations")
+        connection.execute("DELETE FROM annotation_variants")
+    return variant_count, provider_count
+
+
 def insert_subject(connection, subject_id):
     """Insert or fetch a subject row."""
     connection.execute(
@@ -794,6 +1110,7 @@ def make_sql_database(
     output_path,
     input_dir,
     reference_path=DEFAULT_MITO_REFERENCE_PATH,
+    annotation_db_path=DEFAULT_ANNOTATION_DATABASE_PATH,
 ):
     """Create a SQLite database for subjects, samples, populations, and mutations."""
     samples = load_samples(input_dir)
@@ -801,6 +1118,7 @@ def make_sql_database(
         output_path=output_path,
         samples=samples,
         reference_path=reference_path,
+        annotation_db_path=annotation_db_path,
     )
 
 
@@ -808,6 +1126,7 @@ def make_sql_database_from_plan(
     output_path,
     plan,
     reference_path=DEFAULT_MITO_REFERENCE_PATH,
+    annotation_db_path=DEFAULT_ANNOTATION_DATABASE_PATH,
 ):
     """Create a SQLite database from editable import plan metadata."""
     samples = load_samples_from_plan(plan)
@@ -815,6 +1134,7 @@ def make_sql_database_from_plan(
         output_path=output_path,
         samples=samples,
         reference_path=reference_path,
+        annotation_db_path=annotation_db_path,
     )
 
 
@@ -822,10 +1142,17 @@ def make_sql_database_from_samples(
     output_path,
     samples,
     reference_path=DEFAULT_MITO_REFERENCE_PATH,
+    annotation_db_path=DEFAULT_ANNOTATION_DATABASE_PATH,
 ):
     """Create a SQLite database from already-loaded samples."""
     reference = load_mito_reference(reference_path)
     output_path = Path(output_path)
+    annotation_db_path = Path(annotation_db_path)
+    if output_path.resolve() == annotation_db_path.resolve():
+        raise ValueError(
+            "The study output and persistent annotation database must use "
+            "different paths."
+        )
 
     with sqlite3.connect(output_path) as connection:
         create_database_schema(connection)
@@ -839,6 +1166,8 @@ def make_sql_database_from_samples(
                     skipped_out_of_reference += 1
                     continue
                 insert_mutation(connection, sample_db_id, mutation, reference)
+
+    annotate_imported_mutations(annotation_db_path, samples)
 
     if skipped_out_of_reference:
         print(
@@ -886,10 +1215,14 @@ class ImportWindow:
 
         self.input_dir = tk.StringVar(value=str(default_input))
         self.output_path = tk.StringVar(value=str(base_dir / "mito_import.sqlite"))
+        self.annotation_db_path = tk.StringVar(
+            value=str(DEFAULT_ANNOTATION_DATABASE_PATH)
+        )
         self.reference_path = tk.StringVar(value=str(DEFAULT_MITO_REFERENCE_PATH))
         self.subject_regex = tk.StringVar(value=DEFAULT_SUBJECT_REGEX)
         self.subject_text = tk.StringVar()
         self.tags_text = tk.StringVar()
+        self.annotation_progress = tk.DoubleVar(value=0)
         self.status_text = tk.StringVar(value="Load a preview, edit tags, then run the import.")
 
         self._build_widgets()
@@ -905,10 +1238,14 @@ class ImportWindow:
 
         self._path_row(paths, 0, "Input", self.input_dir, self.browse_input_dir)
         self._path_row(paths, 1, "Output", self.output_path, self.browse_output_path)
-        self._path_row(paths, 2, "Reference", self.reference_path, self.browse_reference_path)
+        self._path_row(
+            paths, 2, "Annotations", self.annotation_db_path,
+            self.browse_annotation_db_path,
+        )
+        self._path_row(paths, 3, "Reference", self.reference_path, self.browse_reference_path)
         self._path_row(
             paths,
-            3,
+            4,
             "Subject regex",
             self.subject_regex,
             self.apply_subject_regex_to_all,
@@ -916,7 +1253,7 @@ class ImportWindow:
         )
 
         ttk.Button(paths, text="Refresh Preview", command=self.load_preview).grid(
-            row=4,
+            row=5,
             column=2,
             sticky="e",
             pady=(8, 0),
@@ -991,7 +1328,32 @@ class ImportWindow:
         ttk.Label(footer, textvariable=self.status_text).grid(row=0, column=0, sticky="w")
         self.go_button = ttk.Button(footer, text="Go", command=self.start_import)
         self.go_button.grid(row=0, column=1, padx=(8, 6))
-        ttk.Button(footer, text="Quit", command=self.root.destroy).grid(row=0, column=2)
+        self.existing_button = ttk.Button(
+            footer,
+            text="Annotate Existing DBs",
+            command=self.choose_existing_databases,
+        )
+        self.existing_button.grid(row=0, column=2, padx=(0, 6))
+        self.clear_annotations_button = ttk.Button(
+            footer,
+            text="Clear Annotations",
+            command=self.clear_annotations,
+        )
+        self.clear_annotations_button.grid(row=0, column=3, padx=(0, 6))
+        ttk.Button(footer, text="Quit", command=self.root.destroy).grid(row=0, column=4)
+        self.annotation_progress_bar = ttk.Progressbar(
+            footer,
+            variable=self.annotation_progress,
+            maximum=1,
+            mode="determinate",
+        )
+        self.annotation_progress_bar.grid(
+            row=1,
+            column=0,
+            columnspan=5,
+            sticky="ew",
+            pady=(8, 0),
+        )
 
     def _path_row(self, parent, row, label, variable, command, button_text="Browse"):
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=2)
@@ -1031,6 +1393,15 @@ class ImportWindow:
         )
         if path:
             self.reference_path.set(path)
+
+    def browse_annotation_db_path(self):
+        path = filedialog.asksaveasfilename(
+            initialfile=Path(self.annotation_db_path.get()).name,
+            defaultextension=".sqlite",
+            filetypes=[("SQLite databases", "*.sqlite *.sqlite3 *.db"), ("All files", "*.*")],
+        )
+        if path:
+            self.annotation_db_path.set(path)
 
     def derive_subject_id(self, item):
         return subject_id_from_regex(
@@ -1192,6 +1563,8 @@ class ImportWindow:
             return
 
         self.go_button.configure(state="disabled")
+        self.existing_button.configure(state="disabled")
+        self.clear_annotations_button.configure(state="disabled")
         for iid in self.items_by_iid:
             self.tree.set(iid, "status", "Queued")
         self.status_text.set("Import running...")
@@ -1199,12 +1572,120 @@ class ImportWindow:
         thread = threading.Thread(target=self.run_import, daemon=True)
         thread.start()
 
+    def choose_existing_databases(self):
+        paths = filedialog.askopenfilenames(
+            title="Choose previously imported study databases",
+            initialdir=str(Path(self.output_path.get()).parent),
+            filetypes=[
+                ("SQLite databases", "*.sqlite *.sqlite3 *.db"),
+                ("All files", "*.*"),
+            ],
+        )
+        if not paths:
+            return
+        self.go_button.configure(state="disabled")
+        self.existing_button.configure(state="disabled")
+        self.clear_annotations_button.configure(state="disabled")
+        self.annotation_progress.set(0)
+        self.status_text.set(f"Annotating mutations from {len(paths)} database(s)...")
+        threading.Thread(
+            target=self.run_existing_annotation,
+            args=(tuple(Path(path) for path in paths),),
+            daemon=True,
+        ).start()
+
+    def run_existing_annotation(self, database_paths):
+        try:
+            annotation_path, allele_count = annotate_existing_databases(
+                Path(self.annotation_db_path.get()),
+                database_paths,
+                progress_callback=self.report_annotation_progress,
+            )
+        except Exception as exc:
+            self.root.after(0, self.existing_annotation_failed, str(exc))
+            return
+        self.root.after(
+            0,
+            self.existing_annotation_finished,
+            annotation_path,
+            allele_count,
+            len(database_paths),
+        )
+
+    def report_annotation_progress(
+        self, completed, total, position, ref, alt, provider, status
+    ):
+        self.root.after(
+            0,
+            self.update_annotation_progress,
+            completed,
+            total,
+            position,
+            ref,
+            alt,
+            provider,
+            status,
+        )
+
+    def update_annotation_progress(
+        self, completed, total, position, ref, alt, provider, status
+    ):
+        self.annotation_progress_bar.configure(maximum=max(total, 1))
+        self.annotation_progress.set(completed)
+        self.status_text.set(
+            f"Annotations {completed}/{total}: "
+            f"{position} {ref}>{alt}, {provider} ({status})"
+        )
+
+    def existing_annotation_finished(self, annotation_path, allele_count, db_count):
+        self.go_button.configure(state="normal")
+        self.existing_button.configure(state="normal")
+        self.clear_annotations_button.configure(state="normal")
+        message = (
+            f"Processed {allele_count} unique allele(s) from {db_count} "
+            f"database(s) into {annotation_path}"
+        )
+        self.status_text.set(message)
+        messagebox.showinfo("Annotation complete", message)
+
+    def existing_annotation_failed(self, error):
+        self.go_button.configure(state="normal")
+        self.existing_button.configure(state="normal")
+        self.clear_annotations_button.configure(state="normal")
+        self.status_text.set("Existing database annotation failed.")
+        messagebox.showerror("Annotation failed", error)
+
+    def clear_annotations(self):
+        annotation_path = Path(self.annotation_db_path.get())
+        confirmed = messagebox.askyesno(
+            "Clear annotations?",
+            "This will permanently remove every cached annotation from "
+            f"{annotation_path}.\n\nContinue?",
+        )
+        if not confirmed:
+            return
+        try:
+            variant_count, provider_count = clear_annotation_database(
+                annotation_path
+            )
+        except Exception as exc:
+            messagebox.showerror("Clear failed", str(exc))
+            return
+        self.annotation_progress.set(0)
+        message = (
+            f"Cleared {variant_count} variant(s) and {provider_count} "
+            "provider annotation(s)."
+        )
+        self.status_text.set(message)
+        messagebox.showinfo("Annotations cleared", message)
+
     def run_import(self):
         try:
             output_path = make_sql_database_from_plan(
                 output_path=Path(self.output_path.get()),
                 plan=self.plan,
                 reference_path=Path(self.reference_path.get()),
+                annotation_db_path=Path(self.annotation_db_path.get()),
             )
         except Exception as exc:
             self.root.after(0, self.import_failed, str(exc))
@@ -1216,6 +1697,8 @@ class ImportWindow:
         for iid in self.items_by_iid:
             self.tree.set(iid, "status", "Imported")
         self.go_button.configure(state="normal")
+        self.existing_button.configure(state="normal")
+        self.clear_annotations_button.configure(state="normal")
         self.status_text.set(f"Wrote {output_path}")
         messagebox.showinfo("Import complete", f"Wrote {output_path}")
 
@@ -1223,6 +1706,8 @@ class ImportWindow:
         for iid in self.items_by_iid:
             self.tree.set(iid, "status", "Error")
         self.go_button.configure(state="normal")
+        self.existing_button.configure(state="normal")
+        self.clear_annotations_button.configure(state="normal")
         self.status_text.set("Import failed.")
         messagebox.showerror("Import failed", error)
 
@@ -1264,6 +1749,22 @@ def parse_args(argv=None):
         help=f"Mitochondrial reference FASTA. Default: {DEFAULT_MITO_REFERENCE_PATH}",
     )
     parser.add_argument(
+        "--annotations-db",
+        type=Path,
+        default=DEFAULT_ANNOTATION_DATABASE_PATH,
+        help=(
+            "Persistent annotation cache shared by imports. "
+            f"Default: {DEFAULT_ANNOTATION_DATABASE_PATH}"
+        ),
+    )
+    parser.add_argument(
+        "--annotate-existing",
+        type=Path,
+        nargs="+",
+        metavar="DATABASE",
+        help="Populate the annotation cache from existing imported databases.",
+    )
+    parser.add_argument(
         "--list",
         action="store_true",
         help="Print parsed VCF summaries instead of creating a SQLite database.",
@@ -1290,6 +1791,16 @@ if __name__ == "__main__":
         launch_gui()
         raise SystemExit
 
+    if args.annotate_existing:
+        annotation_path, allele_count = annotate_existing_databases(
+            args.annotations_db,
+            args.annotate_existing,
+        )
+        print(
+            f"Processed {allele_count} unique allele(s) into {annotation_path}"
+        )
+        raise SystemExit
+
     if args.input_dir is None:
         raise SystemExit("--input-dir is required outside of GUI mode.")
 
@@ -1303,5 +1814,6 @@ if __name__ == "__main__":
             output_path=args.output,
             input_dir=args.input_dir,
             reference_path=args.reference,
+            annotation_db_path=args.annotations_db,
         )
         print(f"Wrote {output_path}")

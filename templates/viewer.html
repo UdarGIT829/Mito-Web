@@ -106,7 +106,54 @@
     .note-comparison { margin: 12px 0 0; padding: 10px 12px; border-radius: 6px; background: #f7f9fc; }
     .note-comparison p { margin: 5px 0 0; color: #4a596d; }
     .note-meta { margin-top: 10px; font-size: 12px; color: #607086; }
-    .remove-note-button { width: auto; padding: 5px 9px; font-size: 12px; }
+    .note-actions { display: flex; align-items: start; gap: 8px; }
+    .note-actions button { width: auto; padding: 5px 9px; font-size: 12px; white-space: nowrap; }
+    .note-annotation-overview { margin-top: 12px; border-top: 1px solid #e4e8ef; padding-top: 10px; }
+    .note-annotation-overview summary { cursor: pointer; color: #24436e; font-weight: 700; }
+    .note-annotation-summary { padding-top: 10px; }
+    .note-annotation-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+    .note-annotation-fact { padding: 9px 10px; border-radius: 6px; background: #f7f9fc; }
+    .note-annotation-fact span { display: block; margin-bottom: 2px; color: #607086; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .note-annotation-fact.has-ghost { display: grid; grid-template-columns: minmax(120px, auto) minmax(180px, 1fr); gap: 14px; align-items: start; }
+    .note-annotation-ghost { text-align: right; color: #607086; opacity: .48; font-size: 11px; line-height: 1.45; }
+    .note-annotation-ghost::before { content: "Other cached values: "; font-weight: 700; }
+    .note-annotation-breakdown { margin-top: 8px; padding: 10px; border-radius: 6px; background: #f7f9fc; }
+    .note-annotation-breakdown > strong { display: block; margin-bottom: 7px; }
+    .note-annotation-breakdown table { background: #ffffff; }
+    .note-annotation-breakdown th { position: static; }
+    .note-annotation-breakdown .impact-counts { color: #4a596d; }
+    .note-study-samples { margin-top: 8px; padding: 10px; border-radius: 6px; background: #eef5ff; }
+    .note-study-samples > strong { display: block; margin-bottom: 7px; }
+    .note-study-sample-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .note-study-sample { padding: 4px 8px; border: 1px solid #c9d9f2; border-radius: 999px; background: #ffffff; color: #24436e; font-size: 12px; }
+    .annotation-view { display: grid; gap: 16px; }
+    .annotation-hero, .annotation-card {
+      padding: 20px;
+      background: #ffffff;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+    }
+    .annotation-hero-top { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .annotation-variant { margin: 2px 0 0; font-size: 28px; }
+    .annotation-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .annotation-badge { padding: 4px 9px; border-radius: 999px; background: #edf1f7; font-size: 12px; font-weight: 700; }
+    .annotation-badge.pathogenic { color: #9f2f2f; background: #fae6e6; }
+    .annotation-source-tabs { display: flex; gap: 7px; overflow-x: auto; }
+    .annotation-source-tab { width: auto; background: #ffffff; border-color: #c7cfdb; color: #35445a; }
+    .annotation-source-tab.active { background: #2457c5; border-color: #2457c5; color: #ffffff; }
+    .annotation-source-panel { display: none; }
+    .annotation-source-panel.active { display: block; }
+    .annotation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .annotation-card h2, .annotation-card h3 { margin: 0 0 10px; }
+    .annotation-metric { font-size: 24px; font-weight: 800; }
+    .annotation-card dl { display: grid; grid-template-columns: minmax(105px, .4fr) 1fr; gap: 7px 14px; margin: 0; }
+    .annotation-card dt { color: #607086; }
+    .annotation-card dd { margin: 0; overflow-wrap: anywhere; }
+    .annotation-notice { padding: 12px 14px; border-left: 4px solid #ba7a1a; border-radius: 6px; background: #fff5df; }
+    .annotation-search { width: min(390px, 100%); margin: 2px 0 14px; }
+    .annotation-card pre { max-height: 600px; overflow: auto; padding: 14px; border-radius: 6px; background: #182331; color: #e4edf7; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+    .annotation-card details { margin-top: 14px; }
+    .annotation-card summary { cursor: pointer; font-weight: 700; }
     .mutation-context-menu {
       position: fixed;
       display: none;
@@ -1076,6 +1123,9 @@
         <button class="tab-button" id="notes-tab" type="button" role="tab"
           aria-selected="false" aria-controls="notes-panel" tabindex="-1"
         >Notes <span id="notes-tab-count"></span></button>
+        <button class="tab-button" id="annotations-tab" type="button" role="tab"
+          aria-selected="false" aria-controls="annotations-panel" tabindex="-1"
+        >Annotations</button>
       </div>
       <div
         class="tab-panel"
@@ -1314,6 +1364,11 @@
           <div class="notes-list" id="notes-list"></div>
         </div>
       </div>
+      <div class="tab-panel" id="annotations-panel" role="tabpanel" aria-labelledby="annotations-tab" hidden>
+        <div id="annotation-view" class="annotation-view">
+          <div class="muted">Choose “View Annotation Details” from a saved mutation in Notes.</div>
+        </div>
+      </div>
     </div>
   </main>
   <div id="metadata-popover" class="metadata-popover" role="dialog" aria-live="polite"></div>
@@ -1414,6 +1469,7 @@
     };
     const notesStorageKey = "mito-sql-viewer-notes-v1";
     let savedNotes = [];
+    let annotationVocabularyPromise = null;
     let currentNoteRows = [];
     let contextMenuRowIndex = -1;
     const workflowState = {
@@ -1505,6 +1561,212 @@
       });
     }
 
+    function annotationClinvarRecords(data) {
+      const result = data?.clinvar?.data?.summaries?.result || {};
+      return (result.uids || []).map(id => result[id]).filter(Boolean);
+    }
+
+    function annotationEnsemblRecords(data) {
+      return Array.isArray(data?.ensembl?.data) ? data.ensembl.data : [];
+    }
+
+    function annotationProviderMessage(provider, emptyMessage) {
+      if (provider?.error) return `<div class="annotation-notice">${esc(provider.error)}</div>`;
+      if (provider?.skipped) return `<div class="annotation-notice">${esc(provider.status || "This provider was skipped when the cache was built.")}</div>`;
+      return `<div class="annotation-notice">${esc(emptyMessage)}</div>`;
+    }
+
+    function annotationOverviewHtml(data) {
+      const record = annotationClinvarRecords(data)[0] || {};
+      const clinical = record.germline_classification || {};
+      const vep = annotationEnsemblRecords(data)[0] || {};
+      const consequences = vep.transcript_consequences || [];
+      const genes = [...new Set(consequences.map(row => row.gene_symbol).filter(Boolean))];
+      return `
+        <div class="annotation-grid">
+          <article class="annotation-card"><h3>Clinical classification</h3><div class="annotation-metric">${esc(clinical.description || "Not reported")}</div><div class="muted">${esc(clinical.review_status || "No review status")}</div></article>
+          <article class="annotation-card"><h3>Most severe consequence</h3><div class="annotation-metric">${esc((vep.most_severe_consequence || "Not reported").replaceAll("_", " "))}</div><div class="muted">Ensembl VEP</div></article>
+          <article class="annotation-card"><h3>Genes encountered</h3><div class="annotation-metric">${genes.length}</div><div class="muted">${esc(genes.join(", ") || "None reported")}</div></article>
+        </div>
+        <article class="annotation-card"><h2>At a glance</h2><dl>
+          <dt>ClinVar record</dt><dd>${esc(record.accession_version || record.accession || "—")}</dd>
+          <dt>Condition</dt><dd>${esc(clinical.trait_set?.map(item => item.trait_name).join(", ") || "—")}</dd>
+          <dt>Last evaluated</dt><dd>${esc(clinical.last_evaluated || "—")}</dd>
+          <dt>Assembly</dt><dd>${esc(vep.assembly_name || "—")}</dd>
+          <dt>Alleles</dt><dd>${esc(vep.allele_string || "—")}</dd>
+          <dt>Transcripts</dt><dd>${consequences.length}</dd>
+        </dl></article>`;
+    }
+
+    function annotationClinvarHtml(data) {
+      const records = annotationClinvarRecords(data);
+      if (!records.length) return `<article class="annotation-card">${annotationProviderMessage(data.clinvar, "No ClinVar match was cached for this allele.")}</article>`;
+      return records.map(record => {
+        const clinical = record.germline_classification || {};
+        const variant = record.variation_set?.[0] || {};
+        const traits = clinical.trait_set || [];
+        const xrefs = variant.variation_xrefs || [];
+        return `<article class="annotation-card">
+          <h2>${esc(record.title || record.accession || "ClinVar record")}</h2>
+          <div class="annotation-badges"><span class="annotation-badge ${/pathogenic/i.test(clinical.description || "") ? "pathogenic" : ""}">${esc(clinical.description || "Unclassified")}</span><span class="annotation-badge">${esc(clinical.review_status || "No review status")}</span></div>
+          <br><dl><dt>Accession</dt><dd>${esc(record.accession_version || record.accession || "—")}</dd><dt>Type</dt><dd>${esc(record.obj_type || "—")}</dd><dt>Gene</dt><dd>${esc(record.genes?.map(gene => gene.symbol).join(", ") || "—")}</dd><dt>SPDI</dt><dd>${esc(variant.canonical_spdi || "—")}</dd><dt>Evaluated</dt><dd>${esc(clinical.last_evaluated || "—")}</dd><dt>Conditions</dt><dd>${esc(traits.map(trait => trait.trait_name).join(", ") || "—")}</dd><dt>External IDs</dt><dd>${xrefs.map(xref => `${esc(xref.db_source)}: ${esc(xref.db_id)}`).join("<br>") || "—"}</dd></dl>
+          <details><summary>Full ClinVar record</summary><pre>${esc(JSON.stringify(record, null, 2))}</pre></details>
+        </article>`;
+      }).join("");
+    }
+
+    function annotationEnsemblHtml(data) {
+      const records = annotationEnsemblRecords(data);
+      if (!records.length) return `<article class="annotation-card">${annotationProviderMessage(data.ensembl, "No Ensembl annotation was cached for this allele.")}</article>`;
+      const record = records[0];
+      const rows = record.transcript_consequences || [];
+      return `<article class="annotation-card"><h2>Transcript consequences</h2>
+        <p class="muted">${rows.length} results · most severe: ${esc((record.most_severe_consequence || "—").replaceAll("_", " "))}</p>
+        <input id="annotation-transcript-search" class="annotation-search" placeholder="Filter genes, transcripts, consequences…">
+        <div class="table-wrap"><table><thead><tr><th>Gene</th><th>Biotype</th><th>Consequence</th><th>Impact</th><th>Transcript</th><th>HGVS / change</th></tr></thead><tbody id="annotation-transcript-rows">${rows.map(row => `<tr data-search="${esc(JSON.stringify(row).toLowerCase())}"><td><strong>${esc(row.gene_symbol || row.gene_id || "—")}</strong><br><span class="muted">${esc(row.gene_id || "")}</span></td><td>${esc(row.biotype || "—")}</td><td>${esc((row.consequence_terms || []).join(", ").replaceAll("_", " ") || "—")}</td><td>${esc(row.impact || "—")}</td><td>${esc(row.transcript_id || "—")}</td><td>${esc(row.hgvsc || row.hgvsp || row.amino_acids || "—")}</td></tr>`).join("")}</tbody></table></div>
+        <details><summary>Full Ensembl response</summary><pre>${esc(JSON.stringify(record, null, 2))}</pre></details></article>`;
+    }
+
+    function annotationMitomapHtml(data) {
+      const source = data.mitomap;
+      if (!source || source.error || source.skipped) return `<article class="annotation-card"><h2>MITOMAP</h2>${annotationProviderMessage(source, "No MITOMAP response is cached.")}</article>`;
+      const payload = source.data || {};
+      return `<article class="annotation-card"><h2>MITOMAP</h2><div class="annotation-notice">${esc(payload.warning || "MITOMAP returned an unstructured response.")}</div>${source.request_url ? `<p><a href="${esc(source.request_url)}" target="_blank" rel="noreferrer">Open the MITOMAP request</a></p>` : ""}<details><summary>Raw HTML (${Number(payload.html?.length || 0).toLocaleString()} characters)</summary><pre>${esc(payload.html || "")}</pre></details></article>`;
+    }
+
+    function annotationReferenceForNote(note) {
+      return note.mutation.vcf_ref
+        || note.mutation.present?.find(call => call.vcf_ref)?.vcf_ref
+        || note.mutation.ref;
+    }
+
+    async function fetchAnnotationForNote(note) {
+      const params = new URLSearchParams({
+        position: note.mutation.pos,
+        ref: annotationReferenceForNote(note),
+        alt: note.mutation.alt
+      });
+      return await getJson(`/api/annotations?${params}`);
+    }
+
+    function fetchAnnotationVocabulary() {
+      if (!annotationVocabularyPromise) {
+        annotationVocabularyPromise = getJson("/api/annotation-vocabulary");
+      }
+      return annotationVocabularyPromise;
+    }
+
+    async function fetchMutationSamplesForNote(note) {
+      const params = new URLSearchParams({
+        study_db: note.databaseId,
+        position: note.mutation.pos,
+        ref: annotationReferenceForNote(note),
+        alt: note.mutation.alt
+      });
+      return await getJson(`/api/mutation-samples?${params}`);
+    }
+
+    function annotationGhostText(entries, currentValues) {
+      const current = new Set(currentValues.map(value => String(value).toLowerCase()));
+      return entries
+        .filter(entry => !current.has(String(entry.value).toLowerCase()))
+        .map(entry => `${entry.value} (${entry.count})`)
+        .join(" · ") || "None";
+    }
+
+    async function loadNoteAnnotationOverview(note, container) {
+      if (container.dataset.loaded === "true") return;
+      container.innerHTML = '<div class="muted">Loading cached annotation overview…</div>';
+      try {
+        const [data, vocabulary, studySamples] = await Promise.all([
+          fetchAnnotationForNote(note),
+          fetchAnnotationVocabulary().catch(() => ({classifications: [], conditions: []})),
+          fetchMutationSamplesForNote(note).catch(() => ({samples: []}))
+        ]);
+        const clinvar = annotationClinvarRecords(data)[0] || {};
+        const clinical = clinvar.germline_classification || {};
+        const ensembl = annotationEnsemblRecords(data)[0] || {};
+        const consequences = ensembl.transcript_consequences || [];
+        const genes = [...new Set(consequences.map(row => row.gene_symbol).filter(Boolean))];
+        const conditions = clinical.trait_set?.map(item => item.trait_name).filter(Boolean) || [];
+        const classification = clinical.description || "Not reported";
+        const classificationGhost = annotationGhostText(vocabulary.classifications || [], [classification]);
+        const conditionGhost = annotationGhostText(vocabulary.conditions || [], conditions);
+        const sampleRows = studySamples.samples || [];
+        const consequenceStats = new Map();
+        consequences.forEach(row => {
+          const terms = row.consequence_terms?.length ? row.consequence_terms : ["not_reported"];
+          terms.forEach(term => {
+            if (!consequenceStats.has(term)) consequenceStats.set(term, {count: 0, impacts: new Map()});
+            const stat = consequenceStats.get(term);
+            const impact = row.impact || "Not reported";
+            stat.count += 1;
+            stat.impacts.set(impact, (stat.impacts.get(impact) || 0) + 1);
+          });
+        });
+        const breakdownRows = [...consequenceStats.entries()]
+          .sort((left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0]))
+          .map(([term, stat]) => `<tr><td>${esc(term.replaceAll("_", " "))}</td><td>${stat.count}</td><td class="impact-counts">${[...stat.impacts.entries()].map(([impact, count]) => `${esc(impact)}: ${count}`).join(" · ")}</td></tr>`)
+          .join("");
+        container.innerHTML = `<div class="note-annotation-facts">
+          <div class="note-annotation-fact has-ghost"><div><span>Classification</span>${esc(classification)}</div><div class="note-annotation-ghost">${esc(classificationGhost)}</div></div>
+          <div class="note-annotation-fact"><span>Genes</span>${esc(genes.join(", ") || "None reported")}</div>
+          <div class="note-annotation-fact has-ghost"><div><span>Condition</span>${esc(conditions.join(", ") || "Not reported")}</div><div class="note-annotation-ghost">${esc(conditionGhost)}</div></div>
+        </div>
+        <div class="note-study-samples"><strong>Found in ${sampleRows.length} sample${sampleRows.length === 1 ? "" : "s"} in ${esc(note.databaseLabel || note.databaseId)}</strong><div class="note-study-sample-list">${sampleRows.length ? sampleRows.map(sample => `<span class="note-study-sample" title="${esc(sample.source_file)}">${esc(sample.label)}</span>`).join("") : '<span class="muted">No matching samples found in this study database.</span>'}</div></div>
+        <div class="note-annotation-breakdown"><strong>Ensembl consequence breakdown · ${consequences.length} transcript result${consequences.length === 1 ? "" : "s"}</strong>
+          ${breakdownRows ? `<div class="table-wrap"><table><thead><tr><th>Consequence</th><th>Count</th><th>Impact</th></tr></thead><tbody>${breakdownRows}</tbody></table></div>` : '<div class="muted">No transcript consequences reported.</div>'}
+        </div>`;
+        container.dataset.loaded = "true";
+      } catch (error) {
+        let message = error.message;
+        try { message = JSON.parse(message).error || message; } catch {}
+        container.innerHTML = `<div class="annotation-notice">${esc(message)}</div>`;
+      }
+    }
+
+    function setupAnnotationControls() {
+      document.querySelectorAll(".annotation-source-tab").forEach(button => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".annotation-source-tab, .annotation-source-panel").forEach(node => node.classList.remove("active"));
+          button.classList.add("active");
+          document.getElementById(button.dataset.annotationPanel).classList.add("active");
+        });
+      });
+      const search = document.getElementById("annotation-transcript-search");
+      if (search) search.addEventListener("input", event => {
+        const needle = event.target.value.toLowerCase().trim();
+        document.querySelectorAll("#annotation-transcript-rows tr").forEach(row => row.classList.toggle("hidden", !row.dataset.search.includes(needle)));
+      });
+    }
+
+    async function viewAnnotationDetails(note) {
+      const annotationTab = document.getElementById("annotations-tab");
+      const view = document.getElementById("annotation-view");
+      selectTab(annotationTab);
+      annotationTab.focus();
+      view.innerHTML = `<div class="muted">Loading cached annotations for m.${esc(note.mutation.pos)}${esc(note.mutation.ref)}&gt;${esc(note.mutation.alt)}…</div>`;
+      try {
+        const data = await fetchAnnotationForNote(note);
+        const clinical = annotationClinvarRecords(data)[0]?.germline_classification || {};
+        const severe = annotationEnsemblRecords(data)[0]?.most_severe_consequence;
+        const returned = ["clinvar", "ensembl", "mitomap"].filter(name => data[name] && !data[name].error && !data[name].skipped);
+        view.innerHTML = `
+          <div class="annotation-hero"><div class="annotation-hero-top"><div><div class="muted">Mitochondrial variant</div><h2 class="annotation-variant">m.${esc(data.variant.pos)}${esc(data.variant.ref)}&gt;${esc(data.variant.alt)}</h2></div><div class="muted">${returned.length}/3 sources returned · cached</div></div><div class="annotation-badges">${clinical.description ? `<span class="annotation-badge ${/pathogenic/i.test(clinical.description) ? "pathogenic" : ""}">${esc(clinical.description)}</span>` : ""}${severe ? `<span class="annotation-badge">${esc(severe.replaceAll("_", " "))}</span>` : ""}${returned.map(source => `<span class="annotation-badge">${esc(source)}</span>`).join("")}</div></div>
+          <nav class="annotation-source-tabs" aria-label="Annotation sources"><button class="annotation-source-tab active" data-annotation-panel="annotation-overview">Overview</button><button class="annotation-source-tab" data-annotation-panel="annotation-clinvar">ClinVar</button><button class="annotation-source-tab" data-annotation-panel="annotation-ensembl">Ensembl</button><button class="annotation-source-tab" data-annotation-panel="annotation-mitomap">MITOMAP</button><button class="annotation-source-tab" data-annotation-panel="annotation-raw">Raw JSON</button></nav>
+          <div id="annotation-overview" class="annotation-source-panel active">${annotationOverviewHtml(data)}</div>
+          <div id="annotation-clinvar" class="annotation-source-panel">${annotationClinvarHtml(data)}</div>
+          <div id="annotation-ensembl" class="annotation-source-panel">${annotationEnsemblHtml(data)}</div>
+          <div id="annotation-mitomap" class="annotation-source-panel">${annotationMitomapHtml(data)}</div>
+          <div id="annotation-raw" class="annotation-source-panel"><article class="annotation-card"><h2>Complete cached annotation</h2><pre>${esc(JSON.stringify(data, null, 2))}</pre></article></div>`;
+        setupAnnotationControls();
+      } catch (error) {
+        let message = error.message;
+        try { message = JSON.parse(message).error || message; } catch {}
+        view.innerHTML = `<div class="annotation-notice">${esc(message)}</div>`;
+      }
+    }
+
     function renderNotes() {
       const list = document.getElementById("notes-list");
       const count = savedNotes.length;
@@ -1517,12 +1779,16 @@
               <div class="note-mutation mono">m.${esc(note.mutation.pos)}${esc(note.mutation.ref)}&gt;${esc(note.mutation.alt)}</div>
               <div class="muted">${esc(String(note.mutation.status || "").replaceAll("_", " "))}</div>
             </div>
-            <button class="secondary-button remove-note-button" type="button" data-note-id="${esc(note.id)}">Remove</button>
+            <div class="note-actions"><button class="view-annotation-button" type="button" data-note-id="${esc(note.id)}">View Annotation Details</button><button class="secondary-button remove-note-button" type="button" data-note-id="${esc(note.id)}">Remove</button></div>
           </div>
           <div class="note-comparison">
             <strong class="mono">${esc(note.comparison.expression)}</strong>
             <p>${esc(note.comparison.sentence)}</p>
           </div>
+          <details class="note-annotation-overview" data-note-id="${esc(note.id)}" open>
+            <summary>Annotation overview</summary>
+            <div class="note-annotation-summary"></div>
+          </details>
           <div class="note-meta">${esc(note.databaseLabel)} · Saved ${esc(new Date(note.savedAt).toLocaleString())}</div>
         </section>
       `).join("") : '<div class="muted">No saved mutations yet. Save one from a comparison table to add it here.</div>';
@@ -1531,6 +1797,21 @@
           savedNotes = savedNotes.filter(note => note.id !== button.dataset.noteId);
           persistSavedNotes();
         });
+      });
+      list.querySelectorAll(".view-annotation-button").forEach(button => {
+        button.addEventListener("click", () => {
+          const note = savedNotes.find(item => item.id === button.dataset.noteId);
+          if (note) viewAnnotationDetails(note);
+        });
+      });
+      list.querySelectorAll(".note-annotation-overview").forEach(details => {
+        details.addEventListener("toggle", () => {
+          if (!details.open) return;
+          const note = savedNotes.find(item => item.id === details.dataset.noteId);
+          if (note) loadNoteAnnotationOverview(note, details.querySelector(".note-annotation-summary"));
+        });
+        const note = savedNotes.find(item => item.id === details.dataset.noteId);
+        if (note) loadNoteAnnotationOverview(note, details.querySelector(".note-annotation-summary"));
       });
     }
 
@@ -1544,7 +1825,9 @@
         databaseId: state.database,
         databaseLabel: selectedDatabase?.label || state.database,
         mutation: {
-          pos: row.pos, ref: row.ref, alt: row.alt, status: row.status,
+          pos: row.pos, ref: row.ref,
+          vcf_ref: row.vcf_ref || row.present?.find(call => call.vcf_ref)?.vcf_ref || row.ref,
+          alt: row.alt, status: row.status,
           present: row.present || [], missing: row.missing || []
         },
         comparison: {

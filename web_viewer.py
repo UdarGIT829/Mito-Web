@@ -6,6 +6,7 @@ import email.policy
 import html
 import json
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass, field
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +18,9 @@ import vcf_parser
 
 DATABASE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
 DEFAULT_DATABASE_DIR = Path(".")
+DEFAULT_ANNOTATION_DATABASE_PATH = (
+    Path(__file__).resolve().parent / "mutation_annotations.sqlite"
+)
 NO_TAGS_FILTER = "__NO_TAGS__"
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
 ROADMAP_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "roadmap.html"
@@ -151,6 +155,182 @@ def connect_database(db_path):
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def fetch_cached_annotations(annotation_db_path, position, ref, alt):
+    """Return cached provider envelopes for one mitochondrial allele."""
+    annotation_db_path = Path(annotation_db_path)
+    if not annotation_db_path.is_file():
+        raise FileNotFoundError(
+            f"Annotation database not found: {annotation_db_path}"
+        )
+
+    position = int(position)
+    ref = str(ref).strip().upper()
+    alt = str(alt).strip().upper()
+    if not ref or not alt:
+        raise ValueError("Annotation lookup requires position, ref, and alt.")
+
+    connection = sqlite3.connect(
+        f"file:{annotation_db_path.resolve()}?mode=ro", uri=True
+    )
+    connection.row_factory = sqlite3.Row
+    try:
+        variant = connection.execute(
+            """
+            SELECT id, pos, ref, alt, first_seen_at, last_seen_at
+            FROM annotation_variants
+            WHERE pos = ? AND ref = ? AND alt = ?
+            """,
+            (position, ref, alt),
+        ).fetchone()
+        if variant is None:
+            return None
+
+        payload = {
+            "variant": dict(variant),
+            "cache": {"database": annotation_db_path.name},
+        }
+        for row in connection.execute(
+            """
+            SELECT provider, annotation_json, error, retrieved_at, last_attempted_at
+            FROM provider_annotations
+            WHERE variant_id = ?
+            ORDER BY provider
+            """,
+            (variant["id"],),
+        ):
+            if row["annotation_json"] is not None:
+                try:
+                    provider_payload = json.loads(row["annotation_json"])
+                except json.JSONDecodeError as exc:
+                    provider_payload = {
+                        "source": row["provider"],
+                        "error": f"Cached annotation JSON is invalid: {exc}",
+                    }
+            else:
+                provider_payload = {
+                    "source": row["provider"],
+                    "error": row["error"] or "No cached annotation response",
+                }
+            payload[row["provider"]] = provider_payload
+        return payload
+    finally:
+        connection.close()
+
+
+def fetch_annotation_vocabulary(annotation_db_path):
+    """Return observed ClinVar classifications and conditions with counts."""
+    annotation_db_path = Path(annotation_db_path)
+    if not annotation_db_path.is_file():
+        raise FileNotFoundError(
+            f"Annotation database not found: {annotation_db_path}"
+        )
+
+    classifications = Counter()
+    conditions = Counter()
+    connection = sqlite3.connect(
+        f"file:{annotation_db_path.resolve()}?mode=ro", uri=True
+    )
+    try:
+        rows = connection.execute(
+            """
+            SELECT annotation_json FROM provider_annotations
+            WHERE provider = 'clinvar' AND annotation_json IS NOT NULL
+            """
+        )
+        for (annotation_json,) in rows:
+            try:
+                envelope = json.loads(annotation_json)
+            except json.JSONDecodeError:
+                continue
+            result = (
+                envelope.get("data", {})
+                .get("summaries", {})
+                .get("result", {})
+            )
+            for uid in result.get("uids", []):
+                clinical = result.get(uid, {}).get("germline_classification", {})
+                classification = clinical.get("description")
+                if classification:
+                    classifications[str(classification)] += 1
+                for trait in clinical.get("trait_set", []):
+                    condition = trait.get("trait_name")
+                    if condition:
+                        conditions[str(condition)] += 1
+    finally:
+        connection.close()
+
+    def ranked(counter):
+        return [
+            {"value": value, "count": count}
+            for value, count in sorted(
+                counter.items(), key=lambda item: (-item[1], item[0].lower())
+            )
+        ]
+
+    return {
+        "classifications": ranked(classifications),
+        "conditions": ranked(conditions),
+    }
+
+
+def fetch_mutation_samples(connection, position, ref, alt):
+    """Return every study sample containing an exact VCF allele."""
+    position = int(position)
+    ref = str(ref).strip().upper()
+    alt = str(alt).strip().upper()
+    if not ref or not alt:
+        raise ValueError("Sample lookup requires position, ref, and alt.")
+
+    tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    if "mutation_alts" in tables:
+        rows = connection.execute(
+            """
+            SELECT DISTINCT
+                samples.id, subjects.subject_id, samples.population_key,
+                samples.source_file
+            FROM mutation_alts
+            JOIN mutations ON mutations.id = mutation_alts.mutation_id
+            JOIN samples ON samples.id = mutations.sample_id
+            JOIN subjects ON subjects.id = samples.subject_id
+            WHERE mutations.pos = ? AND UPPER(mutations.vcf_ref) = ?
+              AND UPPER(mutation_alts.alt) = ?
+            ORDER BY subjects.subject_id, samples.population_key
+            """,
+            (position, ref, alt),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            """
+            SELECT DISTINCT
+                samples.id, subjects.subject_id, samples.population_key,
+                samples.source_file
+            FROM mutations
+            JOIN samples ON samples.id = mutations.sample_id
+            JOIN subjects ON subjects.id = samples.subject_id
+            WHERE mutations.pos = ? AND UPPER(mutations.vcf_ref) = ?
+              AND (',' || UPPER(mutations.alt) || ',') LIKE '%,' || ? || ',%'
+            ORDER BY subjects.subject_id, samples.population_key
+            """,
+            (position, ref, alt),
+        ).fetchall()
+
+    return [
+        {
+            **dict(row),
+            "label": " ".join(filter(None, (
+                row["subject_id"],
+                row["population_key"].replace("|", "_"),
+            ))),
+        }
+        for row in rows
+    ]
 
 
 def is_sqlite_database_path(path):
@@ -1471,6 +1651,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
     database_dir = None
     derived_samples_by_db = {}
     next_derived_sample_ids = {}
+    annotation_db_path = DEFAULT_ANNOTATION_DATABASE_PATH
 
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}")
@@ -1538,6 +1719,46 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/roadmap":
                 json_response(self, read_roadmap())
+                return
+            if parsed.path == "/api/annotations":
+                annotation = fetch_cached_annotations(
+                    self.annotation_db_path,
+                    query.get("position", [""])[0],
+                    query.get("ref", [""])[0],
+                    query.get("alt", [""])[0],
+                )
+                if annotation is None:
+                    json_response(
+                        self,
+                        {"error": "No cached annotation exists for this allele."},
+                        status=404,
+                    )
+                else:
+                    json_response(self, annotation)
+                return
+            if parsed.path == "/api/annotation-vocabulary":
+                json_response(
+                    self,
+                    fetch_annotation_vocabulary(self.annotation_db_path),
+                )
+                return
+            if parsed.path == "/api/mutation-samples":
+                study_db_id = query.get("study_db", [""])[0]
+                _study_db_id, study_db_path = self.resolve_database(study_db_id)
+                with self.open_database(study_db_path) as connection:
+                    samples = fetch_mutation_samples(
+                        connection,
+                        query.get("position", [""])[0],
+                        query.get("ref", [""])[0],
+                        query.get("alt", [""])[0],
+                    )
+                json_response(
+                    self,
+                    {
+                        "database": study_db_id,
+                        "samples": samples,
+                    },
+                )
                 return
 
             db_id, db_path = self.resolve_database(self.database_id_from_query(query))
@@ -1751,11 +1972,18 @@ def configure_databases(db_path=None, database_dir=None):
     return databases[default_db_id], databases
 
 
-def run_server(db_path=None, database_dir=None, host="127.0.0.1", port=8000):
+def run_server(
+    db_path=None,
+    database_dir=None,
+    annotation_db_path=DEFAULT_ANNOTATION_DATABASE_PATH,
+    host="127.0.0.1",
+    port=8000,
+):
     selected_db_path, databases = configure_databases(
         db_path=db_path,
         database_dir=database_dir,
     )
+    ViewerHandler.annotation_db_path = Path(annotation_db_path).resolve()
     server = ThreadingHTTPServer((host, port), ViewerHandler)
     database_names = ", ".join(databases)
     print(f"Serving {selected_db_path} at http://{host}:{port}")
@@ -1779,10 +2007,17 @@ def main():
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18000)
+    parser.add_argument(
+        "--annotations-db",
+        type=Path,
+        default=DEFAULT_ANNOTATION_DATABASE_PATH,
+        help="Persistent annotation cache used by the Annotations tab.",
+    )
     args = parser.parse_args()
     run_server(
         db_path=args.db,
         database_dir=None if args.db else args.db_dir,
+        annotation_db_path=args.annotations_db,
         host=args.host,
         port=args.port,
     )
