@@ -455,11 +455,20 @@
     .content { display: grid; gap: 18px; min-width: 0; }
     .main-table { min-width: 0; }
     .main-table .table-wrap { max-height: calc(100vh - 170px); }
-    .main-table-count {
-      display: block;
+    .main-table-actions {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 10px;
       min-height: 20px;
       padding: 0 2px 6px;
-      text-align: right;
+    }
+    .copy-table-button {
+      width: auto;
+      min-height: 30px;
+      padding: 4px 10px;
+      font-size: 12px;
+      white-space: nowrap;
     }
     .compare-panel {
       position: fixed;
@@ -489,7 +498,7 @@
       font-size: 18px;
       line-height: 1;
     }
-    .table-compare-ear { top: 138px; }
+    .table-compare-ear { top: 96px; }
     .compare-filter-details { border-bottom: 1px solid #e4e8ef; }
     .compare-filter-details > summary {
       cursor: pointer;
@@ -1156,9 +1165,12 @@
     <div class="workspace">
     <div class="content">
     <div class="main-table">
-      <span class="counts main-table-count" id="mutation-count"></span>
+      <div class="main-table-actions">
+        <span class="counts" id="mutation-count"></span>
+        <button class="copy-table-button" id="copy-table" type="button">Copy table</button>
+      </div>
       <div class="table-wrap">
-        <table>
+        <table id="mutation-table">
           <thead id="mutation-head">
             <tr>
               <th class="notes-indicator-column">Notes</th><th>Subject</th><th>Population</th><th>Pos</th><th>Ref</th><th>VCF Ref</th>
@@ -1517,6 +1529,44 @@
     const comparePanelCollapse = document.getElementById("compare-panel-collapse");
     const tableCompareEar = document.getElementById("table-compare-ear");
     const mutationContextMenu = document.getElementById("mutation-context-menu");
+    const copyTableButton = document.getElementById("copy-table");
+
+    function tableClipboardContent(table) {
+      const rows = [...table.rows].map(row =>
+        [...row.cells].map(cell => cell.innerText.replace(/\r?\n/g, "\n").trim())
+      );
+      const text = rows.map(row =>
+        row.map(value => value.replace(/\t/g, " ").replace(/\n/g, " ")).join("\t")
+      ).join("\n");
+      const html = `<table>${rows.map((row, rowIndex) =>
+        `<tr>${row.map(value => {
+          const tag = rowIndex === 0 ? "th" : "td";
+          return `<${tag}>${esc(value).replaceAll("\n", "<br>")}</${tag}>`;
+        }).join("")}</tr>`
+      ).join("")}</table>`;
+      return { text, html };
+    }
+
+    async function copyMutationTable() {
+      const table = document.getElementById("mutation-table");
+      const { text, html } = tableClipboardContent(table);
+      try {
+        if (window.ClipboardItem && navigator.clipboard?.write) {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/plain": new Blob([text], { type: "text/plain" }),
+            "text/html": new Blob([html], { type: "text/html" })
+          })]);
+        } else {
+          await navigator.clipboard.writeText(text);
+        }
+        const originalLabel = copyTableButton.textContent;
+        copyTableButton.textContent = "Copied!";
+        window.setTimeout(() => { copyTableButton.textContent = originalLabel; }, 1600);
+      } catch (error) {
+        copyTableButton.textContent = "Copy failed";
+        window.setTimeout(() => { copyTableButton.textContent = "Copy table"; }, 2000);
+      }
+    }
 
     function loadSavedNotes() {
       try {
@@ -3204,6 +3254,7 @@
         closeMetadataFilterModal();
       }
     });
+    copyTableButton.addEventListener("click", copyMutationTable);
 
     loadSavedNotes();
     renderNotes();

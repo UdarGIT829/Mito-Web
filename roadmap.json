@@ -5,8 +5,8 @@
       "title": "Add Annotations for Mutations",
       "notes": "Annotations are publicly available from various sources like Ensembl VEP and NCBI's ClinVar. There should be a column for each annotation source.\n\nWill add a side SQL table that pulls this for every mutation in all databases (one copy per Position+Alt )",
       "system_notes": "During SQL database import, do API calls to appropriate webservices for the data.\n\nBuild a database with POSITION, ALT_MUTATION, ANNOTATION1, ANNOTATION2, etc.",
-      "status": "now",
-      "priority": "High"
+      "status": "done",
+      "priority": "None"
     },
     {
       "id": "export-results",
@@ -60,6 +60,22 @@
       "id": "feature-1783935550520",
       "title": "Consolidate all mutation metadata columns",
       "notes": "User should have to select which columns of metadata they want to see for the Table.\n\nShowing AF is nice, but I am going to be adding a LOT more columns so I should plan to keep it clean ahead of time.",
+      "system_notes": "",
+      "status": "now",
+      "priority": "High"
+    },
+    {
+      "id": "feature-1783976125817",
+      "title": "Fix/Improve sorting and filtering for Column data",
+      "notes": "In the Table View, the data isn't nicely sortable by columns. But if I'm going to fix that, I might as well add filtering too.",
+      "system_notes": "",
+      "status": "next",
+      "priority": "High"
+    },
+    {
+      "id": "feature-1783976160247",
+      "title": "Add a \"Clipboard Copy\" button to the table view.",
+      "notes": "",
       "system_notes": "",
       "status": "next",
       "priority": "Medium"
