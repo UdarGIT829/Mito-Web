@@ -9,14 +9,6 @@
       "priority": "High"
     },
     {
-      "id": "derived-sample-workflow",
-      "title": "Save derived sample workflows",
-      "notes": "Persist comparison-derived samples and their source expressions across viewer sessions.",
-      "system_notes": "",
-      "status": "next",
-      "priority": "High"
-    },
-    {
       "id": "export-results",
       "title": "Export filtered results",
       "notes": "Download selected samples, mutation tables, or comparison results as CSV files.",
@@ -38,7 +30,7 @@
       "notes": "Add a compact genome strip that highlights filtered positions and selected sample overlap.",
       "system_notes": "",
       "status": "later",
-      "priority": "Medium"
+      "priority": "Low"
     },
     {
       "id": "multi-db-picker",
@@ -47,6 +39,30 @@
       "system_notes": "",
       "status": "done",
       "priority": "None"
+    },
+    {
+      "id": "feature-1783935194483",
+      "title": "Comparison Workflow Tab",
+      "notes": "This will provide a clean way to do a mutation comparison.",
+      "system_notes": "",
+      "status": "done",
+      "priority": "None"
+    },
+    {
+      "id": "feature-1783935282295",
+      "title": "Notes Tab",
+      "notes": "This can store mutations and what comparison was used to find it.",
+      "system_notes": "This will easily lead to further Annotation content.",
+      "status": "done",
+      "priority": "None"
+    },
+    {
+      "id": "feature-1783935550520",
+      "title": "Consolidate all mutation metadata columns",
+      "notes": "User should have to select which columns of metadata they want to see for the Table.\n\nShowing AF is nice, but I am going to be adding a LOT more columns so I should plan to keep it clean ahead of time.",
+      "system_notes": "",
+      "status": "next",
+      "priority": "Medium"
     }
   ]
 }

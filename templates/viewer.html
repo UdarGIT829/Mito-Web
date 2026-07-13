@@ -59,23 +59,406 @@
       font-size: 13px;
     }
     main { padding: 18px 22px 32px; }
+    .tab-view {
+      display: grid;
+      gap: 0;
+    }
+    .tab-list {
+      display: flex;
+      gap: 4px;
+      padding: 0 4px;
+      border-bottom: 1px solid #c7cfdb;
+    }
+    .tab-button {
+      width: auto;
+      min-height: 40px;
+      margin-bottom: -1px;
+      padding: 9px 16px;
+      border: 1px solid #c7cfdb;
+      border-bottom-color: #ffffff;
+      border-radius: 8px 8px 0 0;
+      background: #ffffff;
+      color: #24436e;
+    }
+    .tab-button[aria-selected="true"] {
+      position: relative;
+      color: #173f94;
+    }
+    .tab-button[aria-selected="true"]::before {
+      content: "";
+      position: absolute;
+      top: -1px;
+      left: 8px;
+      right: 8px;
+      height: 3px;
+      border-radius: 999px;
+      background: #2457c5;
+    }
+    .tab-panel[hidden] { display: none; }
+    .tab-panel { padding-top: 18px; }
+    .notes-view { display: grid; gap: 14px; }
+    .notes-header { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+    .notes-header h2 { margin: 0 0 4px; }
+    .notes-list { display: grid; gap: 12px; }
+    .note-card { padding: 16px; }
+    .note-card-header { display: flex; justify-content: space-between; gap: 16px; }
+    .note-mutation { font-size: 16px; font-weight: 700; }
+    .note-comparison { margin: 12px 0 0; padding: 10px 12px; border-radius: 6px; background: #f7f9fc; }
+    .note-comparison p { margin: 5px 0 0; color: #4a596d; }
+    .note-meta { margin-top: 10px; font-size: 12px; color: #607086; }
+    .remove-note-button { width: auto; padding: 5px 9px; font-size: 12px; }
+    .mutation-context-menu {
+      position: fixed;
+      display: none;
+      z-index: 40;
+      min-width: 150px;
+      padding: 5px;
+      border: 1px solid #b8c2d2;
+      border-radius: 7px;
+      background: #ffffff;
+      box-shadow: 0 10px 28px rgba(28, 39, 55, 0.2);
+    }
+    .mutation-context-menu.open { display: block; }
+    .mutation-context-menu button { width: 100%; padding: 8px 10px; background: #ffffff; color: #1d2733; text-align: left; }
+    .mutation-context-menu button:hover { background: #eef5ff; }
+    .start-cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+      width: min(960px, 100%);
+      margin: 48px auto 0;
+    }
+    .start-card {
+      display: grid;
+      gap: 12px;
+      align-content: center;
+      min-height: 260px;
+      padding: 32px;
+      border: 1px solid #c7d5ec;
+      border-radius: 14px;
+      background: #ffffff;
+      color: #1d2733;
+      text-align: left;
+      box-shadow: 0 8px 24px rgba(28, 39, 55, 0.08);
+      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+    .start-card:hover,
+    .start-card:focus-visible {
+      transform: translateY(-3px);
+      border-color: #6f96df;
+      box-shadow: 0 14px 32px rgba(36, 87, 197, 0.15);
+    }
+    .start-card-title { color: #173f94; font-size: 28px; font-weight: 800; }
+    .start-card-prompt {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: #2457c5;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .start-card-prompt::after {
+      content: "\2192";
+      font-size: 22px;
+      line-height: 1;
+      transition: transform 140ms ease;
+    }
+    .start-card:hover .start-card-prompt::after,
+    .start-card:focus-visible .start-card-prompt::after { transform: translateX(5px); }
+    .start-card-description {
+      color: #607086;
+      font-size: 15px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .database-picker.database-attention select {
+      animation: database-attention 1.4s ease-in-out;
+    }
+    @keyframes database-attention {
+      0%, 100% { background: #ffffff; border-color: #c7cfdb; box-shadow: none; }
+      20%, 75% { background: #fff3a6; border-color: #d09b00; box-shadow: 0 0 0 4px rgba(240, 185, 0, 0.22); }
+    }
+    .workflow {
+      display: grid;
+      gap: 18px;
+      width: 100%;
+    }
+    .workflow-step {
+      background: #ffffff;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .workflow-step-header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid #e4e8ef;
+    }
+    .workflow-step-number {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #2457c5;
+      color: #ffffff;
+      font-weight: 800;
+    }
+    .workflow-step-header h2 { margin: 0; font-size: 17px; }
+    .workflow-step-header p { margin: 3px 0 0; color: #607086; font-size: 13px; }
+    .workflow-step-body { padding: 16px; }
+    .workflow-database-row {
+      display: grid;
+      grid-template-columns: minmax(260px, 520px) auto;
+      gap: 12px;
+      align-items: end;
+    }
+    .workflow-database-row button { width: auto; }
+    .workflow-builder {
+      display: block;
+      width: 100%;
+    }
+    .workflow-controls { display: grid; gap: 18px; }
+    .workflow-card {
+      border: 1px solid #dce2eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .workflow-card h3 {
+      margin: 0;
+      padding: 11px 13px;
+      border-bottom: 1px solid #e4e8ef;
+      background: #f9fafc;
+      font-size: 14px;
+    }
+    .workflow-card-body { display: grid; gap: 12px; padding: 13px; }
+    .workflow-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .workflow-tags {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 7px;
+      padding: 10px;
+      border: 1px solid #dce2eb;
+      border-radius: 6px;
+      max-height: 170px;
+      overflow: auto;
+    }
+    .workflow-tags label,
+    .workflow-sample-statuses label {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+    .workflow-tags input,
+    .workflow-sample-statuses input,
+    .workflow-sample-toggle { width: auto; min-height: 0; }
+    .workflow-apply-filters { justify-self: start; width: auto; }
+    .workflow-samples {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      max-height: 560px;
+      padding: 2px;
+      overflow: auto;
+    }
+    .workflow-sample {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 9px;
+      min-height: 126px;
+      padding: 13px;
+      border: 1px solid #dce2eb;
+      border-radius: 9px;
+      background: #ffffff;
+      box-shadow: 0 2px 7px rgba(28, 39, 55, 0.06);
+      transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    }
+    .workflow-sample:hover {
+      border-color: #aebbd0;
+      box-shadow: 0 5px 14px rgba(28, 39, 55, 0.1);
+      transform: translateY(-1px);
+    }
+    .workflow-sample.selected {
+      border-color: #6f96df;
+      background: #f5f8ff;
+      box-shadow: inset 0 3px 0 #2457c5, 0 4px 12px rgba(36, 87, 197, 0.1);
+    }
+    .workflow-sample-heading { display: flex; gap: 8px; align-items: start; }
+    .workflow-sample-heading span { display: grid; gap: 4px; min-width: 0; }
+    .workflow-sample-heading strong { overflow-wrap: anywhere; }
+    .workflow-sample-heading small { color: #607086; overflow-wrap: anywhere; }
+    .workflow-sample-statuses {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 7px;
+      align-self: end;
+      padding-top: 9px;
+      border-top: 1px solid #dce2eb;
+    }
+    .workflow-sample-statuses label {
+      min-height: 34px;
+      padding: 6px 8px;
+      border: 1px solid #dce2eb;
+      border-radius: 6px;
+      background: #ffffff;
+    }
+    .workflow-sample-statuses label:has(input:checked) {
+      border-color: #8aa9e6;
+      background: #eaf2ff;
+      color: #24436e;
+    }
+    .workflow-guide {
+      position: fixed;
+      top: 112px;
+      right: 22px;
+      z-index: 10;
+      display: grid;
+      gap: 14px;
+      width: min(360px, calc(100vw - 44px));
+      max-height: calc(100vh - 134px);
+      overflow: auto;
+      padding: 16px;
+      border: 1px solid #c9d8f2;
+      border-radius: 8px;
+      background: #f4f8ff;
+      box-shadow: 0 14px 36px rgba(28, 39, 55, 0.18);
+      cursor: pointer;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+    .workflow-guide:hover { box-shadow: 0 18px 42px rgba(28, 39, 55, 0.24); }
+    .workflow-guide::after {
+      content: "CLICK TO DISMISS";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      border-radius: inherit;
+      background: rgba(23, 63, 148, 0.9);
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 140ms ease;
+    }
+    .workflow-guide:hover::after { opacity: 1; }
+    .workflow-guide.is-collapsed { transform: translateX(calc(100% + 30px)); }
+    .workflow-guide-ear {
+      position: fixed;
+      top: 138px;
+      right: 0;
+      z-index: 11;
+      display: none;
+      width: 48px;
+      min-height: 58px;
+      padding: 7px 5px 7px 8px;
+      border-radius: 9px 0 0 9px;
+      border-color: #8aa9e6;
+      background: #f4f8ff;
+      color: #24436e;
+      box-shadow: 0 8px 22px rgba(28, 39, 55, 0.18);
+    }
+    .workflow-guide-ear.open { display: grid; place-items: center; }
+    .venn-icon { position: relative; width: 30px; height: 27px; }
+    .venn-icon span {
+      position: absolute;
+      width: 17px;
+      height: 17px;
+      border: 2px solid #2457c5;
+      border-radius: 50%;
+      background: rgba(121, 167, 236, 0.24);
+    }
+    .venn-icon span:nth-child(1) { left: 1px; top: 1px; }
+    .venn-icon span:nth-child(2) { right: 1px; top: 1px; background: rgba(107, 184, 131, 0.24); }
+    .venn-icon span:nth-child(3) { left: 7px; bottom: 0; background: rgba(222, 183, 100, 0.24); }
+    .workflow-guide h3, .workflow-guide h4, .workflow-guide p { margin: 0; }
+    .workflow-guide h3 { font-size: 16px; }
+    .workflow-guide h4 { margin-bottom: 4px; font-size: 13px; color: #173f94; }
+    .workflow-guide p, .workflow-guide li { color: #40516a; font-size: 13px; line-height: 1.45; }
+    .workflow-guide ul { margin: 0; padding-left: 20px; }
+    .workflow-confirm-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+      padding-top: 16px;
+      border-top: 1px solid #e4e8ef;
+    }
+    .workflow-confirm-row button { width: auto; min-width: 190px; }
+    .workflow-status { color: #607086; font-size: 13px; }
     .workspace {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-columns: minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
     .content { display: grid; gap: 18px; min-width: 0; }
+    .main-table { min-width: 0; }
+    .main-table .table-wrap { max-height: calc(100vh - 170px); }
+    .main-table-count {
+      display: block;
+      min-height: 20px;
+      padding: 0 2px 6px;
+      text-align: right;
+    }
     .compare-panel {
-      position: sticky;
-      top: 78px;
-      max-height: calc(100vh - 96px);
+      position: fixed;
+      top: 112px;
+      right: 22px;
+      z-index: 10;
+      width: max(50vw, 560px);
+      max-width: calc(100vw - 44px);
+      max-height: calc(100vh - 134px);
       display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
       background: #fff;
       border: 1px solid #d9dee7;
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 14px 36px rgba(28, 39, 55, 0.18);
+    }
+    .compare-panel.is-collapsed { display: none; }
+    .compare-panel-heading-actions { display: flex; gap: 8px; align-items: center; }
+    .compare-panel-collapse {
+      width: 28px;
+      min-height: 28px;
+      padding: 2px 7px;
+      border-color: #c7cfdb;
+      background: #f7f9fc;
+      color: #24436e;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .table-compare-ear { top: 138px; }
+    .compare-filter-details { border-bottom: 1px solid #e4e8ef; }
+    .compare-filter-details > summary {
+      cursor: pointer;
+      list-style: none;
+    }
+    .compare-filter-details > summary::-webkit-details-marker { display: none; }
+    .compare-filter-label { display: flex; gap: 7px; align-items: center; }
+    .compare-filter-chevron { font-size: 18px; transition: transform 120ms ease; }
+    .compare-filter-details[open] .compare-filter-chevron { transform: rotate(90deg); }
+    .compare-filter-details[open] > summary { border-bottom: 1px solid #e4e8ef; }
+    .compare-panel .toolbar {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas:
+        "subject position"
+        "tags tags"
+        "alt apply";
     }
     .toolbar {
       display: grid;
@@ -165,6 +548,19 @@
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { border-bottom: 1px solid #edf0f4; padding: 7px 9px; text-align: left; vertical-align: top; }
     th { position: sticky; top: 0; background: #f9fafc; z-index: 1; color: #3f4d60; }
+    th.notes-indicator-column, td.notes-indicator-column {
+      position: sticky;
+      left: 0;
+      width: 68px;
+      min-width: 68px;
+      text-align: center;
+      background: #ffffff;
+      box-shadow: 1px 0 0 #e0e6ef;
+    }
+    th.notes-indicator-column { z-index: 3; background: #f9fafc; }
+    tr:hover td.notes-indicator-column { background: #f7faff; }
+    .saved-note-indicator { color: #2457c5; font-weight: 800; font-size: 16px; }
+    .unsaved-note-indicator { color: #a7b0bd; }
     tr:hover td { background: #f7faff; }
     tr.selected-sample td {
       background: #eef5ff;
@@ -417,6 +813,41 @@
       gap: 7px;
       min-width: 0;
     }
+    .compare-view-switcher {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 0 12px 8px;
+    }
+    .compare-view-button {
+      width: auto;
+      min-height: 30px;
+      padding: 4px 10px;
+      border-color: #c7cfdb;
+      background: #ffffff;
+      color: #35445a;
+      font-size: 12px;
+    }
+    .compare-view-button[aria-pressed="true"] {
+      border-color: #2457c5;
+      background: #eef5ff;
+      color: #173f94;
+    }
+    .compare-list.card-view {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      align-content: start;
+      gap: 12px;
+    }
+    .compare-list.card-view .compare-item {
+      min-height: 240px;
+      padding: 13px;
+      border-radius: 9px;
+      box-shadow: 0 3px 10px rgba(28, 39, 55, 0.07);
+    }
+    .compare-list.list-view { grid-template-columns: 1fr; }
+    .compare-list.list-view .sample-statuses {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
     .compare-item {
       display: grid;
       grid-template-columns: 1fr;
@@ -428,6 +859,15 @@
       background: #fbfcfe;
       font-size: 13px;
       min-width: 0;
+    }
+    .compare-item:not(.selected) { cursor: pointer; }
+    .compare-item:not(.selected):hover {
+      border-color: #9db5de;
+      background: #f4f8ff;
+    }
+    .compare-item.selected {
+      border-color: #6f96df;
+      background: #eef5ff;
     }
     .compare-item-header {
       display: grid;
@@ -532,7 +972,26 @@
           "apply apply";
       }
       .workspace { grid-template-columns: 1fr; }
-      .compare-panel { position: static; max-height: none; }
+      .compare-panel {
+        position: static;
+        width: auto !important;
+        max-width: none;
+        max-height: none;
+        box-shadow: none;
+      }
+      .compare-panel.is-collapsed { display: grid; }
+      .compare-panel-collapse { display: none; }
+      .workflow-guide {
+        position: static;
+        width: auto;
+        max-height: none;
+        margin-top: 18px;
+        box-shadow: none;
+        cursor: default;
+        transform: none !important;
+      }
+      .workflow-guide::after { display: none; }
+      .workflow-guide-ear.open { display: none; }
     }
     @media (max-width: 560px) {
       header { padding: 14px 14px; }
@@ -550,6 +1009,22 @@
           "apply";
       }
       .section-title { flex-direction: column; align-items: flex-start; }
+      .compare-panel .toolbar {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "subject"
+          "tags"
+          "position"
+          "alt"
+          "apply";
+      }
+      .compare-list.list-view .sample-statuses { grid-template-columns: 1fr; }
+      .compare-list.card-view { grid-template-columns: 1fr; }
+      .start-cards { grid-template-columns: 1fr; margin-top: 12px; }
+      .start-card { min-height: 190px; padding: 24px; }
+      .workflow-database-row, .workflow-filter-grid { grid-template-columns: 1fr; }
+      .workflow-database-row button { width: 100%; }
+      .workflow-sample-statuses { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -570,57 +1045,120 @@
     </div>
   </header>
   <main>
+    <div class="tab-view">
+      <div class="tab-list" role="tablist" aria-label="Viewer sections">
+        <button
+          class="tab-button"
+          id="start-tab"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="start-panel"
+        >Start</button>
+        <button
+          class="tab-button"
+          id="variant-viewer-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="variant-viewer-panel"
+          tabindex="-1"
+        >Table</button>
+        <button
+          class="tab-button"
+          id="comparison-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="comparison-panel"
+          tabindex="-1"
+        >Comparison</button>
+        <button class="tab-button" id="notes-tab" type="button" role="tab"
+          aria-selected="false" aria-controls="notes-panel" tabindex="-1"
+        >Notes <span id="notes-tab-count"></span></button>
+      </div>
+      <div
+        class="tab-panel"
+        id="start-panel"
+        role="tabpanel"
+        aria-labelledby="start-tab"
+      >
+        <div class="start-cards">
+          <button class="start-card" type="button" data-start-tab="comparison-tab">
+            <span class="start-card-prompt">Start Here!</span>
+            <span class="start-card-title">Comparison</span>
+            <span class="start-card-description">Build a comparison across selected samples.</span>
+          </button>
+          <button class="start-card" type="button" data-start-tab="variant-viewer-tab">
+            <span class="start-card-prompt">I know what I'm doing</span>
+            <span class="start-card-title">Table</span>
+            <span class="start-card-description">Browse and filter the complete data table.</span>
+          </button>
+        </div>
+      </div>
+      <div
+        class="tab-panel"
+        id="variant-viewer-panel"
+        role="tabpanel"
+        aria-labelledby="variant-viewer-tab"
+        hidden
+      >
     <div class="workspace">
     <div class="content">
-    <section>
-      <div class="section-title">Filters <span id="counts" class="counts"></span></div>
-      <div class="toolbar">
-        <label class="filter-subject">Subject
-          <select id="subject"><option value="">All</option></select>
-        </label>
-        <label class="filter-tags">Tags
-          <div class="tag-picker" id="tag-picker">
-            <span class="muted">Loading tags...</span>
-          </div>
-        </label>
-        <label class="filter-position">Position
-          <input id="position" inputmode="numeric" placeholder="e.g. 73">
-        </label>
-        <label class="filter-alt">ALT
-          <input id="alt" placeholder="e.g. G">
-        </label>
-        <button class="filter-apply" id="apply">Refresh</button>
-      </div>
-    </section>
-
-    <section>
-      <div class="section-title">Samples <span class="counts" id="sample-count"></span></div>
-      <div class="table-wrap" style="max-height: 220px;">
-        <table>
-          <thead><tr><th>Order</th><th>Subject</th><th>Population Tags</th><th>Mutations</th><th>Source File</th></tr></thead>
-          <tbody id="samples"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section>
-      <div class="section-title">Mutations <span class="counts" id="mutation-count"></span></div>
+    <div class="main-table">
+      <span class="counts main-table-count" id="mutation-count"></span>
       <div class="table-wrap">
         <table>
           <thead id="mutation-head">
             <tr>
-              <th>Subject</th><th>Population</th><th>Pos</th><th>Ref</th><th>VCF Ref</th>
+              <th class="notes-indicator-column">Notes</th><th>Subject</th><th>Population</th><th>Pos</th><th>Ref</th><th>VCF Ref</th>
               <th>ALT</th><th>AF</th><th>Filter</th><th>Metadata</th>
             </tr>
           </thead>
           <tbody id="mutations"></tbody>
         </table>
       </div>
-    </section>
     </div>
-    <aside class="compare-panel">
+    </div>
+    <aside class="compare-panel is-collapsed">
       <section style="display: contents;">
-        <div class="section-title">Compare <span class="counts" id="compare-count"></span></div>
+        <div class="section-title">
+          Compare
+          <span class="compare-panel-heading-actions">
+            <span class="counts" id="compare-count"></span>
+            <button
+              class="compare-panel-collapse"
+              id="compare-panel-collapse"
+              type="button"
+              aria-label="Collapse compare pane"
+              title="Collapse compare pane"
+              aria-expanded="false"
+            >&rsaquo;</button>
+          </span>
+        </div>
+        <details class="compare-filter-details">
+          <summary class="section-title">
+            <span class="compare-filter-label"><span class="compare-filter-chevron">&rsaquo;</span> Filters</span>
+            <span id="counts" class="counts"></span>
+          </summary>
+          <div class="toolbar">
+            <label class="filter-subject">Subject
+              <select id="subject"><option value="">All</option></select>
+            </label>
+            <label class="filter-tags">Tags
+              <div class="tag-picker" id="tag-picker">
+                <span class="muted">Loading tags...</span>
+              </div>
+            </label>
+            <label class="filter-position">Position
+              <input id="position" inputmode="numeric" placeholder="e.g. 73">
+            </label>
+            <label class="filter-alt">ALT
+              <input id="alt" placeholder="e.g. G">
+            </label>
+            <button class="filter-apply" id="apply">Refresh</button>
+          </div>
+        </details>
         <div class="compare-options">
           <details class="compare-summary" open>
             <summary>Comparison</summary>
@@ -635,12 +1173,153 @@
             <button class="secondary-button" id="clear-compare" type="button">Clear</button>
           </div>
         </div>
-        <div class="compare-list" id="compare-list"></div>
+        <div class="compare-view-switcher" role="group" aria-label="Sample display">
+          <button class="compare-view-button" type="button" data-compare-view="card" aria-pressed="true">Cards</button>
+          <button class="compare-view-button" type="button" data-compare-view="list" aria-pressed="false">List</button>
+        </div>
+        <div class="compare-list card-view" id="compare-list"></div>
       </section>
     </aside>
+    <button
+      class="workflow-guide-ear table-compare-ear"
+      id="table-compare-ear"
+      type="button"
+      aria-label="Show compare pane"
+      title="Show compare pane"
+    >
+      <span class="venn-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+    </button>
+    </div>
+      </div>
+      <div
+        class="tab-panel"
+        id="comparison-panel"
+        role="tabpanel"
+        aria-labelledby="comparison-tab"
+        hidden
+      >
+        <div class="workflow">
+          <section class="workflow-step">
+            <div class="workflow-step-header">
+              <span class="workflow-step-number">1</span>
+              <div>
+                <h2>Choose a database</h2>
+                <p>Select the data source to use for this comparison.</p>
+              </div>
+            </div>
+            <div class="workflow-step-body">
+              <div class="workflow-database-row">
+                <label>Database
+                  <select id="workflow-database-select"></select>
+                </label>
+                <button id="workflow-use-database" type="button">Use this database</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="workflow-step" id="workflow-criteria-step" hidden>
+            <div class="workflow-step-header">
+              <span class="workflow-step-number">2</span>
+              <div>
+                <h2>Build the comparison</h2>
+                <p>Filter the available samples, then describe how each selected sample participates.</p>
+              </div>
+            </div>
+            <div class="workflow-step-body">
+              <div class="workflow-builder">
+                <div class="workflow-controls">
+                  <div class="workflow-card">
+                    <h3>Filters</h3>
+                    <div class="workflow-card-body">
+                      <div class="workflow-filter-grid">
+                        <label>Subject
+                          <select id="workflow-subject"><option value="">All</option></select>
+                        </label>
+                        <label>Position
+                          <input id="workflow-position" inputmode="numeric" placeholder="e.g. 73">
+                        </label>
+                        <label>ALT
+                          <input id="workflow-alt" placeholder="e.g. G">
+                        </label>
+                      </div>
+                      <label>Tags
+                        <div class="workflow-tags" id="workflow-tags"></div>
+                      </label>
+                      <button class="workflow-apply-filters" id="workflow-apply-filters" type="button">Apply filters to samples</button>
+                    </div>
+                  </div>
+
+                  <div class="workflow-card">
+                    <h3>Compare samples</h3>
+                    <div class="workflow-card-body">
+                      <div class="workflow-samples" id="workflow-samples"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <aside class="workflow-guide">
+                  <h3>How comparison options work</h3>
+                  <div>
+                    <p>Out of all mutations across all samples in the study, this tool allows you to limit the scope to seeing common and unique mutations among samples.</p>
+                  </div>
+                  <div>
+                    <h4>Present</h4>
+                    <p>The mutation must occur in this sample. With multiple Present samples, it must occur in all of them.</p>
+                  </div>
+                  <div>
+                    <h4>Unique</h4>
+                    <p>Include mutations unique to this sample. Unique choices are added to the results alongside the Present intersection.</p>
+                  </div>
+                  <div>
+                    <h4>Not in</h4>
+                    <p>Exclude any mutation found in this sample. Not in is exclusive for that sample.</p>
+                  </div>
+                  <div>
+                    <h4>Common combinations</h4>
+                    <ul>
+                      <li><strong>Present A + Present B:</strong> mutations shared by both.</li>
+                      <li><strong>Present A + Not in B:</strong> mutations in A but absent from B.</li>
+                      <li><strong>Unique A + Unique B:</strong> mutations unique to either sample.</li>
+                      <li><strong>Present + Unique on A:</strong> include A in the shared set and also include mutations unique to A.</li>
+                    </ul>
+                  </div>
+                </aside>
+                <button
+                  class="workflow-guide-ear"
+                  id="workflow-guide-ear"
+                  type="button"
+                  aria-label="Show comparison options help"
+                  title="Show comparison options help"
+                >
+                  <span class="venn-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+                </button>
+              </div>
+              <div class="workflow-confirm-row">
+                <span class="workflow-status" id="workflow-status"></span>
+                <button id="workflow-confirm" type="button">Confirm comparison</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="tab-panel" id="notes-panel" role="tabpanel" aria-labelledby="notes-tab" hidden>
+        <div class="notes-view">
+          <div class="notes-header">
+            <div>
+              <h2>Notes</h2>
+              <div class="muted">Mutations saved from the table, together with the comparison used.</div>
+            </div>
+            <span class="counts" id="notes-count"></span>
+          </div>
+          <div class="notes-list" id="notes-list"></div>
+        </div>
+      </div>
     </div>
   </main>
   <div id="metadata-popover" class="metadata-popover" role="dialog" aria-live="polite"></div>
+  <div id="mutation-context-menu" class="mutation-context-menu" role="menu">
+    <button id="add-mutation-note" type="button" role="menuitem">Add to Notes</button>
+  </div>
   <div id="af-modal" class="modal-backdrop" role="dialog" aria-modal="true">
     <div class="modal">
       <h2>AF Filter</h2>
@@ -730,7 +1409,17 @@
       compareSampleStatuses: new Map(),
       sampleOrder: [],
       afRules: [],
-      metadataFilters: {}
+      metadataFilters: {},
+      currentSamples: []
+    };
+    const notesStorageKey = "mito-sql-viewer-notes-v1";
+    let savedNotes = [];
+    let currentNoteRows = [];
+    let contextMenuRowIndex = -1;
+    const workflowState = {
+      samples: [],
+      selectedSamples: new Set(),
+      sampleStatuses: new Map()
     };
     const uploadDatabaseAction = "__upload_database__";
     const defaultSampleStatuses = ["present"];
@@ -752,9 +1441,393 @@
     const positionInput = document.getElementById("position");
     const altInput = document.getElementById("alt");
     const compareList = document.getElementById("compare-list");
+    const compareViewButtons = [...document.querySelectorAll("[data-compare-view]")];
     const statusFilterInputs = [...document.querySelectorAll(".status-filter")];
     const afModal = document.getElementById("af-modal");
     const metadataFilterModal = document.getElementById("metadata-filter-modal");
+    const tabButtons = [...document.querySelectorAll('[role="tab"]')];
+    const tabPanels = [...document.querySelectorAll('[role="tabpanel"]')];
+    const workflowDatabaseSelect = document.getElementById("workflow-database-select");
+    const workflowCriteriaStep = document.getElementById("workflow-criteria-step");
+    const workflowSubject = document.getElementById("workflow-subject");
+    const workflowPosition = document.getElementById("workflow-position");
+    const workflowAlt = document.getElementById("workflow-alt");
+    const workflowTags = document.getElementById("workflow-tags");
+    const workflowSamples = document.getElementById("workflow-samples");
+    const workflowStatus = document.getElementById("workflow-status");
+    const workflowGuide = document.querySelector(".workflow-guide");
+    const workflowGuideEar = document.getElementById("workflow-guide-ear");
+    const comparePanel = document.querySelector("#variant-viewer-panel .compare-panel");
+    const comparePanelCollapse = document.getElementById("compare-panel-collapse");
+    const tableCompareEar = document.getElementById("table-compare-ear");
+    const mutationContextMenu = document.getElementById("mutation-context-menu");
+
+    function loadSavedNotes() {
+      try {
+        const parsed = JSON.parse(window.localStorage.getItem(notesStorageKey) || "[]");
+        savedNotes = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        savedNotes = [];
+      }
+    }
+
+    function persistSavedNotes() {
+      window.localStorage.setItem(notesStorageKey, JSON.stringify(savedNotes));
+      renderNotes();
+      refreshSavedIndicators();
+    }
+
+    function noteMatchesMutation(note, mutation) {
+      return note.databaseId === state.database
+        && String(note.mutation.pos) === String(mutation.pos)
+        && String(note.mutation.ref) === String(mutation.ref)
+        && String(note.mutation.alt) === String(mutation.alt);
+    }
+
+    function mutationIsSaved(mutation) {
+      return savedNotes.some(note =>
+        noteMatchesMutation(note, mutation)
+      );
+    }
+
+    function savedIndicatorHtml(mutation) {
+      const saved = mutationIsSaved(mutation);
+      return saved
+        ? '<span class="saved-note-indicator" title="Saved in Notes" aria-label="Saved in Notes">&#9733;</span>'
+        : '<span class="unsaved-note-indicator" title="Not saved in Notes" aria-label="Not saved in Notes">&mdash;</span>';
+    }
+
+    function refreshSavedIndicators() {
+      document.querySelectorAll("#mutations tr[data-note-row]").forEach(row => {
+        const mutation = currentNoteRows[Number(row.dataset.noteRow)];
+        const cell = row.querySelector(".notes-indicator-column");
+        if (mutation && cell) cell.innerHTML = savedIndicatorHtml(mutation);
+      });
+    }
+
+    function renderNotes() {
+      const list = document.getElementById("notes-list");
+      const count = savedNotes.length;
+      document.getElementById("notes-count").textContent = `${count} saved mutation${count === 1 ? "" : "s"}`;
+      document.getElementById("notes-tab-count").textContent = count ? `(${count})` : "";
+      list.innerHTML = count ? savedNotes.map(note => `
+        <section class="note-card">
+          <div class="note-card-header">
+            <div>
+              <div class="note-mutation mono">m.${esc(note.mutation.pos)}${esc(note.mutation.ref)}&gt;${esc(note.mutation.alt)}</div>
+              <div class="muted">${esc(String(note.mutation.status || "").replaceAll("_", " "))}</div>
+            </div>
+            <button class="secondary-button remove-note-button" type="button" data-note-id="${esc(note.id)}">Remove</button>
+          </div>
+          <div class="note-comparison">
+            <strong class="mono">${esc(note.comparison.expression)}</strong>
+            <p>${esc(note.comparison.sentence)}</p>
+          </div>
+          <div class="note-meta">${esc(note.databaseLabel)} · Saved ${esc(new Date(note.savedAt).toLocaleString())}</div>
+        </section>
+      `).join("") : '<div class="muted">No saved mutations yet. Save one from a comparison table to add it here.</div>';
+      list.querySelectorAll(".remove-note-button").forEach(button => {
+        button.addEventListener("click", () => {
+          savedNotes = savedNotes.filter(note => note.id !== button.dataset.noteId);
+          persistSavedNotes();
+        });
+      });
+    }
+
+    function saveMutationToNotes(row) {
+      if (!row) return;
+      const summary = compareSummary(state.currentSamples);
+      const selectedDatabase = selectedDatabaseOption();
+      savedNotes.unshift({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        savedAt: new Date().toISOString(),
+        databaseId: state.database,
+        databaseLabel: selectedDatabase?.label || state.database,
+        mutation: {
+          pos: row.pos, ref: row.ref, alt: row.alt, status: row.status,
+          present: row.present || [], missing: row.missing || []
+        },
+        comparison: {
+          expression: summary.expression,
+          sentence: summary.sentence,
+          samples: orderedCompareSampleIds().map(sampleId => ({
+            id: sampleId,
+            statuses: [...(state.compareSampleStatuses.get(sampleId) || new Set(defaultSampleStatuses))]
+          }))
+        }
+      });
+      persistSavedNotes();
+    }
+
+    function closeMutationContextMenu() {
+      mutationContextMenu.classList.remove("open");
+      contextMenuRowIndex = -1;
+    }
+
+    function openMutationContextMenu(event, rowIndex) {
+      event.preventDefault();
+      contextMenuRowIndex = rowIndex;
+      const mutation = currentNoteRows[rowIndex];
+      document.getElementById("add-mutation-note").textContent = mutationIsSaved(mutation)
+        ? "Remove from Notes"
+        : "Add to Notes";
+      mutationContextMenu.classList.add("open");
+      const width = mutationContextMenu.offsetWidth;
+      const height = mutationContextMenu.offsetHeight;
+      mutationContextMenu.style.left = `${Math.max(6, Math.min(event.clientX, window.innerWidth - width - 6))}px`;
+      mutationContextMenu.style.top = `${Math.max(6, Math.min(event.clientY, window.innerHeight - height - 6))}px`;
+      document.getElementById("add-mutation-note").focus();
+    }
+
+    function selectTab(selectedTab) {
+      tabButtons.forEach(tab => {
+        const isSelected = tab === selectedTab;
+        tab.setAttribute("aria-selected", String(isSelected));
+        tab.tabIndex = isSelected ? 0 : -1;
+      });
+      tabPanels.forEach(panel => {
+        panel.hidden = panel.id !== selectedTab.getAttribute("aria-controls");
+      });
+      const comparisonIsOpen = selectedTab.id === "comparison-tab";
+      workflowGuideEar.classList.toggle(
+        "open",
+        comparisonIsOpen && workflowGuide.classList.contains("is-collapsed")
+      );
+      tableCompareEar.classList.toggle(
+        "open",
+        selectedTab.id === "variant-viewer-tab" && comparePanel.classList.contains("is-collapsed")
+      );
+    }
+
+    tabButtons.forEach(tab => {
+      tab.addEventListener("click", () => selectTab(tab));
+    });
+    document.querySelectorAll("[data-start-tab]").forEach(card => {
+      card.addEventListener("click", () => {
+        const tab = document.getElementById(card.dataset.startTab);
+        selectTab(tab);
+        tab.focus();
+      });
+    });
+
+    workflowGuide.addEventListener("click", () => {
+      if (!window.matchMedia("(min-width: 901px)").matches) return;
+      workflowGuide.classList.add("is-collapsed");
+      workflowGuideEar.classList.add("open");
+      workflowGuideEar.focus();
+    });
+    workflowGuideEar.addEventListener("click", () => {
+      workflowGuide.classList.remove("is-collapsed");
+      workflowGuideEar.classList.remove("open");
+    });
+    comparePanelCollapse.addEventListener("click", () => {
+      if (!window.matchMedia("(min-width: 901px)").matches) return;
+      comparePanel.classList.add("is-collapsed");
+      comparePanelCollapse.setAttribute("aria-expanded", "false");
+      tableCompareEar.classList.add("open");
+      tableCompareEar.focus();
+    });
+    tableCompareEar.addEventListener("click", () => {
+      comparePanel.classList.remove("is-collapsed");
+      comparePanelCollapse.setAttribute("aria-expanded", "true");
+      tableCompareEar.classList.remove("open");
+      comparePanelCollapse.focus();
+    });
+    compareViewButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        const view = button.dataset.compareView;
+        compareList.classList.toggle("card-view", view === "card");
+        compareList.classList.toggle("list-view", view === "list");
+        compareViewButtons.forEach(option => {
+          option.setAttribute("aria-pressed", String(option === button));
+        });
+      });
+    });
+
+    function renderWorkflowDatabaseSelector() {
+      workflowDatabaseSelect.innerHTML = state.databases.map(database => `
+        <option value="${esc(database.id)}" ${database.id === state.database ? "selected" : ""}>
+          ${esc(database.label)}
+        </option>
+      `).join("");
+    }
+
+    function resetWorkflowSelections() {
+      workflowState.samples = [];
+      workflowState.selectedSamples.clear();
+      workflowState.sampleStatuses.clear();
+      workflowSubject.value = "";
+      workflowPosition.value = "";
+      workflowAlt.value = "";
+      workflowStatus.textContent = "";
+    }
+
+    function workflowFilterValues() {
+      return {
+        subject: workflowSubject.value,
+        tags: [...workflowTags.querySelectorAll('input[type="checkbox"]:checked')]
+          .map(input => input.value),
+        position: workflowPosition.value.trim(),
+        alt: workflowAlt.value.trim()
+      };
+    }
+
+    async function loadWorkflowSamples() {
+      const filters = workflowFilterValues();
+      const params = { subject: filters.subject, tag: filters.tags };
+      workflowState.samples = orderedSamples(
+        await getJson(`/api/samples?${queryString(params)}`)
+      );
+      const availableIds = new Set(
+        workflowState.samples.map(sample => String(sample.id))
+      );
+      workflowState.selectedSamples = new Set(
+        [...workflowState.selectedSamples].filter(id => availableIds.has(id))
+      );
+      for (const id of [...workflowState.sampleStatuses.keys()]) {
+        if (!availableIds.has(id)) workflowState.sampleStatuses.delete(id);
+      }
+      renderWorkflowSamples();
+    }
+
+    function renderWorkflowSamples() {
+      workflowSamples.innerHTML = workflowState.samples.length
+        ? workflowState.samples.map(sample => {
+          const id = String(sample.id);
+          const selected = workflowState.selectedSamples.has(id);
+          const statuses = workflowState.sampleStatuses.get(id) || new Set(["present"]);
+          return `
+            <div class="workflow-sample ${selected ? "selected" : ""}" data-workflow-sample="${esc(id)}">
+              <label class="workflow-sample-heading">
+                <input class="workflow-sample-toggle" type="checkbox" value="${esc(id)}" ${selected ? "checked" : ""}>
+                <span>
+                  <strong>${esc(sampleLabel(sample))}</strong>
+                  <small>${sample.mutation_count} mutations · ${esc(sample.source_file)}</small>
+                </span>
+              </label>
+              ${selected ? `
+                <div class="workflow-sample-statuses">
+                  <label><input class="workflow-status-choice" data-sample="${esc(id)}" type="checkbox" value="present" ${statuses.has("present") ? "checked" : ""}> Present</label>
+                  <label><input class="workflow-status-choice" data-sample="${esc(id)}" type="checkbox" value="unique" ${statuses.has("unique") ? "checked" : ""}> Unique</label>
+                  <label><input class="workflow-status-choice" data-sample="${esc(id)}" type="checkbox" value="not_in" ${statuses.has("not_in") ? "checked" : ""}> Not in</label>
+                </div>
+              ` : ""}
+            </div>
+          `;
+        }).join("")
+        : '<span class="muted">No samples match these filters.</span>';
+
+      workflowSamples.querySelectorAll(".workflow-sample-toggle").forEach(input => {
+        input.addEventListener("change", () => {
+          if (input.checked) {
+            workflowState.selectedSamples.add(input.value);
+            workflowState.sampleStatuses.set(input.value, new Set(["present"]));
+          } else {
+            workflowState.selectedSamples.delete(input.value);
+            workflowState.sampleStatuses.delete(input.value);
+          }
+          workflowStatus.textContent = "";
+          renderWorkflowSamples();
+        });
+      });
+
+      workflowSamples.querySelectorAll(".workflow-sample:not(.selected)").forEach(card => {
+        card.addEventListener("click", event => {
+          if (event.target.closest("input, label")) return;
+          const sampleId = card.dataset.workflowSample;
+          workflowState.selectedSamples.add(sampleId);
+          workflowState.sampleStatuses.set(sampleId, new Set(["present"]));
+          workflowStatus.textContent = "";
+          renderWorkflowSamples();
+        });
+      });
+
+      workflowSamples.querySelectorAll(".workflow-status-choice").forEach(input => {
+        input.addEventListener("change", () => {
+          const statuses = new Set(
+            workflowState.sampleStatuses.get(input.dataset.sample) || []
+          );
+          if (input.value === "not_in") {
+            statuses.clear();
+            if (input.checked) statuses.add("not_in");
+          } else {
+            statuses.delete("not_in");
+            if (input.checked) statuses.add(input.value);
+            else statuses.delete(input.value);
+          }
+          workflowState.sampleStatuses.set(input.dataset.sample, statuses);
+          workflowStatus.textContent = "";
+          renderWorkflowSamples();
+        });
+      });
+    }
+
+    async function loadWorkflowCriteria() {
+      const [subjects, tags] = await Promise.all([
+        getJson("/api/subjects"),
+        getJson("/api/tags")
+      ]);
+      workflowSubject.innerHTML = '<option value="">All</option>' + subjects.map(subject =>
+        `<option value="${esc(subject.subject_id)}">${esc(subject.subject_id)} (${subject.sample_count})</option>`
+      ).join("");
+      workflowTags.innerHTML = tags.length ? tags.map(row => `
+        <label>
+          <input type="checkbox" value="${esc(row.tag)}">
+          ${esc(row.label || row.tag)} <span class="muted">(${row.sample_count})</span>
+        </label>
+      `).join("") : '<span class="muted">No tags in this database.</span>';
+      await loadWorkflowSamples();
+    }
+
+    async function useWorkflowDatabase() {
+      const databaseId = workflowDatabaseSelect.value;
+      if (!databaseId) return;
+      const picker = document.querySelector(".database-picker");
+      const button = document.getElementById("workflow-use-database");
+      button.disabled = true;
+      picker.classList.remove("database-attention");
+      void picker.offsetWidth;
+      picker.classList.add("database-attention");
+      await new Promise(resolve => window.setTimeout(resolve, 450));
+      try {
+        await changeDatabase(databaseId);
+        resetWorkflowSelections();
+        renderWorkflowDatabaseSelector();
+        await loadWorkflowCriteria();
+        workflowCriteriaStep.hidden = false;
+        workflowCriteriaStep.scrollIntoView({ behavior: "smooth", block: "start" });
+      } finally {
+        button.disabled = false;
+        window.setTimeout(() => picker.classList.remove("database-attention"), 1000);
+      }
+    }
+
+    async function confirmWorkflowComparison() {
+      if (workflowState.selectedSamples.size < 2) {
+        workflowStatus.textContent = "Select at least two samples to create a comparison.";
+        return;
+      }
+      const filters = workflowFilterValues();
+      state.subject = filters.subject;
+      state.tags = new Set(filters.tags);
+      state.position = filters.position;
+      state.alt = filters.alt;
+      state.compareSamples = new Set(workflowState.selectedSamples);
+      state.compareSampleStatuses = new Map(
+        [...workflowState.sampleStatuses].map(([id, statuses]) => [id, new Set(statuses)])
+      );
+
+      subjectSelect.value = state.subject;
+      positionInput.value = state.position;
+      altInput.value = state.alt;
+      tagFilterInputs.forEach(input => {
+        input.checked = state.tags.has(input.value);
+      });
+      await loadSamples();
+      await loadMutations();
+      selectTab(document.getElementById("variant-viewer-tab"));
+      document.getElementById("variant-viewer-tab").focus();
+    }
 
     function esc(value) {
       return String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -858,6 +1931,7 @@
         databasePath.textContent = selected.path;
         databaseSelect.value = selected.id;
       }
+      renderWorkflowDatabaseSelector();
     }
 
     async function loadDatabases(preferredDatabase = "") {
@@ -1218,12 +2292,13 @@
     }
 
     function renderDerivedMutationRows(mutations) {
-      return mutations.map(mutation => {
+      return mutations.map((mutation, rowIndex) => {
         const metadata = parseMetadata(mutation.metadata_json) || {};
         const status = derivedRowStatus(metadata);
         const expression = metadata.DERIVED_EXPRESSION || "";
         return `
-          <tr class="${esc(status)}">
+          <tr class="${esc(status)}" data-note-row="${rowIndex}">
+            <td class="notes-indicator-column"></td>
             <td>${esc(status.replaceAll("_", " "))}</td>
             <td class="mono">${mutation.pos}</td>
             <td class="mono">${esc(mutation.ref)}</td>
@@ -1372,17 +2447,17 @@
     function renderMutationHead(mode) {
       document.getElementById("mutation-head").innerHTML = mode === "compare" ? `
         <tr>
-          <th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th>
+          <th class="notes-indicator-column">Notes</th><th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th>
           <th>Present In</th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AFs"))}</button></th><th>Missing From</th>
         </tr>
       ` : mode === "derived" ? `
         <tr>
-          <th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th>
+          <th class="notes-indicator-column">Notes</th><th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th>
           <th>Present</th><th>Unique</th><th>Absent</th><th>Expression</th>
         </tr>
       ` : `
         <tr>
-          <th>Subject</th><th>Population</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th>VCF Ref</th>
+          <th class="notes-indicator-column">Notes</th><th>Subject</th><th>Population</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th>VCF Ref</th>
           <th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th><th>Filter</th><th>Metadata</th>
         </tr>
       `;
@@ -1459,88 +2534,12 @@
       if (state.subject) params.subject = state.subject;
       params.tag = [...state.tags];
       const samples = orderedSamples(await getJson(`/api/samples?${queryString(params)}`));
-      document.getElementById("sample-count").textContent = `${samples.length} shown`;
-      document.getElementById("samples").innerHTML = samples.map(sample => `
-        <tr data-sample="${sample.id}" class="${state.compareSamples.has(String(sample.id)) ? "selected-sample" : ""}">
-          <td class="order-cell">
-            <button class="drag-handle" type="button" draggable="true" data-sample="${esc(sample.id)}">Drag</button>
-            <button class="sample-order-button" type="button" data-sample="${esc(sample.id)}" data-offset="-1">Up</button>
-            <button class="sample-order-button" type="button" data-sample="${esc(sample.id)}" data-offset="1">Down</button>
-          </td>
-          <td class="mono">${esc(sample.subject_id)}</td>
-          <td>${esc(sample.population_key.replaceAll("|", ", "))}</td>
-          <td>${sample.mutation_count}</td>
-          <td class="mono muted">
-            ${esc(sample.source_file)}
-            ${sample.is_derived ? `<button class="delete-derived-sample" type="button" data-sample="${esc(sample.id)}">Delete</button>` : ""}
-          </td>
-        </tr>
-      `).join("");
-      document.querySelectorAll("tr[data-sample]").forEach(row => {
-        row.addEventListener("dragover", event => {
-          if (!Array.from(event.dataTransfer.types).includes("text/plain")) return;
-          event.preventDefault();
-          row.classList.add("reorder-target");
-        });
-        row.addEventListener("dragleave", () => {
-          row.classList.remove("reorder-target");
-        });
-        row.addEventListener("drop", async event => {
-          event.preventDefault();
-          row.classList.remove("reorder-target");
-          moveSampleBefore(event.dataTransfer.getData("text/plain"), row.dataset.sample);
-          await loadSamples();
-          await loadMutations();
-        });
-        row.addEventListener("click", () => {
-          const sampleId = row.dataset.sample;
-          if (state.compareSamples.has(sampleId)) {
-            state.compareSamples.delete(sampleId);
-            state.compareSampleStatuses.delete(sampleId);
-          } else {
-            state.compareSamples.add(sampleId);
-            state.compareSampleStatuses.set(
-              sampleId,
-              new Set(defaultSampleStatuses)
-            );
-          }
-          renderCompareList(samples);
-          loadMutations();
-        });
-      });
-      document.querySelectorAll(".drag-handle").forEach(button => {
-        button.addEventListener("click", event => event.stopPropagation());
-        button.addEventListener("dragstart", event => {
-          event.stopPropagation();
-          event.dataTransfer.setData("text/plain", button.dataset.sample);
-          event.dataTransfer.effectAllowed = "move";
-        });
-      });
-      document.querySelectorAll(".sample-order-button").forEach(button => {
-        button.addEventListener("click", async event => {
-          event.stopPropagation();
-          moveSample(button.dataset.sample, Number(button.dataset.offset));
-          await loadSamples();
-          await loadMutations();
-        });
-      });
-      document.querySelectorAll(".delete-derived-sample").forEach(button => {
-        button.addEventListener("click", async event => {
-          event.stopPropagation();
-          const sampleId = button.dataset.sample;
-          await deleteJson(`/api/derived-samples/${encodeURIComponent(sampleId)}`);
-          state.compareSamples.delete(sampleId);
-          state.compareSampleStatuses.delete(sampleId);
-          state.sampleOrder = state.sampleOrder.filter(id => id !== sampleId);
-          await loadSamples();
-          await loadMutations();
-        });
-      });
       renderCompareList(samples);
     }
 
     function renderCompareList(samples) {
       samples = orderedSamples(samples);
+      state.currentSamples = samples;
       state.compareSamples = new Set(
         [...state.compareSamples].filter(sampleId =>
           samples.some(sample => String(sample.id) === sampleId)
@@ -1570,7 +2569,7 @@
           </div>
         ` : "";
         return `
-          <div class="compare-item">
+          <div class="compare-item ${checked ? "selected" : ""}" data-compare-sample="${esc(id)}">
             <div class="compare-item-header">
               <input class="compare-sample-toggle" type="checkbox" value="${id}" ${checked} aria-label="Compare ${esc(sampleLabel(sample))}">
               <div class="compare-item-title">
@@ -1601,6 +2600,21 @@
             state.compareSampleStatuses.delete(input.value);
           }
           document.getElementById("compare-count").textContent = `${state.compareSamples.size} selected`;
+          renderCompareList(samples);
+          loadMutations();
+        });
+      });
+      compareList.querySelectorAll(".compare-item:not(.selected)").forEach(card => {
+        card.addEventListener("click", event => {
+          if (event.target.closest("input, label, button, a")) return;
+          const sampleId = card.dataset.compareSample;
+          state.compareSamples.add(sampleId);
+          if (!state.compareSampleStatuses.has(sampleId)) {
+            state.compareSampleStatuses.set(
+              sampleId,
+              new Set(defaultSampleStatuses)
+            );
+          }
           renderCompareList(samples);
           loadMutations();
         });
@@ -1638,10 +2652,11 @@
         renderMutationHead("compare");
         const params = comparisonParams(2000);
         const rows = await getJson(`/api/compare?${queryString(params)}`);
+        currentNoteRows = rows;
         document.getElementById("mutation-count").textContent = `${rows.length} comparison rows`;
         const groupNumbers = new Map();
         let nextGroupNumber = 0;
-        document.getElementById("mutations").innerHTML = rows.map(row => {
+        document.getElementById("mutations").innerHTML = rows.map((row, rowIndex) => {
           const present = row.present || [];
           const missing = row.missing || [];
           if (!groupNumbers.has(row.group_key)) {
@@ -1656,7 +2671,8 @@
             groupNumber % 2 === 0 ? "group-even" : "group-odd"
           ].filter(Boolean).join(" ");
           return `
-            <tr class="${esc(groupClasses)}">
+            <tr class="${esc(groupClasses)}" data-note-row="${rowIndex}">
+              <td class="notes-indicator-column"></td>
               <td>${esc(row.status.replaceAll("_", " "))}</td>
               <td class="mono">${row.pos}</td>
               <td class="mono">${esc(row.ref)}</td>
@@ -1667,6 +2683,7 @@
             </tr>
           `;
         }).join("");
+        refreshSavedIndicators();
         return;
       }
 
@@ -1680,19 +2697,25 @@
         limit: 1000
       };
       const mutations = await getJson(`/api/mutations?${queryString(params)}`);
-      document.getElementById("mutation-count").textContent = `${mutations.length} shown`;
       const showingDerivedSample = orderedCompareSamples.length === 1
         && orderedCompareSamples[0].startsWith("derived:");
+      currentNoteRows = mutations.map(mutation => ({
+        ...mutation,
+        status: showingDerivedSample ? derivedRowStatus(parseMetadata(mutation.metadata_json) || {}) : "mutation"
+      }));
+      document.getElementById("mutation-count").textContent = `${mutations.length} shown`;
       if (showingDerivedSample) {
         renderMutationHead("derived");
         document.getElementById("mutations").innerHTML = renderDerivedMutationRows(mutations);
+        refreshSavedIndicators();
         setupMetadataPopovers();
         return;
       }
 
       renderMutationHead("normal");
-      document.getElementById("mutations").innerHTML = mutations.map(mutation => `
-        <tr>
+      document.getElementById("mutations").innerHTML = mutations.map((mutation, rowIndex) => `
+        <tr data-note-row="${rowIndex}">
+          <td class="notes-indicator-column"></td>
           <td class="mono">${esc(mutation.subject_id)}</td>
           <td>${esc(mutation.population_key.replaceAll("|", ", "))}</td>
           <td class="mono">${mutation.pos}</td>
@@ -1706,6 +2729,7 @@
           </td>
         </tr>
       `).join("");
+      refreshSavedIndicators();
       setupMetadataPopovers();
     }
 
@@ -1776,6 +2800,17 @@
 
     const refreshFromTextFilters = debounce(refreshFromFilters, 250);
 
+    document.getElementById("workflow-use-database").addEventListener("click", async () => {
+      await useWorkflowDatabase();
+    });
+    document.getElementById("workflow-apply-filters").addEventListener("click", async () => {
+      workflowStatus.textContent = "";
+      await loadWorkflowSamples();
+    });
+    document.getElementById("workflow-confirm").addEventListener("click", async () => {
+      await confirmWorkflowComparison();
+    });
+
     databaseSelect.addEventListener("change", async () => {
       const selectedValue = databaseSelect.value;
       if (selectedValue === uploadDatabaseAction) {
@@ -1827,6 +2862,30 @@
     document.getElementById("clear-compare").addEventListener("click", async () => {
       await clearComparison();
     });
+    document.getElementById("mutations").addEventListener("contextmenu", event => {
+      const row = event.target.closest("tr[data-note-row]");
+      if (!row) return;
+      openMutationContextMenu(event, Number(row.dataset.noteRow));
+    });
+    document.getElementById("add-mutation-note").addEventListener("click", () => {
+      const mutation = currentNoteRows[contextMenuRowIndex];
+      if (mutationIsSaved(mutation)) {
+        savedNotes = savedNotes.filter(note => !noteMatchesMutation(note, mutation));
+        persistSavedNotes();
+      } else {
+        saveMutationToNotes(mutation);
+      }
+      closeMutationContextMenu();
+    });
+    document.addEventListener("click", event => {
+      if (!event.target.closest("#mutation-context-menu")) closeMutationContextMenu();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") closeMutationContextMenu();
+    });
+    window.addEventListener("blur", closeMutationContextMenu);
+    window.addEventListener("resize", closeMutationContextMenu);
+    window.addEventListener("scroll", closeMutationContextMenu, true);
     document.getElementById("add-af-rule").addEventListener("click", async () => {
       const operator = document.getElementById("af-rule-operator").value;
       const valueInput = document.getElementById("af-rule-value");
@@ -1862,6 +2921,9 @@
         closeMetadataFilterModal();
       }
     });
+
+    loadSavedNotes();
+    renderNotes();
 
     loadDatabases()
       .then(() => {
