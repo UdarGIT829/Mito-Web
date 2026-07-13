@@ -20,6 +20,25 @@
       position: sticky;
       top: 0;
       z-index: 2;
+      max-height: 140px;
+      overflow: hidden;
+      transform: translateX(0);
+      opacity: 1;
+      transition:
+        transform 220ms ease,
+        opacity 180ms ease,
+        max-height 220ms ease,
+        padding 220ms ease,
+        border-width 220ms ease;
+    }
+    header.is-collapsed {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-bottom-width: 0;
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
     }
     h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
     .path { color: #607086; font-size: 13px; }
@@ -34,9 +53,46 @@
     }
     .header-actions {
       display: grid;
-      grid-template-columns: auto minmax(220px, 320px);
+      grid-template-columns: auto minmax(220px, 320px) auto;
       gap: 12px;
       align-items: end;
+    }
+    .header-collapse-button {
+      width: 34px;
+      min-height: 34px;
+      padding: 4px 8px;
+      background: #f7f9fc;
+      border-color: #c7cfdb;
+      color: #24436e;
+      font-size: 20px;
+      line-height: 1;
+    }
+    .header-ear {
+      position: fixed;
+      top: 12px;
+      right: 0;
+      z-index: 30;
+      display: grid;
+      width: 48px;
+      min-height: 52px;
+      padding: 6px 5px 6px 8px;
+      border-radius: 9px 0 0 9px;
+      border-color: #8aa9e6;
+      background: #f4f8ff;
+      color: #24436e;
+      box-shadow: 0 8px 22px rgba(28, 39, 55, 0.18);
+      font-size: 24px;
+      line-height: 1;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(100%);
+      transition: transform 180ms ease, opacity 140ms ease;
+    }
+    .header-ear.open {
+      place-items: center;
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
     }
     .roadmap-link {
       min-height: 34px;
@@ -485,8 +541,18 @@
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 14px 36px rgba(28, 39, 55, 0.18);
+      transform: translateX(0);
+      opacity: 1;
+      visibility: visible;
+      transition: transform 220ms ease, opacity 180ms ease, visibility 0s linear 0s;
     }
-    .compare-panel.is-collapsed { display: none; }
+    .compare-panel.is-collapsed {
+      transform: translateX(calc(100% + 30px));
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: transform 220ms ease, opacity 180ms ease, visibility 0s linear 220ms;
+    }
     .compare-panel-heading-actions { display: flex; gap: 8px; align-items: center; }
     .compare-panel-collapse {
       width: 28px;
@@ -498,7 +564,19 @@
       font-size: 18px;
       line-height: 1;
     }
-    .table-compare-ear { top: 96px; }
+    .table-compare-ear {
+      top: 96px;
+      display: grid;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(100%);
+      transition: transform 180ms ease, opacity 140ms ease;
+    }
+    .table-compare-ear.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
     .compare-filter-details { border-bottom: 1px solid #e4e8ef; }
     .compare-filter-details > summary {
       cursor: pointer;
@@ -658,6 +736,60 @@
       white-space: normal;
       overflow-wrap: anywhere;
     }
+    .repeat-hover-cell { cursor: help; }
+    .repeat-hover-popover {
+      position: fixed;
+      z-index: 21;
+      display: none;
+      width: auto;
+      min-width: 180px;
+      max-width: calc(100vw - 24px);
+      min-height: 52px;
+      max-height: calc(100vh - 24px);
+      padding: 12px;
+      overflow: auto;
+      background: #ffffff;
+      border: 1px solid #b8c2d2;
+      border-radius: 7px;
+      box-shadow: 0 10px 26px rgba(28, 39, 55, 0.16);
+      pointer-events: none;
+    }
+    .repeat-hover-popover.open { display: block; }
+    .reference-sequence-strip {
+      display: flex;
+      align-items: stretch;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 15px;
+      font-weight: 750;
+      letter-spacing: .04em;
+    }
+    .reference-sequence-lines { display: grid; gap: 7px; }
+    .reference-sequence-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      margin-bottom: 9px;
+      color: #4a596d;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .reference-sequence-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .reference-sequence-swatch {
+      width: 12px;
+      height: 12px;
+      border: 1px solid rgba(28, 39, 55, 0.16);
+      border-radius: 3px;
+    }
+    .reference-sequence-swatch.before { background: #f3cf5a; }
+    .reference-sequence-swatch.alt { background: #155f36; }
+    .reference-sequence-swatch.after { background: #4f86d9; }
+    .reference-sequence-swatch.match { background: #55ad68; }
+    .reference-sequence-strip span { padding: 7px 1px; }
+    .reference-before { background: #f3cf5a; color: #332800; }
+    .reference-alt { padding-inline: 7px !important; background: #155f36; color: #ffffff; }
+    .reference-after { background: #4f86d9; color: #ffffff; }
+    .reference-match { background: #55ad68; color: #ffffff; }
     .venn-wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; align-items: center; }
     .venn-diagram { position: relative; width: 220px; height: 170px; }
     .venn-circle {
@@ -1035,7 +1167,13 @@
         max-height: none;
         box-shadow: none;
       }
-      .compare-panel.is-collapsed { display: grid; }
+      .compare-panel.is-collapsed {
+        display: grid;
+        transform: none;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
       .compare-panel-collapse { display: none; }
       .workflow-guide {
         position: static;
@@ -1048,6 +1186,9 @@
       }
       .workflow-guide::after { display: none; }
       .workflow-guide-ear.open { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      header, .header-ear, .compare-panel, .table-compare-ear { transition: none; }
     }
     @media (max-width: 560px) {
       header { padding: 14px 14px; }
@@ -1085,7 +1226,7 @@
   </style>
 </head>
 <body>
-  <header>
+  <header id="site-header">
     <div class="header-row">
       <div>
         <h1>Mito SQL Viewer</h1>
@@ -1097,9 +1238,24 @@
           <select id="database-select"></select>
           <input id="database-upload" type="file" accept=".db,.sqlite,.sqlite3" hidden>
         </label>
+        <button
+          class="header-collapse-button"
+          id="header-collapse"
+          type="button"
+          aria-label="Collapse header"
+          aria-expanded="true"
+          title="Collapse header"
+        >&rsaquo;</button>
       </div>
     </div>
   </header>
+  <button
+    class="header-ear"
+    id="header-ear"
+    type="button"
+    aria-label="Show header"
+    title="Show header"
+  >&lsaquo;</button>
   <main>
     <div class="tab-view">
       <div class="tab-list" role="tablist" aria-label="Viewer sections">
@@ -1174,7 +1330,7 @@
           <thead id="mutation-head">
             <tr>
               <th class="notes-indicator-column">Notes</th><th>Subject</th><th>Population</th><th>Pos</th><th>Ref</th><th>VCF Ref</th>
-              <th>ALT</th><th>AF</th><th>Filter</th><th>Metadata</th>
+              <th>ALT</th><th>AF</th><th>Filter</th><th><button class="header-filter-button reference-header-filter" type="button">Reference Repeat</button></th><th>Distance to Matching Repeat</th><th>Metadata</th>
             </tr>
           </thead>
           <tbody id="mutations"></tbody>
@@ -1384,6 +1540,7 @@
     </div>
   </main>
   <div id="metadata-popover" class="metadata-popover" role="dialog" aria-live="polite"></div>
+  <div id="repeat-hover-popover" class="repeat-hover-popover" role="dialog" aria-live="polite"></div>
   <div id="mutation-context-menu" class="mutation-context-menu" role="menu">
     <button id="add-mutation-note" type="button" role="menuitem">Add to Notes</button>
   </div>
@@ -1442,8 +1599,23 @@
         <label>Max 3-base count
           <input id="meta-repeat-3-count" type="number" min="0">
         </label>
-        <label class="full">Reference context contains
-          <input id="meta-reference-context" placeholder="e.g. ATGC">
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="clear-metadata-filters" type="button">Clear</button>
+        <button id="close-metadata-filter-modal" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+  <div id="reference-filter-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Reference Context Filters</h2>
+      <div class="metadata-filter-grid">
+        <label class="full">Reference context contains ALT
+          <select id="meta-reference-contains-alt">
+            <option value="">Any</option>
+            <option value="contains">Contains</option>
+            <option value="not_contains">Not Contains</option>
+          </select>
         </label>
         <label class="full">Reference context single-base repeat
           <select id="meta-reference-repeat">
@@ -1458,8 +1630,8 @@
         </label>
       </div>
       <div class="modal-actions">
-        <button class="secondary-button" id="clear-metadata-filters" type="button">Clear</button>
-        <button id="close-metadata-filter-modal" type="button">Done</button>
+        <button class="secondary-button" id="clear-reference-filters" type="button">Clear</button>
+        <button id="close-reference-filter-modal" type="button">Done</button>
       </div>
     </div>
   </div>
@@ -1503,6 +1675,9 @@
     const databaseSelect = document.getElementById("database-select");
     const databaseUpload = document.getElementById("database-upload");
     const databasePath = document.getElementById("database-path");
+    const siteHeader = document.getElementById("site-header");
+    const headerCollapseButton = document.getElementById("header-collapse");
+    const headerEar = document.getElementById("header-ear");
     const subjectSelect = document.getElementById("subject");
     const tagPicker = document.getElementById("tag-picker");
     let tagFilterInputs = [...document.querySelectorAll(".tag-filter")];
@@ -1513,6 +1688,7 @@
     const statusFilterInputs = [...document.querySelectorAll(".status-filter")];
     const afModal = document.getElementById("af-modal");
     const metadataFilterModal = document.getElementById("metadata-filter-modal");
+    const referenceFilterModal = document.getElementById("reference-filter-modal");
     const tabButtons = [...document.querySelectorAll('[role="tab"]')];
     const tabPanels = [...document.querySelectorAll('[role="tabpanel"]')];
     const workflowDatabaseSelect = document.getElementById("workflow-database-select");
@@ -1912,6 +2088,15 @@
       document.getElementById("add-mutation-note").focus();
     }
 
+    function setHeaderCollapsed(collapsed, focusControl = false) {
+      siteHeader.classList.toggle("is-collapsed", collapsed);
+      headerCollapseButton.setAttribute("aria-expanded", String(!collapsed));
+      headerEar.classList.toggle("open", collapsed);
+      if (focusControl) {
+        (collapsed ? headerEar : headerCollapseButton).focus();
+      }
+    }
+
     function selectTab(selectedTab) {
       tabButtons.forEach(tab => {
         const isSelected = tab === selectedTab;
@@ -1930,10 +2115,17 @@
         "open",
         selectedTab.id === "variant-viewer-tab" && comparePanel.classList.contains("is-collapsed")
       );
+      setHeaderCollapsed(selectedTab.id !== "start-tab");
     }
 
     tabButtons.forEach(tab => {
       tab.addEventListener("click", () => selectTab(tab));
+    });
+    headerCollapseButton.addEventListener("click", () => {
+      setHeaderCollapsed(true, true);
+    });
+    headerEar.addEventListener("click", () => {
+      setHeaderCollapsed(false, true);
     });
     document.querySelectorAll("[data-start-tab]").forEach(card => {
       card.addEventListener("click", () => {
@@ -2471,6 +2663,49 @@
       }
     }
 
+    function strongestReferenceRepeat(sequence) {
+      const text = String(sequence || "").toUpperCase();
+      const runs = [...text.matchAll(/([ACGTN])\1+/g)];
+      const strongest = runs.reduce(
+        (best, run) => !best || run[0].length > best[0].length ? run : best,
+        null
+      );
+      return strongest ? {
+        motif: strongest[0][0],
+        count: strongest[0].length,
+        start: strongest.index
+      } : null;
+    }
+
+    function referenceRepeatLabel(metadata) {
+      const before = strongestReferenceRepeat(metadata?.REFERENCE_6_BEFORE);
+      const after = strongestReferenceRepeat(metadata?.REFERENCE_6_AFTER);
+      return [
+        before ? `Before: ${before.motif}×${before.count}` : "",
+        after ? `After: ${after.motif}×${after.count}` : ""
+      ].filter(Boolean).join("; ") || "None";
+    }
+
+    function distanceToMatchingRepeat(metadata, alt) {
+      const beforeText = String(metadata?.REFERENCE_6_BEFORE || "").toUpperCase();
+      const afterText = String(metadata?.REFERENCE_6_AFTER || "").toUpperCase();
+      const before = strongestReferenceRepeat(beforeText);
+      const after = strongestReferenceRepeat(afterText);
+      const alts = String(alt || "").toUpperCase().split(",").map(value => value.trim());
+      return alts.map(altText => {
+        if (altText.length !== 1) return "";
+        const distances = [];
+        if (before?.motif === altText) {
+          distances.push(`Before: ${beforeText.length - (before.start + before.count) + 1}`);
+        }
+        if (after?.motif === altText) {
+          distances.push(`After: ${after.start + 1}`);
+        }
+        if (!distances.length) return "";
+        return alts.length > 1 ? `${altText} → ${distances.join("; ")}` : distances.join("; ");
+      }).filter(Boolean).join(" | ");
+    }
+
     function metadataMode(expression) {
       if (expression.includes(" AND NOT(")) return "and_not";
       if (expression.startsWith("AND(")) return "and";
@@ -2589,6 +2824,69 @@
         cell.addEventListener("mousemove", event => showMetadataPopover(cell, event));
         cell.addEventListener("mouseleave", hideMetadataPopover);
       });
+      document.querySelectorAll(".repeat-hover-cell").forEach(cell => {
+        cell.addEventListener("mouseenter", showRepeatHoverPopover);
+        cell.addEventListener("mousemove", showRepeatHoverPopover);
+        cell.addEventListener("mouseleave", hideRepeatHoverPopover);
+      });
+    }
+
+    function showRepeatHoverPopover(event) {
+      const popover = document.getElementById("repeat-hover-popover");
+      const cell = event.currentTarget;
+      const before = cell.dataset.referenceBefore || "";
+      const after = cell.dataset.referenceAfter || "";
+      const alt = cell.dataset.alt || "";
+      const alts = alt.toUpperCase().split(",")
+        .map(value => value.trim())
+        .filter(Boolean);
+      popover.innerHTML = `
+        <div class="reference-sequence-legend" aria-label="Sequence color legend">
+          <span><i class="reference-sequence-swatch before"></i>Before</span>
+          <span><i class="reference-sequence-swatch alt"></i>ALT</span>
+          <span><i class="reference-sequence-swatch after"></i>After</span>
+          <span><i class="reference-sequence-swatch match"></i>ALT match</span>
+        </div>
+        <div class="reference-sequence-lines">
+          ${alts.map(allele => {
+            const matchableAlleles = /^[ACGTN]+$/.test(allele) ? [allele] : [];
+            return `<div class="reference-sequence-strip">
+              ${referenceFlankHtml(before, matchableAlleles, "reference-before")}
+              <span class="reference-alt">${esc(allele)}</span>
+              ${referenceFlankHtml(after, matchableAlleles, "reference-after")}
+            </div>`;
+          }).join("")}
+        </div>
+      `;
+      popover.classList.add("open");
+      const left = Math.min(event.clientX + 16, window.innerWidth - popover.offsetWidth - 12);
+      const top = Math.min(event.clientY + 16, window.innerHeight - popover.offsetHeight - 12);
+      popover.style.left = `${Math.max(12, left)}px`;
+      popover.style.top = `${Math.max(12, top)}px`;
+    }
+
+    function hideRepeatHoverPopover() {
+      document.getElementById("repeat-hover-popover").classList.remove("open");
+    }
+
+    function referenceFlankHtml(sequence, alts, flankClass) {
+      const text = String(sequence || "").toUpperCase();
+      const matched = Array(text.length).fill(false);
+      alts.forEach(alt => {
+        let start = text.indexOf(alt);
+        while (start >= 0) {
+          for (let index = start; index < start + alt.length; index += 1) matched[index] = true;
+          start = text.indexOf(alt, start + 1);
+        }
+      });
+      return [...text].map((base, index) =>
+        `<span class="${matched[index] ? "reference-match" : flankClass}">${esc(base)}</span>`
+      ).join("");
+    }
+
+    function repeatHoverCellHtml(value, metadata, alt) {
+      if (!value) return "<td></td>";
+      return `<td class="repeat-hover-cell" data-reference-before="${esc(metadata?.REFERENCE_6_BEFORE || "")}" data-reference-after="${esc(metadata?.REFERENCE_6_AFTER || "")}" data-alt="${esc(alt)}">${esc(value)}</td>`;
     }
 
     function metadataCellHtml(rawMetadata) {
@@ -2640,6 +2938,8 @@
             <td>${renderListCell(metadataList(metadata, "DERIVED_PRESENT_SAMPLES"))}</td>
             <td>${renderListCell(metadataList(metadata, "DERIVED_UNIQUE_SAMPLES"))}</td>
             <td>${renderListCell(metadataList(metadata, "DERIVED_ABSENT_SAMPLES"))}</td>
+            ${repeatHoverCellHtml(referenceRepeatLabel(metadata), metadata, mutation.alt)}
+            ${repeatHoverCellHtml(distanceToMatchingRepeat(metadata, mutation.alt), metadata, mutation.alt)}
             <td class="mono metadata-cell" data-metadata="${esc(mutation.metadata_json)}">
               ${expression ? `<span class="derived-metadata">${esc(expression)}</span>` : metadataCellHtml(mutation.metadata_json)}
             </td>
@@ -2671,7 +2971,7 @@
       if (filters.repeat_2_count) params.push(`repeat_2_count:lte|${filters.repeat_2_count}`);
       if (filters.repeat_3_bases) params.push(`repeat_3_bases:${filters.repeat_3_bases}`);
       if (filters.repeat_3_count) params.push(`repeat_3_count:lte|${filters.repeat_3_count}`);
-      if (filters.reference_context) params.push(`reference_context:${filters.reference_context}`);
+      if (filters.reference_contains_alt) params.push(`reference_contains_alt:${filters.reference_contains_alt}`);
       if (filters.reference_repeat) params.push(`reference_repeat:${filters.reference_repeat}`);
       return params;
     }
@@ -2687,9 +2987,14 @@
       if (filters.repeat_2_count) labels.push(`2-count <= ${filters.repeat_2_count}`);
       if (filters.repeat_3_bases) labels.push(`3-repeat ${filters.repeat_3_bases}`);
       if (filters.repeat_3_count) labels.push(`3-count <= ${filters.repeat_3_count}`);
-      if (filters.reference_context) labels.push(`ctx ${
-        filters.reference_context
-      }`);
+      return labels.join(", ");
+    }
+
+    function referenceFilterSummary() {
+      const labels = [];
+      const filters = state.metadataFilters;
+      if (filters.reference_contains_alt === "contains") labels.push("ctx contains ALT");
+      if (filters.reference_contains_alt === "not_contains") labels.push("ctx excludes ALT");
       const referenceRepeatLabels = {
         either: "ctx repeat either",
         one: "ctx repeat one",
@@ -2705,6 +3010,11 @@
     function refAltHeaderLabel(baseLabel) {
       const summary = metadataFilterSummary();
       return summary ? `${baseLabel} (${summary})` : baseLabel;
+    }
+
+    function referenceHeaderLabel() {
+      const summary = referenceFilterSummary();
+      return summary ? `Reference Repeat (${summary})` : "Reference Repeat";
     }
 
     function renderAfRules() {
@@ -2748,7 +3058,7 @@
         repeat_2_count: metadataFilterValue("meta-repeat-2-count"),
         repeat_3_bases: metadataFilterValue("meta-repeat-3-bases").toUpperCase(),
         repeat_3_count: metadataFilterValue("meta-repeat-3-count"),
-        reference_context: metadataFilterValue("meta-reference-context").toUpperCase(),
+        reference_contains_alt: metadataFilterValue("meta-reference-contains-alt"),
         reference_repeat: metadataFilterValue("meta-reference-repeat")
       };
     }
@@ -2762,7 +3072,7 @@
       document.getElementById("meta-repeat-2-count").value = filters.repeat_2_count || "";
       document.getElementById("meta-repeat-3-bases").value = filters.repeat_3_bases || "";
       document.getElementById("meta-repeat-3-count").value = filters.repeat_3_count || "";
-      document.getElementById("meta-reference-context").value = filters.reference_context || "";
+      document.getElementById("meta-reference-contains-alt").value = filters.reference_contains_alt || "";
       document.getElementById("meta-reference-repeat").value = filters.reference_repeat || "";
     }
 
@@ -2771,9 +3081,20 @@
       metadataFilterModal.classList.add("open");
     }
 
+    function openReferenceFilterModal() {
+      populateMetadataFilterModal();
+      referenceFilterModal.classList.add("open");
+    }
+
     function closeMetadataFilterModal() {
       syncMetadataFilterState();
       metadataFilterModal.classList.remove("open");
+      loadMutations();
+    }
+
+    function closeReferenceFilterModal() {
+      syncMetadataFilterState();
+      referenceFilterModal.classList.remove("open");
       loadMutations();
     }
 
@@ -2786,12 +3107,12 @@
       ` : mode === "derived" ? `
         <tr>
           <th class="notes-indicator-column">Notes</th><th>Status</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th>
-          <th>Present</th><th>Unique</th><th>Absent</th><th>Expression</th>
+          <th>Present</th><th>Unique</th><th>Absent</th><th><button class="header-filter-button reference-header-filter" type="button">${esc(referenceHeaderLabel())}</button></th><th>Distance to Matching Repeat</th><th>Expression</th>
         </tr>
       ` : `
         <tr>
           <th class="notes-indicator-column">Notes</th><th>Subject</th><th>Population</th><th>Pos</th><th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("Ref"))}</button></th><th>VCF Ref</th>
-          <th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th><th>Filter</th><th>Metadata</th>
+          <th><button class="header-filter-button metadata-header-filter" type="button">${esc(refAltHeaderLabel("ALT"))}</button></th><th><button class="header-filter-button af-header-filter" type="button">${esc(afHeaderLabel("AF"))}</button></th><th>Filter</th><th><button class="header-filter-button reference-header-filter" type="button">${esc(referenceHeaderLabel())}</button></th><th>Distance to Matching Repeat</th><th>Metadata</th>
         </tr>
       `;
       document.querySelectorAll(".af-header-filter").forEach(button => {
@@ -2799,6 +3120,9 @@
       });
       document.querySelectorAll(".metadata-header-filter").forEach(button => {
         button.addEventListener("click", openMetadataFilterModal);
+      });
+      document.querySelectorAll(".reference-header-filter").forEach(button => {
+        button.addEventListener("click", openReferenceFilterModal);
       });
     }
 
@@ -3057,6 +3381,8 @@
           <td class="mono">${esc(mutation.alt)}</td>
           <td class="mono">${esc(mutation.af)}</td>
           <td>${esc(mutation.filter)}</td>
+          ${repeatHoverCellHtml(referenceRepeatLabel(parseMetadata(mutation.metadata_json)), parseMetadata(mutation.metadata_json), mutation.alt)}
+          ${repeatHoverCellHtml(distanceToMatchingRepeat(parseMetadata(mutation.metadata_json), mutation.alt), parseMetadata(mutation.metadata_json), mutation.alt)}
           <td class="mono metadata-cell" data-metadata="${esc(mutation.metadata_json)}">
             ${metadataCellHtml(mutation.metadata_json)}
           </td>
@@ -3244,7 +3570,10 @@
     });
     document.getElementById("close-metadata-filter-modal").addEventListener("click", closeMetadataFilterModal);
     document.getElementById("clear-metadata-filters").addEventListener("click", async () => {
-      state.metadataFilters = {};
+      state.metadataFilters = {
+        reference_contains_alt: state.metadataFilters.reference_contains_alt || "",
+        reference_repeat: state.metadataFilters.reference_repeat || ""
+      };
       populateMetadataFilterModal();
       metadataFilterModal.classList.remove("open");
       await loadMutations();
@@ -3252,6 +3581,22 @@
     metadataFilterModal.addEventListener("click", event => {
       if (event.target === metadataFilterModal) {
         closeMetadataFilterModal();
+      }
+    });
+    document.getElementById("close-reference-filter-modal").addEventListener("click", closeReferenceFilterModal);
+    document.getElementById("clear-reference-filters").addEventListener("click", async () => {
+      state.metadataFilters = {
+        ...state.metadataFilters,
+        reference_contains_alt: "",
+        reference_repeat: ""
+      };
+      populateMetadataFilterModal();
+      referenceFilterModal.classList.remove("open");
+      await loadMutations();
+    });
+    referenceFilterModal.addEventListener("click", event => {
+      if (event.target === referenceFilterModal) {
+        closeReferenceFilterModal();
       }
     });
     copyTableButton.addEventListener("click", copyMutationTable);

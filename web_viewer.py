@@ -545,6 +545,28 @@ def add_metadata_filter_sql(connection, where_clauses, params, metadata_filters)
     alt_columns = table_columns(connection, "mutation_alts")
     joined_alts = False
     for field, raw_value in metadata_filters:
+        if field == "reference_contains_alt":
+            before_sql = (
+                "UPPER(COALESCE(json_extract(mutations.metadata_json, "
+                "'$.REFERENCE_6_BEFORE'), ''))"
+            )
+            after_sql = (
+                "UPPER(COALESCE(json_extract(mutations.metadata_json, "
+                "'$.REFERENCE_6_AFTER'), ''))"
+            )
+            contains_sql = (
+                f"(INSTR({before_sql}, UPPER(mutation_alts.alt)) > 0 OR "
+                f"INSTR({after_sql}, UPPER(mutation_alts.alt)) > 0)"
+            )
+            if raw_value == "contains":
+                where_clauses.append(f"({contains_sql})")
+            elif raw_value == "not_contains":
+                where_clauses.append(f"(NOT ({contains_sql}))")
+            else:
+                continue
+            joined_alts = True
+            continue
+
         if field == "reference_context":
             where_clauses.append(
                 "(json_extract(mutations.metadata_json, '$.REFERENCE_6_BEFORE') LIKE ? "
@@ -585,12 +607,21 @@ def add_metadata_filter_sql(connection, where_clauses, params, metadata_filters)
     return joined_alts
 
 
-def metadata_filters_match(metadata, metadata_filters):
+def metadata_filters_match(metadata, metadata_filters, alt=""):
     if not metadata_filters:
         return True
     for field, raw_value in metadata_filters:
         if field == "polymorphism":
             if str(metadata.get("POLYMORPHISM", "")) != raw_value:
+                return False
+        elif field == "reference_contains_alt":
+            alt_text = str(alt).upper()
+            before = str(metadata.get("REFERENCE_6_BEFORE", "")).upper()
+            after = str(metadata.get("REFERENCE_6_AFTER", "")).upper()
+            contains_alt = bool(alt_text) and (alt_text in before or alt_text in after)
+            if raw_value == "contains" and not contains_alt:
+                return False
+            if raw_value == "not_contains" and contains_alt:
                 return False
         elif field == "reference_context":
             context = (
@@ -772,7 +803,7 @@ def derived_mutation_rows(sample, position=None, alt=None, af_rules=None, metada
             "DERIVED_EXPRESSION": sample.source_description,
             "DERIVED_LABEL": sample.label,
         })
-        if not metadata_filters_match(metadata, metadata_filters or []):
+        if not metadata_filters_match(metadata, metadata_filters or [], allele.alt):
             continue
 
         seen.add(key)
@@ -902,6 +933,7 @@ def filter_derived_calls(sample, position=None, alt=None, af_rules=None, metadat
         if not metadata_filters_match(
             metadata_by_allele.get(call.allele, {}),
             metadata_filters or [],
+            call.allele.alt,
         ):
             continue
         calls.append(call)
