@@ -5,23 +5,46 @@ import argparse
 import email.policy
 import html
 import json
-import sqlite3
-from collections import Counter
-from dataclasses import dataclass, field
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 import vcf_parser
+from mito_viewer.domain import (
+    AFRule,
+    AlleleKey,
+    DerivedSample,
+    MetadataFilter,
+    MutationFilters,
+    SampleAlleleCall,
+    SampleAlleleSet,
+)
+from mito_viewer.catalog import CatalogRepository, CatalogViewerService
+from mito_viewer.domain.filters import AF_OPERATORS
+from mito_viewer.repositories import (
+    DATABASE_EXTENSIONS,
+    NO_TAGS_FILTER,  # noqa: F401 - compatibility export
+    AnnotationRepository,
+    StudyRepository,
+    discover_study_databases,
+    inspect_study_database,
+)
+from mito_viewer.repositories.schema import read_only_connection
+from mito_viewer.reference_features import mitochondrial_gene_locus
 
 
-DATABASE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
+# Compatibility name for callers that imported web_viewer.MutationAllele.
+MutationAllele = AlleleKey
+
+
 DEFAULT_DATABASE_DIR = Path(".")
 DEFAULT_ANNOTATION_DATABASE_PATH = (
     Path(__file__).resolve().parent / "mutation_annotations.sqlite"
 )
-NO_TAGS_FILTER = "__NO_TAGS__"
+DEFAULT_CATALOG_DATABASE_PATH = (
+    Path(__file__).resolve().parent / "analysis_catalog.sqlite"
+)
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
 ROADMAP_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "roadmap.html"
 ROADMAP_DATA_PATH = Path(__file__).resolve().parent / "roadmap.json"
@@ -30,322 +53,66 @@ DEFAULT_SAMPLE_COMPARE_STATUSES = {"present"}
 DERIVED_SAMPLE_PREFIX = "derived:"
 ROADMAP_STATUSES = {"now", "next", "later", "done"}
 ROADMAP_PRIORITIES = {"None", "Low", "Medium", "High"}
-AF_OPERATORS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "=", "neq": "!="}
-METADATA_FILTER_FIELDS = {
-    "polymorphism": ("mutation_alts.polymorphism", "integer"),
-    "repeat_base": ("mutation_alts.repeat_base", "text"),
-    "repeat_count": ("mutation_alts.repeat_count", "integer"),
-    "repeat_2_bases": ("mutation_alts.repeat_2_bases", "text"),
-    "repeat_2_count": ("mutation_alts.repeat_2_count", "integer"),
-    "repeat_3_bases": ("mutation_alts.repeat_3_bases", "text"),
-    "repeat_3_count": ("mutation_alts.repeat_3_count", "integer"),
-}
 REFERENCE_REPEAT_BASES = ("A", "C", "G", "T", "N")
 
 
-@dataclass(frozen=True)
-class MutationAllele:
-    """Comparable allele identity for viewer-side set operations."""
-
-    position: int
-    ref: str
-    alt: str
-
-
-@dataclass
-class SampleAlleleCall:
-    """One sample's call for a comparable allele."""
-
-    allele: MutationAllele
-    sample_id: int
-    label: str
-    af: float | None
-    af_text: str
-    filter: str
-    vcf_ref: str
-    metadata: dict = field(default_factory=dict)
-
-    def to_json(self):
-        return {
-            "sample_id": self.sample_id,
-            "label": self.label,
-            "af": self.af,
-            "af_text": self.af_text,
-            "filter": self.filter,
-            "vcf_ref": self.vcf_ref,
-            "metadata": self.metadata,
-        }
-
-
-@dataclass
-class DerivedSample:
-    """In-memory sample built from a comparison result."""
-
-    id: str
-    label: str
-    calls: list[SampleAlleleCall]
-    mutations: list[vcf_parser.VCFMutation]
-    source_description: str
-
-    @property
-    def subject_id(self):
-        return "Derived"
-
-    @property
-    def population_key(self):
-        return self.label
-
-    @property
-    def source_file(self):
-        return self.source_description
-
-    @property
-    def mutation_count(self):
-        return len({call.allele for call in self.calls})
-
-    @property
-    def vcf_iterator(self):
-        return vcf_parser.VCFIterator.from_mutations(
-            self.mutations,
-            path=self.id,
-        )
-
-    def sample_row(self):
-        return {
-            "id": self.id,
-            "subject_id": self.subject_id,
-            "population_key": self.population_key,
-            "source_file": self.source_file,
-            "mutation_count": self.mutation_count,
-            "is_derived": True,
-        }
-
-
-@dataclass
-class SampleAlleleSet:
-    """Allele set plus per-allele call details for one sample group."""
-
-    calls_by_allele: dict[MutationAllele, list[SampleAlleleCall]] = field(
-        default_factory=dict
-    )
-
-    def add(self, call):
-        self.calls_by_allele.setdefault(call.allele, []).append(call)
-
-    def __contains__(self, allele):
-        return allele in self.calls_by_allele
-
-    def __iter__(self):
-        return iter(self.calls_by_allele)
-
-    def __and__(self, other):
-        return set(self) & set(other)
-
-    def __sub__(self, other):
-        return set(self) - set(other)
-
-    def __or__(self, other):
-        return set(self) | set(other)
-
-    def calls(self, allele):
-        return self.calls_by_allele.get(allele, [])
-
-
 def connect_database(db_path):
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-    return connection
+    """Compatibility helper returning a read-only study connection."""
+    inspect_study_database(db_path).require_valid()
+    return read_only_connection(db_path)
 
 
 def fetch_cached_annotations(annotation_db_path, position, ref, alt):
-    """Return cached provider envelopes for one mitochondrial allele."""
-    annotation_db_path = Path(annotation_db_path)
-    if not annotation_db_path.is_file():
-        raise FileNotFoundError(
-            f"Annotation database not found: {annotation_db_path}"
-        )
+    """Compatibility wrapper around the annotation repository."""
+    return AnnotationRepository(annotation_db_path).fetch_cached(
+        position,
+        ref,
+        alt,
+    )
 
+
+def fetch_variant_annotations(annotation_db_path, position, ref, alt):
+    """Combine cached provider data with the authoritative local gene locus."""
     position = int(position)
     ref = str(ref).strip().upper()
     alt = str(alt).strip().upper()
-    if not ref or not alt:
-        raise ValueError("Annotation lookup requires position, ref, and alt.")
-
-    connection = sqlite3.connect(
-        f"file:{annotation_db_path.resolve()}?mode=ro", uri=True
+    annotation = fetch_cached_annotations(
+        annotation_db_path,
+        position,
+        ref,
+        alt,
     )
-    connection.row_factory = sqlite3.Row
-    try:
-        variant = connection.execute(
-            """
-            SELECT id, pos, ref, alt, first_seen_at, last_seen_at
-            FROM annotation_variants
-            WHERE pos = ? AND ref = ? AND alt = ?
-            """,
-            (position, ref, alt),
-        ).fetchone()
-        if variant is None:
-            return None
-
-        payload = {
-            "variant": dict(variant),
-            "cache": {"database": annotation_db_path.name},
+    if annotation is None:
+        annotation = {
+            "variant": {
+                "pos": position,
+                "ref": ref,
+                "alt": alt,
+            },
+            "cache": {
+                "database": Path(annotation_db_path).name,
+                "hit": False,
+            },
         }
-        for row in connection.execute(
-            """
-            SELECT provider, annotation_json, error, retrieved_at, last_attempted_at
-            FROM provider_annotations
-            WHERE variant_id = ?
-            ORDER BY provider
-            """,
-            (variant["id"],),
-        ):
-            if row["annotation_json"] is not None:
-                try:
-                    provider_payload = json.loads(row["annotation_json"])
-                except json.JSONDecodeError as exc:
-                    provider_payload = {
-                        "source": row["provider"],
-                        "error": f"Cached annotation JSON is invalid: {exc}",
-                    }
-            else:
-                provider_payload = {
-                    "source": row["provider"],
-                    "error": row["error"] or "No cached annotation response",
-                }
-            payload[row["provider"]] = provider_payload
-        return payload
-    finally:
-        connection.close()
+    else:
+        annotation.setdefault("cache", {})["hit"] = True
+    annotation["locus"] = mitochondrial_gene_locus(position, ref)
+    return annotation
 
 
 def fetch_annotation_vocabulary(annotation_db_path):
-    """Return observed ClinVar classifications and conditions with counts."""
-    annotation_db_path = Path(annotation_db_path)
-    if not annotation_db_path.is_file():
-        raise FileNotFoundError(
-            f"Annotation database not found: {annotation_db_path}"
-        )
-
-    classifications = Counter()
-    conditions = Counter()
-    connection = sqlite3.connect(
-        f"file:{annotation_db_path.resolve()}?mode=ro", uri=True
-    )
-    try:
-        rows = connection.execute(
-            """
-            SELECT annotation_json FROM provider_annotations
-            WHERE provider = 'clinvar' AND annotation_json IS NOT NULL
-            """
-        )
-        for (annotation_json,) in rows:
-            try:
-                envelope = json.loads(annotation_json)
-            except json.JSONDecodeError:
-                continue
-            result = (
-                envelope.get("data", {})
-                .get("summaries", {})
-                .get("result", {})
-            )
-            for uid in result.get("uids", []):
-                clinical = result.get(uid, {}).get("germline_classification", {})
-                classification = clinical.get("description")
-                if classification:
-                    classifications[str(classification)] += 1
-                for trait in clinical.get("trait_set", []):
-                    condition = trait.get("trait_name")
-                    if condition:
-                        conditions[str(condition)] += 1
-    finally:
-        connection.close()
-
-    def ranked(counter):
-        return [
-            {"value": value, "count": count}
-            for value, count in sorted(
-                counter.items(), key=lambda item: (-item[1], item[0].lower())
-            )
-        ]
-
-    return {
-        "classifications": ranked(classifications),
-        "conditions": ranked(conditions),
-    }
+    """Compatibility wrapper around the annotation repository."""
+    return AnnotationRepository(annotation_db_path).vocabulary()
 
 
 def fetch_mutation_samples(connection, position, ref, alt):
     """Return every study sample containing an exact VCF allele."""
-    position = int(position)
-    ref = str(ref).strip().upper()
-    alt = str(alt).strip().upper()
-    if not ref or not alt:
-        raise ValueError("Sample lookup requires position, ref, and alt.")
-
-    tables = {
-        row[0]
-        for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table'"
-        )
-    }
-    if "mutation_alts" in tables:
-        rows = connection.execute(
-            """
-            SELECT DISTINCT
-                samples.id, subjects.subject_id, samples.population_key,
-                samples.source_file
-            FROM mutation_alts
-            JOIN mutations ON mutations.id = mutation_alts.mutation_id
-            JOIN samples ON samples.id = mutations.sample_id
-            JOIN subjects ON subjects.id = samples.subject_id
-            WHERE mutations.pos = ? AND UPPER(mutations.vcf_ref) = ?
-              AND UPPER(mutation_alts.alt) = ?
-            ORDER BY subjects.subject_id, samples.population_key
-            """,
-            (position, ref, alt),
-        ).fetchall()
-    else:
-        rows = connection.execute(
-            """
-            SELECT DISTINCT
-                samples.id, subjects.subject_id, samples.population_key,
-                samples.source_file
-            FROM mutations
-            JOIN samples ON samples.id = mutations.sample_id
-            JOIN subjects ON subjects.id = samples.subject_id
-            WHERE mutations.pos = ? AND UPPER(mutations.vcf_ref) = ?
-              AND (',' || UPPER(mutations.alt) || ',') LIKE '%,' || ? || ',%'
-            ORDER BY subjects.subject_id, samples.population_key
-            """,
-            (position, ref, alt),
-        ).fetchall()
-
-    return [
-        {
-            **dict(row),
-            "label": " ".join(filter(None, (
-                row["subject_id"],
-                row["population_key"].replace("|", "_"),
-            ))),
-        }
-        for row in rows
-    ]
-
-
-def is_sqlite_database_path(path):
-    return path.is_file() and path.suffix.lower() in DATABASE_EXTENSIONS
+    return StudyRepository(connection).mutation_samples(position, ref, alt)
 
 
 def discover_databases(database_dir):
-    """Return approved SQLite databases keyed by browser-facing ID."""
-    database_dir = Path(database_dir)
-    databases = {}
-    if database_dir.exists():
-        for path in sorted(database_dir.iterdir(), key=lambda item: item.name.lower()):
-            if is_sqlite_database_path(path):
-                databases[path.name] = path.resolve()
-    return databases
+    """Compatibility wrapper returning schema-compatible study databases."""
+    return discover_study_databases(database_dir)
 
 
 def database_id_for_path(db_path):
@@ -361,6 +128,7 @@ def database_options(database_dir, default_db_id, selected_db_id=None):
             "label": database_id,
             "path": str(path),
             "selected": database_id == selected_db_id,
+            "schema_version": inspect_study_database(path).version_label,
         }
         for database_id, path in databases.items()
     ]
@@ -417,6 +185,11 @@ def save_uploaded_database(database_dir, filename, content, replace=False):
 
     temp_path = target_path.with_name(f".{target_path.name}.uploading")
     temp_path.write_bytes(content)
+    try:
+        inspect_study_database(temp_path).require_valid()
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
     temp_path.replace(target_path)
     return target_path
 
@@ -426,17 +199,13 @@ def is_derived_sample_id(sample_id):
 
 
 def parse_af_rules(values):
-    """Parse AF rule query values like gt:0.8 into normalized tuples."""
+    """Parse valid AF query values such as ``gt:0.8``."""
     rules = []
     for value in values or []:
-        operator, separator, threshold = str(value).partition(":")
-        if not separator or operator not in AF_OPERATORS:
-            continue
         try:
-            numeric_threshold = float(threshold)
+            rules.append(AFRule.parse(value))
         except ValueError:
             continue
-        rules.append((operator, numeric_threshold))
     return rules
 
 
@@ -484,127 +253,20 @@ def af_rules_match_text(af_text, af_rules):
 
 
 def parse_metadata_filters(values):
+    """Parse valid metadata-filter query values."""
     filters = []
     for value in values or []:
-        field, separator, raw_value = str(value).partition(":")
-        if not separator:
+        try:
+            filters.append(MetadataFilter.parse(value))
+        except ValueError:
             continue
-        filters.append((field, raw_value))
     return filters
-
-
-def table_columns(connection, table):
-    return {
-        row["name"]
-        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
-    }
 
 
 def single_base_repeat_seen(sequence):
     """Return True when a reference context contains an adjacent single-base run."""
     sequence = str(sequence or "").upper()
     return any(base * 2 in sequence for base in REFERENCE_REPEAT_BASES)
-
-
-def reference_repeat_sql_expression(json_key):
-    checks = [
-        f"json_extract(mutations.metadata_json, '$.{json_key}') LIKE ?"
-        for _base in REFERENCE_REPEAT_BASES
-    ]
-    params = [f"%{base * 2}%" for base in REFERENCE_REPEAT_BASES]
-    return "(" + " OR ".join(checks) + ")", params
-
-
-def reference_repeat_filter_sql(raw_value):
-    before_sql, before_params = reference_repeat_sql_expression("REFERENCE_6_BEFORE")
-    after_sql, after_params = reference_repeat_sql_expression("REFERENCE_6_AFTER")
-
-    if raw_value == "before":
-        return f"({before_sql} AND NOT {after_sql})", before_params + after_params
-    if raw_value == "after":
-        return f"({after_sql} AND NOT {before_sql})", after_params + before_params
-    if raw_value == "one":
-        return (
-            f"(({before_sql} AND NOT {after_sql}) OR ({after_sql} AND NOT {before_sql}))",
-            before_params + after_params + after_params + before_params,
-        )
-    if raw_value == "both":
-        return f"({before_sql} AND {after_sql})", before_params + after_params
-    if raw_value == "none":
-        return f"(NOT {before_sql} AND NOT {after_sql})", before_params + after_params
-    if raw_value == "either":
-        return f"({before_sql} OR {after_sql})", before_params + after_params
-
-    return "", []
-
-
-def add_metadata_filter_sql(connection, where_clauses, params, metadata_filters):
-    if not metadata_filters:
-        return False
-
-    alt_columns = table_columns(connection, "mutation_alts")
-    joined_alts = False
-    for field, raw_value in metadata_filters:
-        if field == "reference_contains_alt":
-            before_sql = (
-                "UPPER(COALESCE(json_extract(mutations.metadata_json, "
-                "'$.REFERENCE_6_BEFORE'), ''))"
-            )
-            after_sql = (
-                "UPPER(COALESCE(json_extract(mutations.metadata_json, "
-                "'$.REFERENCE_6_AFTER'), ''))"
-            )
-            contains_sql = (
-                f"(INSTR({before_sql}, UPPER(mutation_alts.alt)) > 0 OR "
-                f"INSTR({after_sql}, UPPER(mutation_alts.alt)) > 0)"
-            )
-            if raw_value == "contains":
-                where_clauses.append(f"({contains_sql})")
-            elif raw_value == "not_contains":
-                where_clauses.append(f"(NOT ({contains_sql}))")
-            else:
-                continue
-            joined_alts = True
-            continue
-
-        if field == "reference_context":
-            where_clauses.append(
-                "(json_extract(mutations.metadata_json, '$.REFERENCE_6_BEFORE') LIKE ? "
-                "OR json_extract(mutations.metadata_json, '$.REFERENCE_6_AFTER') LIKE ?)"
-            )
-            params.extend([f"%{raw_value}%", f"%{raw_value}%"])
-            continue
-
-        if field == "reference_repeat":
-            clause, clause_params = reference_repeat_filter_sql(raw_value)
-            if clause:
-                where_clauses.append(clause)
-                params.extend(clause_params)
-            continue
-
-        if field not in METADATA_FILTER_FIELDS:
-            continue
-        column, field_type = METADATA_FILTER_FIELDS[field]
-        column_name = column.split(".")[-1]
-        if column_name not in alt_columns:
-            continue
-        joined_alts = True
-
-        if field_type == "integer":
-            if field == "polymorphism":
-                where_clauses.append(f"{column} = ?")
-                params.append(1 if raw_value == "1" else 0)
-            else:
-                operator, separator, threshold = raw_value.partition("|")
-                if not separator or operator not in AF_OPERATORS:
-                    continue
-                where_clauses.append(f"{column} {AF_OPERATORS[operator]} ?")
-                params.append(int(threshold))
-        else:
-            where_clauses.append(f"{column} = ?")
-            params.append(raw_value)
-
-    return joined_alts
 
 
 def metadata_filters_match(metadata, metadata_filters, alt=""):
@@ -675,100 +337,18 @@ def metadata_filters_match(metadata, metadata_filters, alt=""):
 
 
 def fetch_subjects(connection):
-    rows = connection.execute("""
-        SELECT
-            subjects.id,
-            subjects.subject_id,
-            COUNT(samples.id) AS sample_count
-        FROM subjects
-        LEFT JOIN samples ON samples.subject_id = subjects.id
-        GROUP BY subjects.id
-        ORDER BY subjects.subject_id
-    """).fetchall()
-    return [dict(row) for row in rows]
+    return StudyRepository(connection).subjects()
 
 
 def fetch_population_tags(connection):
-    rows = connection.execute("""
-        SELECT
-            tag,
-            COUNT(DISTINCT sample_id) AS sample_count
-        FROM sample_population_tags
-        GROUP BY tag
-        ORDER BY tag
-    """).fetchall()
-    tags = [dict(row) for row in rows]
-    if tags:
-        untagged_count = connection.execute("""
-            SELECT COUNT(*)
-            FROM samples
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM sample_population_tags
-                WHERE sample_population_tags.sample_id = samples.id
-            )
-        """).fetchone()[0]
-        if untagged_count:
-            tags.append({
-                "tag": NO_TAGS_FILTER,
-                "label": "<NONE>",
-                "sample_count": untagged_count,
-            })
-
-    return tags
+    return StudyRepository(connection).population_tags()
 
 
 def fetch_samples(connection, subject_id=None, tags=None, derived_samples=None):
-    join_params = []
-    where_params = []
-    where_clauses = []
-    tag_joins = []
-
-    if subject_id:
-        where_clauses.append("subjects.subject_id = ?")
-        where_params.append(subject_id)
-
-    for index, tag in enumerate(tags or []):
-        if tag == NO_TAGS_FILTER:
-            where_clauses.append("""
-                NOT EXISTS (
-                    SELECT 1
-                    FROM sample_population_tags no_tag
-                    WHERE no_tag.sample_id = samples.id
-                )
-            """)
-            continue
-
-        alias = f"tag_{index}"
-        tag_joins.append(
-            f"""
-            JOIN sample_population_tags {alias}
-                ON {alias}.sample_id = samples.id
-                AND {alias}.tag = ?
-            """
-        )
-        join_params.append(tag)
-
-    where_sql = ""
-    if where_clauses:
-        where_sql = "WHERE " + " AND ".join(where_clauses)
-
-    rows = connection.execute(f"""
-        SELECT
-            samples.id,
-            subjects.subject_id,
-            samples.population_key,
-            samples.source_file,
-            COUNT(mutations.id) AS mutation_count
-        FROM samples
-        JOIN subjects ON subjects.id = samples.subject_id
-        {" ".join(tag_joins)}
-        LEFT JOIN mutations ON mutations.sample_id = samples.id
-        {where_sql}
-        GROUP BY samples.id
-        ORDER BY subjects.subject_id, samples.population_key
-    """, join_params + where_params).fetchall()
-    samples = [dict(row) for row in rows]
+    samples = StudyRepository(connection).samples(
+        subject_id=subject_id,
+        tags=tags,
+    )
 
     derived_samples = derived_samples or {}
     for sample in derived_samples.values():
@@ -849,68 +429,14 @@ def fetch_mutations(
             limit=limit,
         )
 
-    params = []
-    where_clauses = []
-    alt_join = ""
-    use_alt_rows = False
-
-    if sample_id:
-        where_clauses.append("samples.id = ?")
-        params.append(sample_id)
-
-    if position:
-        where_clauses.append("mutations.pos = ?")
-        params.append(position)
-
-    if alt:
-        alt_join = "JOIN mutation_alts ON mutation_alts.mutation_id = mutations.id"
-        use_alt_rows = True
-        where_clauses.append("mutation_alts.alt = ?")
-        params.append(alt)
-
-    if af_rules:
-        alt_join = "JOIN mutation_alts ON mutation_alts.mutation_id = mutations.id"
-        use_alt_rows = True
-        for operator, threshold in af_rules:
-            sql_operator = AF_OPERATORS[operator]
-            where_clauses.append(f"mutation_alts.af {sql_operator} ?")
-            params.append(threshold)
-
-    if metadata_filters:
-        if add_metadata_filter_sql(connection, where_clauses, params, metadata_filters):
-            alt_join = "JOIN mutation_alts ON mutation_alts.mutation_id = mutations.id"
-            use_alt_rows = True
-
-    where_sql = ""
-    if where_clauses:
-        where_sql = "WHERE " + " AND ".join(where_clauses)
-
-    alt_select = "mutation_alts.alt" if use_alt_rows else "mutations.alt"
-    af_select = "mutation_alts.af_text" if use_alt_rows else "mutations.af"
-
-    params.append(limit)
-    rows = connection.execute(f"""
-        SELECT DISTINCT
-            mutations.id,
-            subjects.subject_id,
-            samples.population_key,
-            samples.source_file,
-            mutations.pos,
-            mutations.ref,
-            mutations.vcf_ref,
-            {alt_select} AS alt,
-            {af_select} AS af,
-            mutations.filter,
-            mutations.metadata_json
-        FROM mutations
-        JOIN samples ON samples.id = mutations.sample_id
-        JOIN subjects ON subjects.id = samples.subject_id
-        {alt_join}
-        {where_sql}
-        ORDER BY mutations.pos, subjects.subject_id, samples.population_key
-        LIMIT ?
-    """, params).fetchall()
-    return [dict(row) for row in rows]
+    return StudyRepository(connection).mutation_rows(
+        sample_id=sample_id,
+        position=position,
+        alt=alt,
+        af_rules=af_rules or (),
+        metadata_filters=metadata_filters or (),
+        limit=limit,
+    )
 
 
 def filter_derived_calls(sample, position=None, alt=None, af_rules=None, metadata_filters=None):
@@ -979,105 +505,15 @@ def fetch_allele_calls(
     if not real_sample_ids:
         return calls
 
-    placeholders = ",".join("?" for _ in real_sample_ids)
-    params = list(real_sample_ids)
-    where_clauses = [f"samples.id IN ({placeholders})"]
-
-    if position:
-        where_clauses.append("mutations.pos = ?")
-        params.append(position)
-
-    if alt:
-        where_clauses.append("mutation_alts.alt = ?")
-        params.append(alt)
-
-    if af_rules:
-        for operator, threshold in af_rules:
-            sql_operator = AF_OPERATORS[operator]
-            where_clauses.append(f"mutation_alts.af {sql_operator} ?")
-            params.append(threshold)
-
-    if metadata_filters:
-        add_metadata_filter_sql(connection, where_clauses, params, metadata_filters)
-
-    alt_columns = table_columns(connection, "mutation_alts")
-    alt_metadata_fields = [
-        ("polymorphism", "alt_polymorphism", "POLYMORPHISM"),
-        ("repeat_base", "alt_repeat_base", "REPEAT_1_BASE"),
-        ("repeat_count", "alt_repeat_count", "REPEAT_1_BASE_COUNT"),
-        ("repeat_2_bases", "alt_repeat_2_bases", "REPEAT_2_BASES"),
-        ("repeat_2_count", "alt_repeat_2_count", "REPEAT_2_BASES_COUNT"),
-        ("repeat_3_bases", "alt_repeat_3_bases", "REPEAT_3_BASES"),
-        ("repeat_3_count", "alt_repeat_3_count", "REPEAT_3_BASES_COUNT"),
-    ]
-    alt_metadata_selects = [
-        f"mutation_alts.{column} AS {alias}"
-        for column, alias, _key in alt_metadata_fields
-        if column in alt_columns
-    ]
-    metadata_select_sql = ""
-    if alt_metadata_selects:
-        metadata_select_sql = ",\n            " + ",\n            ".join(alt_metadata_selects)
-
-    rows = connection.execute(f"""
-        SELECT
-            samples.id AS sample_id,
-            subjects.subject_id,
-            samples.population_key,
-            mutations.pos,
-            mutations.ref,
-            mutations.vcf_ref,
-            mutations.filter,
-            mutation_alts.alt,
-            mutation_alts.af,
-            mutation_alts.af_text,
-            mutations.af AS mutation_af,
-            mutations.metadata_json
-            {metadata_select_sql}
-        FROM mutation_alts
-        JOIN mutations ON mutations.id = mutation_alts.mutation_id
-        JOIN samples ON samples.id = mutations.sample_id
-        JOIN subjects ON subjects.id = samples.subject_id
-        WHERE {" AND ".join(where_clauses)}
-        ORDER BY mutations.pos, mutation_alts.alt, subjects.subject_id, samples.population_key
-    """, params).fetchall()
-
-    for row in rows:
-        allele = MutationAllele(
-            position=row["pos"],
-            ref=row["ref"],
-            alt=row["alt"],
+    calls.extend(
+        StudyRepository(connection).allele_calls(
+            real_sample_ids,
+            position=position,
+            alt=alt,
+            af_rules=af_rules or (),
+            metadata_filters=metadata_filters or (),
         )
-        row_keys = row.keys()
-        try:
-            source_metadata = json.loads(row["metadata_json"] or "{}")
-        except json.JSONDecodeError:
-            source_metadata = {}
-        call_metadata = {
-            key: source_metadata.get(key, "")
-            for key in ("REFERENCE_6_BEFORE", "REFERENCE_6_AFTER")
-            if key in source_metadata
-        }
-        for _column, alias, key in alt_metadata_fields:
-            if alias in row_keys and row[alias] not in (None, ""):
-                call_metadata[key] = str(row[alias])
-        af_text = (
-            row["af_text"]
-            or source_metadata.get("AF", "")
-            or source_metadata.get("VF", "")
-            or row["mutation_af"]
-            or ""
-        )
-        calls.append(SampleAlleleCall(
-            allele=allele,
-            sample_id=row["sample_id"],
-            label=f"{row['subject_id']} {row['population_key'].replace('|', '_')}",
-            af=row["af"],
-            af_text=af_text,
-            filter=row["filter"],
-            vcf_ref=row["vcf_ref"],
-            metadata=call_metadata,
-        ))
+    )
     return calls
 
 
@@ -1105,24 +541,7 @@ def fetch_sample_labels(connection, sample_ids, derived_samples=None):
         for sample_id in sample_ids
         if not is_derived_sample_id(sample_id)
     ]
-    if not real_sample_ids:
-        return labels
-
-    placeholders = ",".join("?" for _ in real_sample_ids)
-    rows = connection.execute(f"""
-        SELECT
-            samples.id,
-            subjects.subject_id,
-            samples.population_key
-        FROM samples
-        JOIN subjects ON subjects.id = samples.subject_id
-        WHERE samples.id IN ({placeholders})
-    """, real_sample_ids).fetchall()
-
-    labels.update({
-        str(row["id"]): f"{row['subject_id']} {row['population_key'].replace('|', '_')}"
-        for row in rows
-    })
+    labels.update(StudyRepository(connection).sample_labels(real_sample_ids))
     return labels
 
 
@@ -1309,18 +728,7 @@ def fetch_compare(
 
 
 def database_counts(connection):
-    counts = {}
-    for table in [
-        "subjects",
-        "samples",
-        "sample_population_tags",
-        "mutations",
-        "mutation_alts",
-    ]:
-        counts[table] = connection.execute(
-            f"SELECT COUNT(*) FROM {table}"
-        ).fetchone()[0]
-    return counts
+    return StudyRepository(connection).counts()
 
 
 def json_response(handler, payload, status=200):
@@ -1684,6 +1092,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
     derived_samples_by_db = {}
     next_derived_sample_ids = {}
     annotation_db_path = DEFAULT_ANNOTATION_DATABASE_PATH
+    catalog_db_path = DEFAULT_CATALOG_DATABASE_PATH
 
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}")
@@ -1712,6 +1121,30 @@ class ViewerHandler(BaseHTTPRequestHandler):
     @classmethod
     def derived_samples(cls, db_id):
         return cls.derived_samples_by_db.setdefault(db_id, {})
+
+    @staticmethod
+    def catalog_context(query=None, payload=None):
+        query = query or {}
+        payload = payload or {}
+        perspective_id = (
+            payload.get("perspective_id")
+            or query.get("perspective_id", [""])[0]
+        )
+        dataset_id = (
+            payload.get("dataset_id")
+            or query.get("dataset_id", [""])[0]
+        )
+        return str(perspective_id or ""), str(dataset_id or "")
+
+    def request_derived_samples(self, db_id, query):
+        perspective_id, dataset_id = self.catalog_context(query)
+        if not perspective_id or not dataset_id:
+            return dict(self.derived_samples(db_id))
+        with CatalogRepository(self.catalog_db_path) as catalog:
+            return CatalogViewerService(catalog).durable_derived_samples(
+                perspective_id,
+                dataset_id,
+            )
 
     def open_database(self, db_path):
         if not db_path.exists():
@@ -1753,26 +1186,58 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 json_response(self, read_roadmap())
                 return
             if parsed.path == "/api/annotations":
-                annotation = fetch_cached_annotations(
+                annotation = fetch_variant_annotations(
                     self.annotation_db_path,
                     query.get("position", [""])[0],
                     query.get("ref", [""])[0],
                     query.get("alt", [""])[0],
                 )
-                if annotation is None:
-                    json_response(
-                        self,
-                        {"error": "No cached annotation exists for this allele."},
-                        status=404,
-                    )
-                else:
-                    json_response(self, annotation)
+                json_response(self, annotation)
                 return
             if parsed.path == "/api/annotation-vocabulary":
                 json_response(
                     self,
                     fetch_annotation_vocabulary(self.annotation_db_path),
                 )
+                return
+            if parsed.path == "/api/catalog/perspectives":
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    json_response(
+                        self,
+                        CatalogViewerService(catalog).list_perspectives(),
+                    )
+                return
+            if parsed.path == "/api/catalog/datasets":
+                perspective_id, _dataset_id = self.catalog_context(query)
+                if not perspective_id:
+                    raise ValueError("Select a Study Perspective.")
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    json_response(
+                        self,
+                        CatalogViewerService(catalog).list_datasets(
+                            perspective_id
+                        ),
+                    )
+                return
+            if parsed.path == "/api/catalog/workspace":
+                perspective_id, dataset_id = self.catalog_context(query)
+                if not perspective_id or not dataset_id:
+                    raise ValueError(
+                        "Select a Study Perspective and Dataset."
+                    )
+                db_id, db_path = self.resolve_database(
+                    self.database_id_from_query(query)
+                )
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    json_response(
+                        self,
+                        CatalogViewerService(catalog).workspace(
+                            perspective_id,
+                            dataset_id,
+                            database_id=db_id,
+                            database_path=db_path,
+                        ),
+                    )
                 return
             if parsed.path == "/api/mutation-samples":
                 study_db_id = query.get("study_db", [""])[0]
@@ -1794,7 +1259,10 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 return
 
             db_id, db_path = self.resolve_database(self.database_id_from_query(query))
-            derived_samples = self.derived_samples(db_id)
+            derived_samples = self.request_derived_samples(
+                db_id,
+                query,
+            )
 
             if parsed.path == "/":
                 html_response(self, page_html(db_path))
@@ -1879,6 +1347,76 @@ class ViewerHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/api/roadmap":
                 json_response(self, write_roadmap(self.read_json_body()))
+            elif parsed.path == "/api/catalog/perspectives":
+                payload = self.read_json_body()
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    result = CatalogViewerService(
+                        catalog
+                    ).create_perspective(payload.get("name", ""))
+                json_response(self, result, status=201)
+            elif parsed.path == "/api/catalog/datasets":
+                payload = self.read_json_body()
+                perspective_id, _dataset_id = self.catalog_context(
+                    query,
+                    payload,
+                )
+                if not perspective_id:
+                    raise ValueError("Select a Study Perspective.")
+                db_id, db_path = self.resolve_database(
+                    payload.get("db") or self.database_id_from_query(query)
+                )
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    result = CatalogViewerService(catalog).create_dataset(
+                        perspective_id,
+                        payload.get("name", ""),
+                        database_id=db_id,
+                        database_path=db_path,
+                    )
+                json_response(self, result, status=201)
+            elif parsed.path == "/api/catalog/groups":
+                payload = self.read_json_body()
+                perspective_id, dataset_id = self.catalog_context(
+                    query,
+                    payload,
+                )
+                if not perspective_id or not dataset_id:
+                    raise ValueError(
+                        "Select a Study Perspective and Dataset."
+                    )
+                db_id, db_path = self.resolve_database(
+                    payload.get("db") or self.database_id_from_query(query)
+                )
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    result = CatalogViewerService(catalog).create_group(
+                        perspective_id,
+                        dataset_id,
+                        payload.get("name", ""),
+                        payload.get("sample_ids", []),
+                        database_id=db_id,
+                        database_path=db_path,
+                    )
+                json_response(self, result, status=201)
+            elif parsed.path == "/api/catalog/dataset-cohorts":
+                payload = self.read_json_body()
+                perspective_id, dataset_id = self.catalog_context(
+                    query,
+                    payload,
+                )
+                if not perspective_id or not dataset_id:
+                    raise ValueError(
+                        "Select a Study Perspective and Dataset."
+                    )
+                db_id, db_path = self.resolve_database(
+                    payload.get("db") or self.database_id_from_query(query)
+                )
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    result = CatalogViewerService(catalog).attach_database(
+                        perspective_id,
+                        dataset_id,
+                        database_id=db_id,
+                        database_path=db_path,
+                    )
+                json_response(self, result, status=201)
             elif parsed.path == "/api/upload-database":
                 fields, files = parse_multipart_form(self.headers, self.read_body())
                 upload = files.get("database")
@@ -1905,7 +1443,6 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 db_id, db_path = self.resolve_database(
                     payload.get("db") or self.database_id_from_query(query)
                 )
-                derived_samples = self.derived_samples(db_id)
                 compare_sample_ids = payload.get("compare_sample_id", [])
                 if len(compare_sample_ids) < 2:
                     json_response(
@@ -1915,28 +1452,70 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     )
                     return
 
+                perspective_id, dataset_id = self.catalog_context(
+                    query,
+                    payload,
+                )
                 next_id = self.next_derived_sample_ids.get(db_id, 1)
                 label = payload.get("label") or f"Comparison {next_id}"
-                with self.open_database(db_path) as connection:
-                    sample = create_derived_sample(
-                        connection,
-                        derived_samples,
-                        self.allocate_derived_sample_id(db_id),
-                        label,
-                        compare_sample_ids=compare_sample_ids,
-                        position=payload.get("position", ""),
-                        alt=payload.get("alt", ""),
-                        af_rules=parse_af_rules(payload.get("af_rule", [])),
-                        metadata_filters=parse_metadata_filters(
-                            payload.get("metadata_filter", [])
-                        ),
-                        statuses=payload.get("status", []),
-                        sample_statuses=parse_sample_statuses(
-                            payload.get("sample_status", [])
-                        ),
-                        limit=int(payload.get("limit", 2000)),
-                    )
-                json_response(self, sample.sample_row(), status=201)
+                if perspective_id and dataset_id:
+                    with CatalogRepository(self.catalog_db_path) as catalog:
+                        result = CatalogViewerService(
+                            catalog
+                        ).save_comparison(
+                            perspective_id,
+                            dataset_id,
+                            label,
+                            compare_sample_ids,
+                            database_id=db_id,
+                            database_path=db_path,
+                            sample_statuses=parse_sample_statuses(
+                                payload.get("sample_status", [])
+                            ),
+                            global_statuses=payload.get("status", []),
+                            filters=MutationFilters(
+                                position=payload.get("position", ""),
+                                alt=payload.get("alt", ""),
+                                af_rules=tuple(
+                                    parse_af_rules(
+                                        payload.get("af_rule", [])
+                                    )
+                                ),
+                                metadata_filters=tuple(
+                                    parse_metadata_filters(
+                                        payload.get(
+                                            "metadata_filter",
+                                            [],
+                                        )
+                                    )
+                                ),
+                            ),
+                        )
+                    json_response(self, result, status=201)
+                else:
+                    derived_samples = self.derived_samples(db_id)
+                    with self.open_database(db_path) as connection:
+                        sample = create_derived_sample(
+                            connection,
+                            derived_samples,
+                            self.allocate_derived_sample_id(db_id),
+                            label,
+                            compare_sample_ids=compare_sample_ids,
+                            position=payload.get("position", ""),
+                            alt=payload.get("alt", ""),
+                            af_rules=parse_af_rules(
+                                payload.get("af_rule", [])
+                            ),
+                            metadata_filters=parse_metadata_filters(
+                                payload.get("metadata_filter", [])
+                            ),
+                            statuses=payload.get("status", []),
+                            sample_statuses=parse_sample_statuses(
+                                payload.get("sample_status", [])
+                            ),
+                            limit=int(payload.get("limit", 2000)),
+                        )
+                    json_response(self, sample.sample_row(), status=201)
             else:
                 json_response(self, {"error": "Not found"}, status=404)
         except ValueError as exc:
@@ -1962,6 +1541,19 @@ class ViewerHandler(BaseHTTPRequestHandler):
                         self,
                         {"error": "Only derived samples can be deleted."},
                         status=400,
+                    )
+                    return
+                perspective_id, dataset_id = self.catalog_context(query)
+                if perspective_id and dataset_id:
+                    json_response(
+                        self,
+                        {
+                            "error": (
+                                "Durable derived samples and their run "
+                                "history are immutable."
+                            )
+                        },
+                        status=405,
                     )
                     return
                 removed = derived_samples.pop(sample_id, None)
@@ -2008,6 +1600,7 @@ def run_server(
     db_path=None,
     database_dir=None,
     annotation_db_path=DEFAULT_ANNOTATION_DATABASE_PATH,
+    catalog_db_path=DEFAULT_CATALOG_DATABASE_PATH,
     host="127.0.0.1",
     port=8000,
 ):
@@ -2016,6 +1609,9 @@ def run_server(
         database_dir=database_dir,
     )
     ViewerHandler.annotation_db_path = Path(annotation_db_path).resolve()
+    ViewerHandler.catalog_db_path = Path(catalog_db_path).resolve()
+    with CatalogRepository(ViewerHandler.catalog_db_path):
+        pass
     server = ThreadingHTTPServer((host, port), ViewerHandler)
     database_names = ", ".join(databases)
     print(f"Serving {selected_db_path} at http://{host}:{port}")
@@ -2045,11 +1641,21 @@ def main():
         default=DEFAULT_ANNOTATION_DATABASE_PATH,
         help="Persistent annotation cache used by the Annotations tab.",
     )
+    parser.add_argument(
+        "--catalog-db",
+        type=Path,
+        default=DEFAULT_CATALOG_DATABASE_PATH,
+        help=(
+            "Writable catalog used for perspectives, datasets, groups, "
+            "and durable derived samples."
+        ),
+    )
     args = parser.parse_args()
     run_server(
         db_path=args.db,
         database_dir=None if args.db else args.db_dir,
         annotation_db_path=args.annotations_db,
+        catalog_db_path=args.catalog_db,
         host=args.host,
         port=args.port,
     )

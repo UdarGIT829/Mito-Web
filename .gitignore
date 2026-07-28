@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 
 *.sqlite
+!tests/fixtures/test_database.sqlite
+tests/fixtures/*.building
 *.xlsx
 *.csv
 

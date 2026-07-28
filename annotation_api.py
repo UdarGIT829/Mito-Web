@@ -5,9 +5,10 @@ The public functions return dictionaries and retain provider responses under
 ``data``.  They deliberately do not translate provider fields into the local
 database schema; that belongs in a separate annotation/import layer.
 
-Ensembl and ClinVar provide documented JSON APIs.  MITOMAP currently exposes a
-human-facing allele search rather than a documented JSON API, so its adapter
-returns the response text and content type without attempting fragile parsing.
+Ensembl, ClinVar, and MSeqDR provide documented JSON APIs. MITOMAP currently
+exposes a human-facing allele search rather than a documented JSON API, so its
+adapter returns the response text and content type without attempting fragile
+parsing.
 """
 
 import argparse
@@ -23,6 +24,7 @@ from urllib.request import Request, urlopen
 ENSEMBL_REST_URL = "https://rest.ensembl.org"
 NCBI_EUTILS_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 MITOMAP_ALLELE_SEARCH_URL = "https://www.mitomap.org/allelesearch.html"
+MSEQDR_ANNOTATION_URL = "https://mseqdr.org/mtannotapi.php"
 DEFAULT_TIMEOUT = 30.0
 USER_AGENT = "Rohrer-Barb-Mito-Annotation/1.0"
 
@@ -36,6 +38,7 @@ def _request(
     *,
     method: str = "GET",
     payload: dict[str, Any] | None = None,
+    raw_body: str | bytes | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> tuple[Any, str]:
@@ -45,10 +48,16 @@ def _request(
         "User-Agent": USER_AGENT,
         **(headers or {}),
     }
+    if payload is not None and raw_body is not None:
+        raise ValueError("payload and raw_body are mutually exclusive")
+
     body = None
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         request_headers["Content-Type"] = "application/json"
+    elif raw_body is not None:
+        body = raw_body.encode("utf-8") if isinstance(raw_body, str) else raw_body
+        request_headers.setdefault("Content-Type", "text/plain; charset=utf-8")
 
     request = Request(url, data=body, headers=request_headers, method=method)
     try:
@@ -206,6 +215,44 @@ def fetch_mitomap(
     )
 
 
+def fetch_mseqdr(
+    position: int,
+    ref: str,
+    alt: str,
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> dict[str, Any]:
+    """Return MSeqDR mvTool annotations for one rCRS mitochondrial SNV.
+
+    MSeqDR's mvTool API accepts newline-delimited HGVS expressions in the POST
+    body. The ``hgvs`` response format returns structured JSON annotation
+    sections, including MSeqDR population, disease, ClinVar, and prediction
+    data.
+    """
+    hgvs = mitochondrial_hgvs(position, ref, alt)
+    url = f"{MSEQDR_ANNOTATION_URL}?{urlencode({'format': 'hgvs'})}"
+    data, _ = _request(
+        url,
+        method="POST",
+        raw_body=hgvs,
+        headers={"Accept": "application/json"},
+        timeout=timeout,
+    )
+    if not isinstance(data, dict):
+        raise AnnotationAPIError("MSeqDR returned a non-JSON response")
+    return _envelope(
+        "mseqdr",
+        url,
+        data,
+        query={
+            "position": int(position),
+            "ref": ref.upper(),
+            "alt": alt.upper(),
+            "hgvs": hgvs,
+        },
+    )
+
+
 def fetch_all_mito_annotations(
     position: int,
     ref: str,
@@ -214,7 +261,7 @@ def fetch_all_mito_annotations(
     continue_on_error: bool = True,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> dict[str, Any]:
-    """Fetch all three providers, isolating provider failures by default."""
+    """Fetch all providers, isolating provider failures by default."""
     providers = {
         "ensembl": lambda: fetch_ensembl_vep(
             "MT", position, ref, alt, timeout=timeout
@@ -223,6 +270,7 @@ def fetch_all_mito_annotations(
             position, ref, alt, timeout=timeout
         ),
         "mitomap": lambda: fetch_mitomap(position, ref, alt, timeout=timeout),
+        "mseqdr": lambda: fetch_mseqdr(position, ref, alt, timeout=timeout),
     }
     results: dict[str, Any] = {}
     for name, fetch in providers.items():
@@ -242,7 +290,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("position", type=int)
     parser.add_argument("ref")
     parser.add_argument("alt")
-    parser.add_argument("--source", choices=("all", "ensembl", "clinvar", "mitomap"), default="all")
+    parser.add_argument(
+        "--source",
+        choices=("all", "ensembl", "clinvar", "mitomap", "mseqdr"),
+        default="all",
+    )
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     return parser
 
@@ -261,8 +313,12 @@ def main() -> None:
         result = fetch_clinvar_mito_variant(
             args.position, args.ref, args.alt, timeout=args.timeout
         )
-    else:
+    elif args.source == "mitomap":
         result = fetch_mitomap(
+            args.position, args.ref, args.alt, timeout=args.timeout
+        )
+    else:
+        result = fetch_mseqdr(
             args.position, args.ref, args.alt, timeout=args.timeout
         )
     print(json.dumps(result, indent=2, sort_keys=True))

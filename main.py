@@ -9,8 +9,13 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import vcf_parser
 import annotation_api
+import vcf_parser
+from mito_viewer.domain import AlleleKey, Sample
+
+
+# Compatibility name for callers that imported the old main.MutationAllele.
+MutationAllele = AlleleKey
 
 
 MITOCHONDRIAL_LENGTH = 16569
@@ -21,7 +26,7 @@ DEFAULT_SUBJECT_REGEX = r"^(.*)$"
 DEFAULT_ANNOTATION_DATABASE_PATH = (
     Path(__file__).resolve().parent / "mutation_annotations.sqlite"
 )
-ANNOTATION_PROVIDERS = ("ensembl", "clinvar", "mitomap")
+ANNOTATION_PROVIDERS = ("ensembl", "clinvar", "mitomap", "mseqdr")
 SKIPPED_ANNOTATION_PROVIDERS = {
     "mitomap": "Skipping until api works",
 }
@@ -36,119 +41,6 @@ class mitochondrial_base_positions(Iterator):
 
     def __next__(self):
         return next(self._positions)
-
-
-@dataclass(frozen=True)
-class MutationAllele:
-    """Comparable mutation allele used for sample set operations."""
-
-    position: int
-    alt: str
-    ref: str = field(compare=False)
-    af: float | str | None = field(default=None, compare=False)
-    filter: str = field(default="", compare=False)
-    mutation: vcf_parser.VCFMutation | None = field(
-        default=None,
-        compare=False,
-        repr=False,
-    )
-
-
-@dataclass
-class Sample:
-    sample_id: str
-    population: list[str]
-    source_path: Path
-    mutations: list[vcf_parser.VCFMutation] = field(default_factory=list)
-
-    def __contains__(self, tags):
-        """Return True when this sample has the given population tag(s)."""
-        if isinstance(tags, str):
-            return tags in self.population
-
-        return all(tag in self.population for tag in tags)
-
-    def __iter__(self):
-        """Iterate over population tags."""
-        return iter(self.population)
-
-    @property
-    def population_key(self):
-        """Return a stable serialized population tag key."""
-        return "|".join(self.population)
-
-    @property
-    def label(self):
-        """Return a compact subject/population label."""
-        if not self.population:
-            return self.sample_id
-        return f"{self.sample_id}_{'_'.join(self.population)}"
-
-    def has_any(self, tags):
-        """Return True when this sample has at least one of the given tags."""
-        return any(tag in self for tag in tags)
-
-    def has_all(self, tags):
-        """Return True when this sample has every given tag."""
-        return tags in self
-
-    def is_subject(self, sample_id):
-        """Return True when this sample belongs to the given subject."""
-        return self.sample_id == sample_id
-
-    @property
-    def mutation_alleles(self):
-        """Return comparable mutation alleles for this sample."""
-        alleles = set()
-        for mutation in self.mutations:
-            for index, alt in enumerate(mutation.alts):
-                af = mutation.afs[index] if index < len(mutation.afs) else None
-                alleles.add(MutationAllele(
-                    position=mutation.position,
-                    ref=mutation.ref,
-                    alt=alt,
-                    af=af,
-                    filter=mutation.filter,
-                    mutation=mutation,
-                ))
-        return alleles
-
-    def __and__(self, other):
-        """Return mutation alleles common to both samples."""
-        return self.mutation_alleles & other.mutation_alleles
-
-    def __or__(self, other):
-        """Return mutation alleles present in either sample."""
-        return self.mutation_alleles | other.mutation_alleles
-
-    def __sub__(self, other):
-        """Return mutation alleles present in this sample but not the other."""
-        return self.mutation_alleles - other.mutation_alleles
-
-    def __xor__(self, other):
-        """Return mutation alleles that differ between two samples."""
-        return self.mutation_alleles ^ other.mutation_alleles
-
-    def common_mutations(self, *others):
-        """Return mutation alleles common to this sample and all others."""
-        common = self.mutation_alleles
-        for other in others:
-            common &= other.mutation_alleles
-        return common
-
-    def different_mutations(self, *others):
-        """Return mutation alleles not shared by every provided sample."""
-        samples = (self, *others)
-        if not samples:
-            return set()
-
-        union = set()
-        common = samples[0].mutation_alleles
-        for sample in samples:
-            union |= sample.mutation_alleles
-            common &= sample.mutation_alleles
-
-        return union - common
 
 
 @dataclass
@@ -822,6 +714,9 @@ def annotate_alleles(
                         position, ref, alt
                     ),
                     "mitomap": lambda: annotation_api.fetch_mitomap(
+                        position, ref, alt
+                    ),
+                    "mseqdr": lambda: annotation_api.fetch_mseqdr(
                         position, ref, alt
                     ),
                 }

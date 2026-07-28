@@ -20,7 +20,7 @@
       position: sticky;
       top: 0;
       z-index: 2;
-      max-height: 140px;
+      max-height: 190px;
       overflow: hidden;
       transform: translateX(0);
       opacity: 1;
@@ -50,6 +50,33 @@
     }
     .database-picker {
       width: min(320px, 100%);
+    }
+    .catalog-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: end;
+      margin-top: 10px;
+    }
+    .catalog-picker {
+      min-width: 145px;
+      color: #607086;
+      font-size: 12px;
+    }
+    .catalog-picker select {
+      min-height: 32px;
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+    .catalog-action {
+      width: auto;
+      min-height: 32px;
+      padding: 5px 9px;
+      font-size: 12px;
+    }
+    .catalog-action:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
     }
     .header-actions {
       display: grid;
@@ -883,6 +910,13 @@
       box-shadow: 0 18px 45px rgba(28, 39, 55, 0.22);
     }
     .modal h2 { margin: 0; font-size: 16px; }
+    .text-input-modal { width: min(420px, 100%); }
+    .text-input-modal p {
+      margin: -2px 0 0;
+      color: #607086;
+      font-size: 13px;
+      line-height: 1.45;
+    }
     .af-rule-editor {
       display: grid;
       grid-template-columns: minmax(100px, 0.8fr) minmax(120px, 1fr) auto;
@@ -1231,6 +1265,23 @@
       <div>
         <h1>Mito SQL Viewer</h1>
         <div class="path">Database: <span class="mono" id="database-path">{{ db_path }}</span></div>
+        <div class="catalog-controls" aria-label="Study workspace">
+          <label class="catalog-picker">Study Perspective
+            <select id="perspective-select"></select>
+          </label>
+          <label class="catalog-picker">Dataset
+            <select id="dataset-select"></select>
+          </label>
+          <label class="catalog-picker">Sample Group
+            <select id="sample-group-select"></select>
+          </label>
+          <button class="catalog-action" id="save-sample-group" type="button">
+            Save selected as group
+          </button>
+          <button class="catalog-action" id="attach-database" type="button">
+            Add current database
+          </button>
+        </div>
       </div>
       <div class="header-actions">
         <a class="roadmap-link" href="/roadmap">Roadmap</a>
@@ -1544,6 +1595,36 @@
   <div id="mutation-context-menu" class="mutation-context-menu" role="menu">
     <button id="add-mutation-note" type="button" role="menuitem">Add to Notes</button>
   </div>
+  <div
+    id="text-input-modal"
+    class="modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="text-input-modal-title"
+    aria-describedby="text-input-modal-description"
+  >
+    <form id="text-input-modal-form" class="modal text-input-modal">
+      <h2 id="text-input-modal-title">Enter a name</h2>
+      <p id="text-input-modal-description" hidden></p>
+      <label>
+        <span id="text-input-modal-label">Name</span>
+        <input
+          id="text-input-modal-value"
+          type="text"
+          maxlength="200"
+          autocomplete="off"
+        >
+      </label>
+      <div class="modal-actions">
+        <button
+          class="secondary-button"
+          id="text-input-modal-cancel"
+          type="button"
+        >Cancel</button>
+        <button id="text-input-modal-submit" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
   <div id="af-modal" class="modal-backdrop" role="dialog" aria-modal="true">
     <div class="modal">
       <h2>AF Filter</h2>
@@ -1649,7 +1730,13 @@
       sampleOrder: [],
       afRules: [],
       metadataFilters: {},
-      currentSamples: []
+      currentSamples: [],
+      perspective: "",
+      perspectives: [],
+      dataset: "",
+      datasets: [],
+      workspace: null,
+      sampleGroups: []
     };
     const notesStorageKey = "mito-sql-viewer-notes-v1";
     let savedNotes = [];
@@ -1662,6 +1749,8 @@
       sampleStatuses: new Map()
     };
     const uploadDatabaseAction = "__upload_database__";
+    const createPerspectiveAction = "__create_perspective__";
+    const createDatasetAction = "__create_dataset__";
     const defaultSampleStatuses = ["present"];
     const afOperatorLabels = {
       gt: ">",
@@ -1675,6 +1764,19 @@
     const databaseSelect = document.getElementById("database-select");
     const databaseUpload = document.getElementById("database-upload");
     const databasePath = document.getElementById("database-path");
+    const perspectiveSelect = document.getElementById("perspective-select");
+    const datasetSelect = document.getElementById("dataset-select");
+    const sampleGroupSelect = document.getElementById("sample-group-select");
+    const saveSampleGroupButton = document.getElementById("save-sample-group");
+    const attachDatabaseButton = document.getElementById("attach-database");
+    const textInputModal = document.getElementById("text-input-modal");
+    const textInputModalForm = document.getElementById("text-input-modal-form");
+    const textInputModalTitle = document.getElementById("text-input-modal-title");
+    const textInputModalDescription = document.getElementById("text-input-modal-description");
+    const textInputModalLabel = document.getElementById("text-input-modal-label");
+    const textInputModalValue = document.getElementById("text-input-modal-value");
+    const textInputModalSubmit = document.getElementById("text-input-modal-submit");
+    const textInputModalCancel = document.getElementById("text-input-modal-cancel");
     const siteHeader = document.getElementById("site-header");
     const headerCollapseButton = document.getElementById("header-collapse");
     const headerEar = document.getElementById("header-ear");
@@ -1706,6 +1808,72 @@
     const tableCompareEar = document.getElementById("table-compare-ear");
     const mutationContextMenu = document.getElementById("mutation-context-menu");
     const copyTableButton = document.getElementById("copy-table");
+    let textInputModalResolve = null;
+    let textInputModalPreviousFocus = null;
+
+    function closeTextInputModal(value = null) {
+      if (!textInputModalResolve) return;
+      const resolve = textInputModalResolve;
+      const previousFocus = textInputModalPreviousFocus;
+      textInputModalResolve = null;
+      textInputModalPreviousFocus = null;
+      textInputModal.classList.remove("open");
+      textInputModalValue.value = "";
+      textInputModalValue.required = false;
+      resolve(value);
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      }
+    }
+
+    function requestTextInput({
+      title,
+      label = "Name",
+      description = "",
+      defaultValue = "",
+      submitLabel = "Save",
+      required = true
+    }) {
+      if (textInputModalResolve) {
+        closeTextInputModal(null);
+      }
+      textInputModalTitle.textContent = title;
+      textInputModalLabel.textContent = label;
+      textInputModalDescription.textContent = description;
+      textInputModalDescription.hidden = !description;
+      textInputModalValue.value = defaultValue;
+      textInputModalValue.required = required;
+      textInputModalSubmit.textContent = submitLabel;
+      textInputModalPreviousFocus = document.activeElement;
+      textInputModal.classList.add("open");
+      window.requestAnimationFrame(() => {
+        textInputModalValue.focus();
+        textInputModalValue.select();
+      });
+      return new Promise(resolve => {
+        textInputModalResolve = resolve;
+      });
+    }
+
+    textInputModalForm.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!textInputModalForm.reportValidity()) return;
+      closeTextInputModal(textInputModalValue.value);
+    });
+    textInputModalCancel.addEventListener("click", () => {
+      closeTextInputModal(null);
+    });
+    textInputModal.addEventListener("click", event => {
+      if (event.target === textInputModal) {
+        closeTextInputModal(null);
+      }
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && textInputModal.classList.contains("open")) {
+        event.preventDefault();
+        closeTextInputModal(null);
+      }
+    });
 
     function tableClipboardContent(table) {
       const rows = [...table.rows].map(row =>
@@ -1802,17 +1970,38 @@
       return `<div class="annotation-notice">${esc(emptyMessage)}</div>`;
     }
 
+    function annotationLocusGenes(data) {
+      return Array.isArray(data?.locus?.genes) ? data.locus.genes : [];
+    }
+
+    function annotationLocusSymbolText(data) {
+      const genes = annotationLocusGenes(data);
+      return genes.map(gene => gene.symbol).join(", ")
+        || data?.locus?.region_label
+        || "No overlapping gene";
+    }
+
+    function annotationLocusIdentifierText(data) {
+      const genes = annotationLocusGenes(data);
+      if (!genes.length) {
+        return `NCBI RefSeq ${data?.locus?.reference?.accession || "NC_012920.1"}`;
+      }
+      return genes.map(gene =>
+        `NCBI Gene ${gene.ncbi_gene_id} · ${gene.start}–${gene.end} (${gene.strand})`
+      ).join(" · ");
+    }
+
     function annotationOverviewHtml(data) {
       const record = annotationClinvarRecords(data)[0] || {};
       const clinical = record.germline_classification || {};
       const vep = annotationEnsemblRecords(data)[0] || {};
       const consequences = vep.transcript_consequences || [];
-      const genes = [...new Set(consequences.map(row => row.gene_symbol).filter(Boolean))];
+      const locusGenes = annotationLocusGenes(data);
       return `
         <div class="annotation-grid">
           <article class="annotation-card"><h3>Clinical classification</h3><div class="annotation-metric">${esc(clinical.description || "Not reported")}</div><div class="muted">${esc(clinical.review_status || "No review status")}</div></article>
           <article class="annotation-card"><h3>Most severe consequence</h3><div class="annotation-metric">${esc((vep.most_severe_consequence || "Not reported").replaceAll("_", " "))}</div><div class="muted">Ensembl VEP</div></article>
-          <article class="annotation-card"><h3>Genes encountered</h3><div class="annotation-metric">${genes.length}</div><div class="muted">${esc(genes.join(", ") || "None reported")}</div></article>
+          <article class="annotation-card"><h3>Overlapping gene${locusGenes.length === 1 ? "" : "s"}</h3><div class="annotation-metric">${esc(annotationLocusSymbolText(data))}</div><div class="muted">${esc(annotationLocusIdentifierText(data))}</div></article>
         </div>
         <article class="annotation-card"><h2>At a glance</h2><dl>
           <dt>ClinVar record</dt><dd>${esc(record.accession_version || record.accession || "—")}</dd>
@@ -1835,7 +2024,7 @@
         return `<article class="annotation-card">
           <h2>${esc(record.title || record.accession || "ClinVar record")}</h2>
           <div class="annotation-badges"><span class="annotation-badge ${/pathogenic/i.test(clinical.description || "") ? "pathogenic" : ""}">${esc(clinical.description || "Unclassified")}</span><span class="annotation-badge">${esc(clinical.review_status || "No review status")}</span></div>
-          <br><dl><dt>Accession</dt><dd>${esc(record.accession_version || record.accession || "—")}</dd><dt>Type</dt><dd>${esc(record.obj_type || "—")}</dd><dt>Gene</dt><dd>${esc(record.genes?.map(gene => gene.symbol).join(", ") || "—")}</dd><dt>SPDI</dt><dd>${esc(variant.canonical_spdi || "—")}</dd><dt>Evaluated</dt><dd>${esc(clinical.last_evaluated || "—")}</dd><dt>Conditions</dt><dd>${esc(traits.map(trait => trait.trait_name).join(", ") || "—")}</dd><dt>External IDs</dt><dd>${xrefs.map(xref => `${esc(xref.db_source)}: ${esc(xref.db_id)}`).join("<br>") || "—"}</dd></dl>
+          <br><dl><dt>Accession</dt><dd>${esc(record.accession_version || record.accession || "—")}</dd><dt>Type</dt><dd>${esc(record.obj_type || "—")}</dd><dt>ClinVar-reported gene</dt><dd>${esc(record.genes?.map(gene => gene.symbol).join(", ") || "—")}</dd><dt>SPDI</dt><dd>${esc(variant.canonical_spdi || "—")}</dd><dt>Evaluated</dt><dd>${esc(clinical.last_evaluated || "—")}</dd><dt>Conditions</dt><dd>${esc(traits.map(trait => trait.trait_name).join(", ") || "—")}</dd><dt>External IDs</dt><dd>${xrefs.map(xref => `${esc(xref.db_source)}: ${esc(xref.db_id)}`).join("<br>") || "—"}</dd></dl>
           <details><summary>Full ClinVar record</summary><pre>${esc(JSON.stringify(record, null, 2))}</pre></details>
         </article>`;
       }).join("");
@@ -1913,7 +2102,7 @@
         const clinical = clinvar.germline_classification || {};
         const ensembl = annotationEnsemblRecords(data)[0] || {};
         const consequences = ensembl.transcript_consequences || [];
-        const genes = [...new Set(consequences.map(row => row.gene_symbol).filter(Boolean))];
+        const locusGenes = annotationLocusGenes(data);
         const conditions = clinical.trait_set?.map(item => item.trait_name).filter(Boolean) || [];
         const classification = clinical.description || "Not reported";
         const classificationGhost = annotationGhostText(vocabulary.classifications || [], [classification]);
@@ -1936,7 +2125,7 @@
           .join("");
         container.innerHTML = `<div class="note-annotation-facts">
           <div class="note-annotation-fact has-ghost"><div><span>Classification</span>${esc(classification)}</div><div class="note-annotation-ghost">${esc(classificationGhost)}</div></div>
-          <div class="note-annotation-fact"><span>Genes</span>${esc(genes.join(", ") || "None reported")}</div>
+          <div class="note-annotation-fact"><span>Overlapping gene${locusGenes.length === 1 ? "" : "s"}</span>${esc(annotationLocusSymbolText(data))}<div class="muted">${esc(annotationLocusIdentifierText(data))}</div></div>
           <div class="note-annotation-fact has-ghost"><div><span>Condition</span>${esc(conditions.join(", ") || "Not reported")}</div><div class="note-annotation-ghost">${esc(conditionGhost)}</div></div>
         </div>
         <div class="note-study-samples"><strong>Found in ${sampleRows.length} sample${sampleRows.length === 1 ? "" : "s"} in ${esc(note.databaseLabel || note.databaseId)}</strong><div class="note-study-sample-list">${sampleRows.length ? sampleRows.map(sample => `<span class="note-study-sample" title="${esc(sample.source_file)}">${esc(sample.label)}</span>`).join("") : '<span class="muted">No matching samples found in this study database.</span>'}</div></div>
@@ -2370,7 +2559,12 @@
       const response = await fetch(apiUrl(url), {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ ...payload, db: state.database })
+        body: JSON.stringify({
+          ...payload,
+          db: state.database,
+          perspective_id: state.perspective,
+          dataset_id: state.dataset
+        })
       });
       if (!response.ok) throw new Error(await response.text());
       return await response.json();
@@ -2420,6 +2614,12 @@
       if (state.database) {
         nextUrl.searchParams.set("db", state.database);
       }
+      if (state.perspective) {
+        nextUrl.searchParams.set("perspective_id", state.perspective);
+      }
+      if (state.dataset) {
+        nextUrl.searchParams.set("dataset_id", state.dataset);
+      }
       return `${nextUrl.pathname}${nextUrl.search}`;
     }
 
@@ -2442,9 +2642,14 @@
     }
 
     function renderDatabaseSelector() {
+      const datasetDatabases = new Set(
+        (state.workspace?.cohorts || [])
+          .filter(cohort => cohort.cohort_type === "source")
+          .map(cohort => cohort.database_id)
+      );
       const databaseOptions = state.databases.map(database => `
         <option value="${esc(database.id)}" ${database.id === state.database ? "selected" : ""}>
-          ${esc(database.label)}
+          ${esc(database.label)}${datasetDatabases.has(database.id) ? " · in dataset" : ""}
         </option>
       `).join("");
       databaseSelect.innerHTML = `
@@ -2457,6 +2662,191 @@
         databaseSelect.value = selected.id;
       }
       renderWorkflowDatabaseSelector();
+    }
+
+    function renderPerspectiveSelector() {
+      perspectiveSelect.innerHTML = `
+        <option value="">No perspective</option>
+        ${state.perspectives.map(item => `
+          <option value="${esc(item.id)}" ${item.id === state.perspective ? "selected" : ""}>
+            ${esc(item.name)}
+          </option>
+        `).join("")}
+        <option value="${createPerspectiveAction}">Create perspective…</option>
+      `;
+      perspectiveSelect.value = state.perspective || "";
+    }
+
+    function renderDatasetSelector() {
+      datasetSelect.disabled = !state.perspective;
+      datasetSelect.innerHTML = `
+        <option value="">No dataset</option>
+        ${state.datasets.map(item => `
+          <option value="${esc(item.id)}" ${item.id === state.dataset ? "selected" : ""}>
+            ${esc(item.name)}
+          </option>
+        `).join("")}
+        ${state.perspective ? `<option value="${createDatasetAction}">Create dataset from this database…</option>` : ""}
+      `;
+      datasetSelect.value = state.dataset || "";
+    }
+
+    function renderSampleGroupSelector() {
+      sampleGroupSelect.disabled = !state.dataset;
+      saveSampleGroupButton.disabled = !state.dataset;
+      const currentDatabaseAttached = (state.workspace?.cohorts || []).some(
+        cohort => cohort.cohort_type === "source"
+          && cohort.database_id === state.database
+      );
+      attachDatabaseButton.disabled = !state.dataset || currentDatabaseAttached;
+      document.getElementById("create-derived-sample").textContent =
+        state.dataset ? "Save durable sample" : "Create temporary sample";
+      sampleGroupSelect.innerHTML = `
+        <option value="">Choose a saved group</option>
+        ${state.sampleGroups.map(group => `
+          <option value="${esc(group.id)}">
+            ${esc(group.name)} (${group.visible_sample_count}/${group.total_sample_count})
+          </option>
+        `).join("")}
+      `;
+    }
+
+    async function loadPerspectives(preferredPerspective = "") {
+      state.perspectives = await getJson("/api/catalog/perspectives");
+      const requested = new URLSearchParams(window.location.search)
+        .get("perspective_id");
+      const candidate = preferredPerspective || requested || state.perspective;
+      state.perspective = state.perspectives.some(item => item.id === candidate)
+        ? candidate
+        : state.perspectives[0]?.id || "";
+      renderPerspectiveSelector();
+      await loadDatasets();
+    }
+
+    async function loadDatasets(preferredDataset = "") {
+      if (!state.perspective) {
+        state.datasets = [];
+        state.dataset = "";
+        state.workspace = null;
+        state.sampleGroups = [];
+        renderDatasetSelector();
+        renderSampleGroupSelector();
+        renderDatabaseSelector();
+        syncDatabaseUrl();
+        return;
+      }
+      state.datasets = await getJson("/api/catalog/datasets");
+      const requested = new URLSearchParams(window.location.search)
+        .get("dataset_id");
+      const candidate = preferredDataset || requested || state.dataset;
+      state.dataset = state.datasets.some(item => item.id === candidate)
+        ? candidate
+        : state.datasets[0]?.id || "";
+      renderDatasetSelector();
+      await loadWorkspace();
+    }
+
+    async function loadWorkspace() {
+      if (!state.perspective || !state.dataset) {
+        state.workspace = null;
+        state.sampleGroups = [];
+        renderSampleGroupSelector();
+        renderDatabaseSelector();
+        syncDatabaseUrl();
+        return;
+      }
+      state.workspace = await getJson("/api/catalog/workspace");
+      state.sampleGroups = state.workspace.groups || [];
+      renderSampleGroupSelector();
+      renderDatabaseSelector();
+      syncDatabaseUrl();
+    }
+
+    async function createPerspective() {
+      const name = await requestTextInput({
+        title: "Create Study Perspective",
+        label: "Perspective name",
+        description: "This workspace will own its datasets and sample groups.",
+        submitLabel: "Create"
+      });
+      if (name === null || !name.trim()) return;
+      const created = await postJson(
+        "/api/catalog/perspectives",
+        {name: name.trim()}
+      );
+      state.dataset = "";
+      await loadPerspectives(created.id);
+      await loadSamples();
+      await loadMutations();
+    }
+
+    async function createDataset() {
+      const name = await requestTextInput({
+        title: "Create Dataset",
+        label: "Dataset name",
+        description: "The current registered database will be attached as its first cohort.",
+        defaultValue: `${selectedDatabaseOption()?.label || "Study"} analysis`,
+        submitLabel: "Create"
+      });
+      if (name === null || !name.trim()) return;
+      const created = await postJson(
+        "/api/catalog/datasets",
+        {name: name.trim()}
+      );
+      await loadDatasets(created.id);
+      await loadSamples();
+      await loadMutations();
+    }
+
+    async function saveSelectedSampleGroup() {
+      const sampleIds = orderedCompareSampleIds().filter(
+        sampleId => !sampleId.startsWith("derived:")
+      );
+      if (!sampleIds.length) {
+        window.alert("Select at least one observed sample first.");
+        return;
+      }
+      const name = await requestTextInput({
+        title: "Save Sample Group",
+        label: "Group name",
+        description: `${sampleIds.length} observed sample${sampleIds.length === 1 ? "" : "s"} will be included.`,
+        submitLabel: "Save group"
+      });
+      if (name === null || !name.trim()) return;
+      await postJson("/api/catalog/groups", {
+        name: name.trim(),
+        sample_ids: sampleIds
+      });
+      await loadWorkspace();
+    }
+
+    async function attachCurrentDatabase() {
+      await postJson("/api/catalog/dataset-cohorts", {});
+      await loadWorkspace();
+      await loadSamples();
+      await loadMutations();
+    }
+
+    async function applySelectedSampleGroup() {
+      const group = state.sampleGroups.find(
+        item => item.id === sampleGroupSelect.value
+      );
+      if (!group) return;
+      const availableIds = new Set(
+        state.currentSamples.map(sample => String(sample.id))
+      );
+      state.compareSamples = new Set(
+        group.sample_ids.filter(sampleId => availableIds.has(String(sampleId)))
+          .map(String)
+      );
+      state.compareSampleStatuses = new Map(
+        [...state.compareSamples].map(sampleId => [
+          sampleId,
+          new Set(defaultSampleStatuses)
+        ])
+      );
+      renderCompareList(state.currentSamples);
+      await loadMutations();
     }
 
     async function loadDatabases(preferredDatabase = "") {
@@ -2486,6 +2876,16 @@
         url.searchParams.set("db", state.database);
       } else {
         url.searchParams.delete("db");
+      }
+      if (state.perspective) {
+        url.searchParams.set("perspective_id", state.perspective);
+      } else {
+        url.searchParams.delete("perspective_id");
+      }
+      if (state.dataset) {
+        url.searchParams.set("dataset_id", state.dataset);
+      } else {
+        url.searchParams.delete("dataset_id");
       }
       window.history.replaceState({}, "", `${url.pathname}${url.search}`);
     }
@@ -2519,6 +2919,7 @@
       resetDatabaseScopedState();
       renderDatabaseSelector();
       syncDatabaseUrl();
+      await loadWorkspace();
       await loadSubjects();
       await loadTags();
       await loadCounts();
@@ -3399,7 +3800,15 @@
         return;
       }
 
-      const label = window.prompt("Name this comparison sample:", `Comparison ${Date.now()}`);
+      const label = await requestTextInput({
+        title: state.dataset ? "Save Durable Sample" : "Create Temporary Sample",
+        label: "Sample name",
+        description: state.dataset
+          ? "The comparison definition, filters, alleles, and provenance will be stored in the catalog."
+          : "No dataset is selected, so this sample will last only until the server restarts.",
+        defaultValue: `Comparison ${Date.now()}`,
+        submitLabel: state.dataset ? "Save sample" : "Create sample"
+      });
       if (label === null) {
         return;
       }
@@ -3470,6 +3879,57 @@
       await confirmWorkflowComparison();
     });
 
+    perspectiveSelect.addEventListener("change", async () => {
+      try {
+        if (perspectiveSelect.value === createPerspectiveAction) {
+          renderPerspectiveSelector();
+          await createPerspective();
+          return;
+        }
+        state.perspective = perspectiveSelect.value;
+        state.dataset = "";
+        await loadDatasets();
+        await loadSamples();
+        await loadMutations();
+      } catch (error) {
+        window.alert(error.message);
+        renderPerspectiveSelector();
+      }
+    });
+    datasetSelect.addEventListener("change", async () => {
+      try {
+        if (datasetSelect.value === createDatasetAction) {
+          renderDatasetSelector();
+          await createDataset();
+          return;
+        }
+        state.dataset = datasetSelect.value;
+        await loadWorkspace();
+        await loadSamples();
+        await loadMutations();
+      } catch (error) {
+        window.alert(error.message);
+        renderDatasetSelector();
+      }
+    });
+    sampleGroupSelect.addEventListener("change", async () => {
+      await applySelectedSampleGroup();
+    });
+    saveSampleGroupButton.addEventListener("click", async () => {
+      try {
+        await saveSelectedSampleGroup();
+      } catch (error) {
+        window.alert(error.message);
+      }
+    });
+    attachDatabaseButton.addEventListener("click", async () => {
+      try {
+        await attachCurrentDatabase();
+      } catch (error) {
+        window.alert(error.message);
+      }
+    });
+
     databaseSelect.addEventListener("change", async () => {
       const selectedValue = databaseSelect.value;
       if (selectedValue === uploadDatabaseAction) {
@@ -3516,7 +3976,11 @@
       });
     });
     document.getElementById("create-derived-sample").addEventListener("click", async () => {
-      await createDerivedSampleFromComparison();
+      try {
+        await createDerivedSampleFromComparison();
+      } catch (error) {
+        window.alert(error.message);
+      }
     });
     document.getElementById("clear-compare").addEventListener("click", async () => {
       await clearComparison();
@@ -3605,10 +4069,8 @@
     renderNotes();
 
     loadDatabases()
-      .then(() => {
-        syncDatabaseUrl();
-        return loadSubjects();
-      })
+      .then(loadPerspectives)
+      .then(loadSubjects)
       .then(loadTags)
       .then(loadCounts)
       .then(loadSamples)
