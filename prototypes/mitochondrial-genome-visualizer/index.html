@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mitochondrial genome visualizer</title>
+  <link rel="stylesheet" href="./mitochondrial-genome.css">
+</head>
+<body>
+  <main>
+    <div
+      id="mitochondrial-genome"
+      class="mitochondrial-genome"
+      aria-label="Map of the human mitochondrial genome"
+    ></div>
+  </main>
+
+  <script src="./mitochondrial-genome.js"></script>
+  <script>
+    MitochondrialGenomeVisualizer.render(
+      document.querySelector("#mitochondrial-genome"),
+      {
+        debugControls: true,
+        selectedMutations: [9207, 10760]
+      }
+    );
+  </script>
+</body>
+</html>

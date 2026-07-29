@@ -15,3 +15,9 @@ QC_metrics/
 wet_lab_summary_PDFs/
 schema/
 LupusN_Data/
+
+.obsidian/
+docs/
+file.txt
+tests/
+pyproject.toml

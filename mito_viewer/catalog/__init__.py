@@ -35,6 +35,14 @@ from .derived_service import (
     DerivedAnalysisService,
     ReferenceCompatibilityError,
 )
+from .dataset_queries import (
+    DatasetQueryScope,
+    DatasetQueryService,
+    DatasetReferenceIdentity,
+    DatasetSampleRef,
+    DatasetSourceRef,
+    DatasetSourceResolutionError,
+)
 from .repository import (
     CatalogAccessError,
     CatalogConcurrencyError,
@@ -87,6 +95,12 @@ __all__ = [
     "Cohort",
     "CohortType",
     "Dataset",
+    "DatasetQueryScope",
+    "DatasetQueryService",
+    "DatasetReferenceIdentity",
+    "DatasetSampleRef",
+    "DatasetSourceRef",
+    "DatasetSourceResolutionError",
     "DatasetWorkspace",
     "DEFAULT_NORMALIZATION_VERSION",
     "DEFAULT_REFERENCE_ID",

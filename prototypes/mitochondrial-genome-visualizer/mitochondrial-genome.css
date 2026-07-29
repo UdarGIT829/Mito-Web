@@ -1,0 +1,226 @@
+:root {
+  color-scheme: dark;
+  background: #000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 12px;
+}
+
+.mitochondrial-genome {
+  width: min(100%, 900px);
+  margin: auto;
+  background: #000;
+}
+
+.mitochondrial-genome svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.mitochondrial-genome__canvas {
+  aspect-ratio: 1;
+}
+
+.mitochondrial-genome__segment {
+  stroke: #000;
+  stroke-width: 3;
+  transition: fill 160ms ease, opacity 160ms ease;
+  vector-effect: non-scaling-stroke;
+}
+
+.mitochondrial-genome__mutation-line {
+  stroke: #ff2d55;
+  stroke-linecap: round;
+  stroke-width: 6px;
+  paint-order: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+.mitochondrial-genome__mutation-dot {
+  fill: #ff2d55;
+  stroke: #fff;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
+.mitochondrial-genome__label {
+  fill: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: .01em;
+  paint-order: stroke;
+  stroke: #000;
+  stroke-linejoin: round;
+  stroke-width: 5px;
+  text-anchor: middle;
+  transition: fill 160ms ease, font-size 160ms ease, opacity 160ms ease;
+  vector-effect: non-scaling-stroke;
+}
+
+.mitochondrial-genome__label--small {
+  font-size: 18px;
+}
+
+.mitochondrial-genome--filtering .mitochondrial-genome__segment:not(.is-selected) {
+  fill: #777;
+  opacity: .72;
+}
+
+.mitochondrial-genome--filtering .mitochondrial-genome__label:not(.is-selected) {
+  fill: #909090;
+  opacity: .75;
+}
+
+.mitochondrial-genome__label.is-selected {
+  fill: #fff;
+  font-size: 36px;
+  font-weight: 900;
+  stroke-width: 7px;
+}
+
+.mitochondrial-genome__debug {
+  width: min(100%, 900px);
+  margin: 10px auto 0;
+  padding: 12px 14px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #111;
+  color: #ddd;
+}
+
+.mitochondrial-genome__debug-header,
+.mitochondrial-genome__debug-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mitochondrial-genome__debug-mutations {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.mitochondrial-genome__debug-mutations--selected {
+  padding-top: 9px;
+  border-top: 1px solid #333;
+}
+
+.mitochondrial-genome__debug-mutations--selected label {
+  color: #ff8097;
+}
+
+.mitochondrial-genome__debug-mutations label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mitochondrial-genome__debug-mutations input {
+  min-width: 0;
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #555;
+  border-radius: 5px;
+  background: #050505;
+  color: #fff;
+}
+
+.mitochondrial-genome__debug-error {
+  min-height: 1em;
+  margin: -4px 0 8px;
+  color: #ff8097;
+  font-size: 11px;
+}
+
+.mitochondrial-genome__debug-header {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mitochondrial-genome__debug-title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.mitochondrial-genome__debug button {
+  padding: 5px 9px;
+  border: 1px solid #555;
+  border-radius: 5px;
+  background: #222;
+  color: #eee;
+  cursor: pointer;
+}
+
+.mitochondrial-genome__debug button:hover {
+  background: #333;
+}
+
+.mitochondrial-genome__debug-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mitochondrial-genome__debug-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid #393939;
+  border-radius: 999px;
+  background: #191919;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mitochondrial-genome__debug-option:has(input:checked) {
+  border-color: #fff;
+  background: #303030;
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .mitochondrial-genome__label {
+    font-size: 22px;
+  }
+
+  .mitochondrial-genome__label--small {
+    font-size: 17px;
+  }
+
+  .mitochondrial-genome__label.is-selected {
+    font-size: 30px;
+  }
+
+  .mitochondrial-genome__debug-mutations {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+}

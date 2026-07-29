@@ -20,8 +20,16 @@ from mito_viewer.domain import (
     SampleAlleleCall,
     SampleAlleleSet,
 )
-from mito_viewer.catalog import CatalogRepository, CatalogViewerService
+from mito_viewer.catalog import (
+    CatalogAccessError,
+    CatalogRepository,
+    CatalogViewerService,
+    DatasetQueryService,
+)
 from mito_viewer.domain.filters import AF_OPERATORS
+from mito_viewer.domain.comparison import (
+    comparison_rows as build_comparison_rows,
+)
 from mito_viewer.repositories import (
     DATABASE_EXTENSIONS,
     NO_TAGS_FILTER,  # noqa: F401 - compatibility export
@@ -357,7 +365,15 @@ def fetch_samples(connection, subject_id=None, tags=None, derived_samples=None):
     return samples
 
 
-def derived_mutation_rows(sample, position=None, alt=None, af_rules=None, metadata_filters=None, limit=500):
+def derived_mutation_rows(
+    sample,
+    position=None,
+    alt=None,
+    af_rules=None,
+    metadata_filters=None,
+    limit=500,
+    offset=0,
+):
     rows = []
     seen = set()
     metadata_by_allele = {
@@ -400,10 +416,10 @@ def derived_mutation_rows(sample, position=None, alt=None, af_rules=None, metada
             "filter": call.filter,
             "metadata_json": json.dumps(metadata, sort_keys=True),
         })
-        if len(rows) >= limit:
+        if limit is not None and len(rows) >= offset + limit:
             break
 
-    return rows
+    return rows[offset:]
 
 
 def fetch_mutations(
@@ -414,6 +430,7 @@ def fetch_mutations(
     af_rules=None,
     metadata_filters=None,
     limit=500,
+    offset=0,
     derived_samples=None,
 ):
     if sample_id and is_derived_sample_id(sample_id):
@@ -427,6 +444,7 @@ def fetch_mutations(
             af_rules=af_rules,
             metadata_filters=metadata_filters,
             limit=limit,
+            offset=offset,
         )
 
     return StudyRepository(connection).mutation_rows(
@@ -436,6 +454,39 @@ def fetch_mutations(
         af_rules=af_rules or (),
         metadata_filters=metadata_filters or (),
         limit=limit,
+        offset=offset,
+    )
+
+
+def fetch_mutation_count(
+    connection,
+    sample_id=None,
+    position=None,
+    alt=None,
+    af_rules=None,
+    metadata_filters=None,
+    derived_samples=None,
+):
+    if sample_id and is_derived_sample_id(sample_id):
+        sample = (derived_samples or {}).get(str(sample_id))
+        if sample is None:
+            return 0
+        return len(
+            derived_mutation_rows(
+                sample,
+                position=position,
+                alt=alt,
+                af_rules=af_rules,
+                metadata_filters=metadata_filters,
+                limit=None,
+            )
+        )
+    return StudyRepository(connection).mutation_count(
+        sample_id=sample_id,
+        position=position,
+        alt=alt,
+        af_rules=af_rules or (),
+        metadata_filters=metadata_filters or (),
     )
 
 
@@ -560,6 +611,78 @@ def parse_sample_statuses(values):
     return sample_statuses
 
 
+def parse_structured_comparison(payload):
+    """Validate the POST comparison contract without parsing opaque IDs."""
+    sample_ids = payload.get("sample_ids", [])
+    if not isinstance(sample_ids, list):
+        raise ValueError("Comparison sample_ids must be a list.")
+    sample_ids = [str(sample_id or "").strip() for sample_id in sample_ids]
+    if any(not sample_id for sample_id in sample_ids):
+        raise ValueError("Comparison sample IDs cannot be empty.")
+    if len(set(sample_ids)) != len(sample_ids):
+        raise ValueError("Comparison sample IDs must be unique.")
+
+    constraints = payload.get("sample_constraints", [])
+    if not isinstance(constraints, list):
+        raise ValueError("Comparison sample_constraints must be a list.")
+    sample_statuses = {}
+    allowed_sample_statuses = {"present", "unique", "not_in"}
+    for constraint in constraints:
+        if not isinstance(constraint, dict):
+            raise ValueError("Each sample constraint must be an object.")
+        sample_id = str(constraint.get("sample_id") or "").strip()
+        if not sample_id:
+            raise ValueError("Sample constraints require a sample_id.")
+        if sample_id in sample_statuses:
+            raise ValueError(
+                f"Duplicate comparison constraint for {sample_id!r}."
+            )
+        statuses = constraint.get("statuses", [])
+        if not isinstance(statuses, list):
+            raise ValueError("Constraint statuses must be a list.")
+        statuses = {str(status) for status in statuses}
+        invalid = statuses - allowed_sample_statuses
+        if invalid:
+            raise ValueError(
+                "Unknown sample comparison status: "
+                f"{sorted(invalid)[0]}."
+            )
+        sample_statuses[sample_id] = statuses
+
+    statuses = payload.get("statuses", [])
+    if not isinstance(statuses, list):
+        raise ValueError("Comparison statuses must be a list.")
+    statuses = [str(status) for status in statuses]
+    invalid_statuses = (
+        set(statuses) - DEFAULT_COMPARE_STATUSES - {"__none__"}
+    )
+    if invalid_statuses:
+        raise ValueError(
+            f"Unknown comparison status: {sorted(invalid_statuses)[0]}."
+        )
+
+    filters = payload.get("filters", {})
+    if not isinstance(filters, dict):
+        raise ValueError("Comparison filters must be an object.")
+    af_rules = filters.get("af_rules", [])
+    metadata_filters = filters.get("metadata_filters", [])
+    if not isinstance(af_rules, list):
+        raise ValueError("Comparison AF rules must be a list.")
+    if not isinstance(metadata_filters, list):
+        raise ValueError("Comparison metadata filters must be a list.")
+
+    return {
+        "sample_ids": sample_ids,
+        "sample_statuses": sample_statuses,
+        "statuses": statuses,
+        "position": filters.get("position", ""),
+        "alt": filters.get("alt", ""),
+        "af_rules": parse_af_rules(af_rules),
+        "metadata_filters": parse_metadata_filters(metadata_filters),
+        "limit": int(payload.get("limit", 2000)),
+    }
+
+
 def sample_constraint_matches(allowed_statuses, is_present, present_count):
     """Return True when one sample's direct set constraint is satisfied."""
     if not allowed_statuses:
@@ -660,71 +783,14 @@ def fetch_compare(
         metadata_filters=metadata_filters,
         derived_samples=derived_samples,
     )
-
-    global_statuses = set(statuses or DEFAULT_COMPARE_STATUSES)
-    sample_statuses = sample_statuses or {}
-    calls_by_allele = {}
-    for call in calls:
-        calls_by_allele.setdefault(call.allele, []).append(call)
-
-    results = []
-    for allele, allele_calls in calls_by_allele.items():
-        present_sample_ids = {
-            str(call.sample_id)
-            for call in allele_calls
-        }
-        present_count = len(present_sample_ids)
-        if present_count == len(compare_sample_ids):
-            status = "common"
-        elif present_count == 1:
-            status = "unique"
-        else:
-            status = "partial"
-
-        if status not in global_statuses:
-            continue
-
-        if not sample_filters_match(
-            compare_sample_ids,
-            sample_statuses,
-            present_sample_ids,
-            present_count,
-        ):
-            continue
-
-        missing_samples = [
-            {
-                "sample_id": sample_id,
-                "label": sample_labels.get(sample_id, f"Sample {sample_id}"),
-            }
-            for sample_id in compare_sample_ids
-            if sample_id not in present_sample_ids
-        ]
-        results.append(compare_row(
-            allele,
-            status,
-            allele_calls,
-            missing_samples,
-        ))
-
-    results.sort(key=lambda row: (
-        row["pos"],
-        row["alt"],
-        row["status"],
-    ))
-    results = results[:limit]
-
-    group_sizes = {}
-    for row in results:
-        group_sizes[row["group_key"]] = group_sizes.get(row["group_key"], 0) + 1
-    for index, row in enumerate(results):
-        previous_key = results[index - 1]["group_key"] if index else None
-        next_key = results[index + 1]["group_key"] if index + 1 < len(results) else None
-        row["group_size"] = group_sizes[row["group_key"]]
-        row["group_start"] = row["group_key"] != previous_key
-        row["group_end"] = row["group_key"] != next_key
-
-    return results
+    return build_comparison_rows(
+        compare_sample_ids,
+        calls,
+        sample_labels=sample_labels,
+        statuses=statuses,
+        sample_statuses=sample_statuses,
+        limit=limit,
+    )
 
 
 def database_counts(connection):
@@ -1136,15 +1202,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
         )
         return str(perspective_id or ""), str(dataset_id or "")
 
-    def request_derived_samples(self, db_id, query):
-        perspective_id, dataset_id = self.catalog_context(query)
-        if not perspective_id or not dataset_id:
-            return dict(self.derived_samples(db_id))
-        with CatalogRepository(self.catalog_db_path) as catalog:
-            return CatalogViewerService(catalog).durable_derived_samples(
-                perspective_id,
-                dataset_id,
-            )
+    def dataset_query_service(self, catalog):
+        return DatasetQueryService(
+            catalog,
+            source_database_paths=self.available_databases(),
+        )
 
     def open_database(self, db_path):
         if not db_path.exists():
@@ -1225,17 +1287,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     raise ValueError(
                         "Select a Study Perspective and Dataset."
                     )
-                db_id, db_path = self.resolve_database(
-                    self.database_id_from_query(query)
-                )
                 with CatalogRepository(self.catalog_db_path) as catalog:
                     json_response(
                         self,
                         CatalogViewerService(catalog).workspace(
                             perspective_id,
                             dataset_id,
-                            database_id=db_id,
-                            database_path=db_path,
                         ),
                     )
                 return
@@ -1258,11 +1315,93 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            dataset_routes = {
+                "/api/counts",
+                "/api/subjects",
+                "/api/tags",
+                "/api/samples",
+                "/api/mutations",
+                "/api/compare",
+            }
+            perspective_id, dataset_id = self.catalog_context(query)
+            if parsed.path in dataset_routes and (
+                bool(perspective_id) != bool(dataset_id)
+            ):
+                raise ValueError(
+                    "Select both a Study Perspective and Dataset."
+                )
+            if (
+                parsed.path in dataset_routes
+                and perspective_id
+                and dataset_id
+            ):
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    service = self.dataset_query_service(catalog)
+                    scope = service.open_scope(
+                        perspective_id,
+                        dataset_id,
+                    )
+                    if parsed.path == "/api/counts":
+                        result = service.counts(scope)
+                    elif parsed.path == "/api/subjects":
+                        result = service.subjects(scope)
+                    elif parsed.path == "/api/tags":
+                        result = service.population_tags(scope)
+                    elif parsed.path == "/api/mutations":
+                        result = service.mutation_rows(
+                            scope,
+                            sample_id=query.get("sample_id", [""])[0],
+                            subject_id=query.get("subject", [""])[0],
+                            tags=parse_tags(query),
+                            position=query.get("position", [""])[0],
+                            alt=query.get("alt", [""])[0],
+                            af_rules=parse_af_rules(
+                                query.get("af_rule", [])
+                            ),
+                            metadata_filters=parse_metadata_filters(
+                                query.get("metadata_filter", [])
+                            ),
+                            limit=int(query.get("limit", ["500"])[0]),
+                            offset=int(query.get("offset", ["0"])[0]),
+                            include_total=(
+                                query.get("include_total", [""])[0]
+                                == "1"
+                            ),
+                        )
+                    elif parsed.path == "/api/compare":
+                        result = service.compare_rows(
+                            scope,
+                            sample_ids=query.get(
+                                "compare_sample_id",
+                                [],
+                            ),
+                            position=query.get("position", [""])[0],
+                            alt=query.get("alt", [""])[0],
+                            af_rules=parse_af_rules(
+                                query.get("af_rule", [])
+                            ),
+                            metadata_filters=parse_metadata_filters(
+                                query.get("metadata_filter", [])
+                            ),
+                            statuses=query.get("status", []),
+                            sample_statuses=parse_sample_statuses(
+                                query.get("sample_status", [])
+                            ),
+                            limit=int(
+                                query.get("limit", ["2000"])[0]
+                            ),
+                        )
+                    else:
+                        result = service.sample_payloads(
+                            scope,
+                            subject_id=query.get("subject", [""])[0],
+                            tags=parse_tags(query),
+                        )
+                json_response(self, result)
+                return
+
             db_id, db_path = self.resolve_database(self.database_id_from_query(query))
-            derived_samples = self.request_derived_samples(
-                db_id,
-                query,
-            )
+            derived_samples = dict(self.derived_samples(db_id))
 
             if parsed.path == "/":
                 html_response(self, page_html(db_path))
@@ -1296,46 +1435,82 @@ class ViewerHandler(BaseHTTPRequestHandler):
                         ),
                     )
             elif parsed.path == "/api/mutations":
+                requested_sample_id = query.get("sample_id", [""])[0]
+                position = query.get("position", [""])[0]
+                alt = query.get("alt", [""])[0]
+                af_rules = parse_af_rules(query.get("af_rule", []))
+                metadata_filters = parse_metadata_filters(
+                    query.get("metadata_filter", [])
+                )
+                limit = int(query.get("limit", ["500"])[0])
+                offset = int(query.get("offset", ["0"])[0])
+                include_total = (
+                    query.get("include_total", [""])[0] == "1"
+                )
                 with self.open_database(db_path) as connection:
-                    json_response(
-                        self,
-                        fetch_mutations(
-                            connection,
-                            sample_id=query.get("sample_id", [""])[0],
-                            position=query.get("position", [""])[0],
-                            alt=query.get("alt", [""])[0],
-                            af_rules=parse_af_rules(query.get("af_rule", [])),
-                            metadata_filters=parse_metadata_filters(
-                                query.get("metadata_filter", [])
-                            ),
-                            limit=int(query.get("limit", ["500"])[0]),
-                            derived_samples=derived_samples,
-                        ),
+                    rows = fetch_mutations(
+                        connection,
+                        sample_id=requested_sample_id,
+                        position=position,
+                        alt=alt,
+                        af_rules=af_rules,
+                        metadata_filters=metadata_filters,
+                        limit=limit,
+                        offset=offset,
+                        derived_samples=derived_samples,
                     )
+                    if include_total:
+                        matched_count = fetch_mutation_count(
+                            connection,
+                            sample_id=requested_sample_id,
+                            position=position,
+                            alt=alt,
+                            af_rules=af_rules,
+                            metadata_filters=metadata_filters,
+                            derived_samples=derived_samples,
+                        )
+                        result = {
+                            "rows": rows,
+                            "matched_count": matched_count,
+                            "shown_count": len(rows),
+                            "limit": limit,
+                            "offset": offset,
+                            "next_offset": offset + len(rows),
+                            "has_more": (
+                                offset + len(rows) < matched_count
+                            ),
+                            "truncated": (
+                                offset + len(rows) < matched_count
+                            ),
+                        }
+                    else:
+                        result = rows
+                json_response(self, result)
             elif parsed.path == "/api/compare":
                 with self.open_database(db_path) as connection:
-                    json_response(
-                        self,
-                        fetch_compare(
-                            connection,
-                            compare_sample_ids=query.get("compare_sample_id", []),
-                            position=query.get("position", [""])[0],
-                            alt=query.get("alt", [""])[0],
-                            af_rules=parse_af_rules(query.get("af_rule", [])),
-                            metadata_filters=parse_metadata_filters(
-                                query.get("metadata_filter", [])
-                            ),
-                            statuses=query.get("status", []),
-                            sample_statuses=parse_sample_statuses(
-                                query.get("sample_status", [])
-                            ),
-                            limit=int(query.get("limit", ["2000"])[0]),
-                            derived_samples=derived_samples,
+                    rows = fetch_compare(
+                        connection,
+                        compare_sample_ids=query.get(
+                            "compare_sample_id",
+                            [],
                         ),
+                        position=query.get("position", [""])[0],
+                        alt=query.get("alt", [""])[0],
+                        af_rules=parse_af_rules(query.get("af_rule", [])),
+                        metadata_filters=parse_metadata_filters(
+                            query.get("metadata_filter", [])
+                        ),
+                        statuses=query.get("status", []),
+                        sample_statuses=parse_sample_statuses(
+                            query.get("sample_status", [])
+                        ),
+                        limit=int(query.get("limit", ["2000"])[0]),
+                        derived_samples=derived_samples,
                     )
+                json_response(self, rows)
             else:
                 json_response(self, {"error": "Not found"}, status=404)
-        except ValueError as exc:
+        except (ValueError, CatalogAccessError) as exc:
             json_response(self, {"error": str(exc)}, status=400)
         except Exception as exc:
             json_response(self, {"error": str(exc)}, status=500)
@@ -1347,6 +1522,35 @@ class ViewerHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/api/roadmap":
                 json_response(self, write_roadmap(self.read_json_body()))
+            elif parsed.path == "/api/compare":
+                payload = self.read_json_body()
+                perspective_id, dataset_id = self.catalog_context(
+                    query,
+                    payload,
+                )
+                if not perspective_id or not dataset_id:
+                    raise ValueError(
+                        "Select both a Study Perspective and Dataset."
+                    )
+                request = parse_structured_comparison(payload)
+                with CatalogRepository(self.catalog_db_path) as catalog:
+                    service = self.dataset_query_service(catalog)
+                    scope = service.open_scope(
+                        perspective_id,
+                        dataset_id,
+                    )
+                    rows = service.compare_rows(
+                        scope,
+                        sample_ids=request["sample_ids"],
+                        position=request["position"],
+                        alt=request["alt"],
+                        af_rules=request["af_rules"],
+                        metadata_filters=request["metadata_filters"],
+                        statuses=request["statuses"],
+                        sample_statuses=request["sample_statuses"],
+                        limit=request["limit"],
+                    )
+                json_response(self, rows)
             elif parsed.path == "/api/catalog/perspectives":
                 payload = self.read_json_body()
                 with CatalogRepository(self.catalog_db_path) as catalog:
@@ -1383,17 +1587,18 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     raise ValueError(
                         "Select a Study Perspective and Dataset."
                     )
-                db_id, db_path = self.resolve_database(
-                    payload.get("db") or self.database_id_from_query(query)
-                )
                 with CatalogRepository(self.catalog_db_path) as catalog:
+                    sample_ids = payload.get("sample_ids", [])
+                    scope = self.dataset_query_service(catalog).open_scope(
+                        perspective_id,
+                        dataset_id,
+                    )
+                    scope.resolve_samples(sample_ids)
                     result = CatalogViewerService(catalog).create_group(
                         perspective_id,
                         dataset_id,
                         payload.get("name", ""),
-                        payload.get("sample_ids", []),
-                        database_id=db_id,
-                        database_path=db_path,
+                        sample_ids,
                     )
                 json_response(self, result, status=201)
             elif parsed.path == "/api/catalog/dataset-cohorts":
@@ -1440,59 +1645,111 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 )
             elif parsed.path == "/api/derived-samples":
                 payload = self.read_json_body()
-                db_id, db_path = self.resolve_database(
-                    payload.get("db") or self.database_id_from_query(query)
-                )
-                compare_sample_ids = payload.get("compare_sample_id", [])
-                if len(compare_sample_ids) < 2:
-                    json_response(
-                        self,
-                        {"error": "Select at least two samples before creating a derived sample."},
-                        status=400,
-                    )
-                    return
-
                 perspective_id, dataset_id = self.catalog_context(
                     query,
                     payload,
                 )
-                next_id = self.next_derived_sample_ids.get(db_id, 1)
-                label = payload.get("label") or f"Comparison {next_id}"
+                if bool(perspective_id) != bool(dataset_id):
+                    raise ValueError(
+                        "Select both a Study Perspective and Dataset."
+                    )
+                structured_request = (
+                    parse_structured_comparison(payload)
+                    if perspective_id
+                    and dataset_id
+                    and "sample_ids" in payload
+                    else None
+                )
+                compare_sample_ids = (
+                    structured_request["sample_ids"]
+                    if structured_request is not None
+                    else payload.get("compare_sample_id", [])
+                )
+                if len(compare_sample_ids) < 2:
+                    json_response(
+                        self,
+                        {
+                            "error": (
+                                "Select at least two samples before "
+                                "creating a derived sample."
+                            )
+                        },
+                        status=400,
+                    )
+                    return
                 if perspective_id and dataset_id:
+                    label = payload.get("label") or "Comparison"
+                    sample_statuses = (
+                        structured_request["sample_statuses"]
+                        if structured_request is not None
+                        else parse_sample_statuses(
+                            payload.get("sample_status", [])
+                        )
+                    )
+                    global_statuses = (
+                        structured_request["statuses"]
+                        if structured_request is not None
+                        else payload.get("status", [])
+                    )
+                    filters = (
+                        MutationFilters(
+                            position=structured_request["position"],
+                            alt=structured_request["alt"],
+                            af_rules=tuple(
+                                structured_request["af_rules"]
+                            ),
+                            metadata_filters=tuple(
+                                structured_request[
+                                    "metadata_filters"
+                                ]
+                            ),
+                        )
+                        if structured_request is not None
+                        else MutationFilters(
+                            position=payload.get("position", ""),
+                            alt=payload.get("alt", ""),
+                            af_rules=tuple(
+                                parse_af_rules(
+                                    payload.get("af_rule", [])
+                                )
+                            ),
+                            metadata_filters=tuple(
+                                parse_metadata_filters(
+                                    payload.get(
+                                        "metadata_filter",
+                                        [],
+                                    )
+                                )
+                            ),
+                        )
+                    )
                     with CatalogRepository(self.catalog_db_path) as catalog:
+                        query_service = self.dataset_query_service(catalog)
+                        scope = query_service.open_scope(
+                            perspective_id,
+                            dataset_id,
+                        )
+                        scope.resolve_samples(compare_sample_ids)
                         result = CatalogViewerService(
-                            catalog
+                            catalog,
+                            source_database_paths=self.available_databases(),
                         ).save_comparison(
                             perspective_id,
                             dataset_id,
                             label,
                             compare_sample_ids,
-                            database_id=db_id,
-                            database_path=db_path,
-                            sample_statuses=parse_sample_statuses(
-                                payload.get("sample_status", [])
-                            ),
-                            global_statuses=payload.get("status", []),
-                            filters=MutationFilters(
-                                position=payload.get("position", ""),
-                                alt=payload.get("alt", ""),
-                                af_rules=tuple(
-                                    parse_af_rules(
-                                        payload.get("af_rule", [])
-                                    )
-                                ),
-                                metadata_filters=tuple(
-                                    parse_metadata_filters(
-                                        payload.get(
-                                            "metadata_filter",
-                                            [],
-                                        )
-                                    )
-                                ),
-                            ),
+                            sample_statuses=sample_statuses,
+                            global_statuses=global_statuses,
+                            filters=filters,
                         )
                     json_response(self, result, status=201)
                 else:
+                    db_id, db_path = self.resolve_database(
+                        payload.get("db")
+                        or self.database_id_from_query(query)
+                    )
+                    next_id = self.next_derived_sample_ids.get(db_id, 1)
+                    label = payload.get("label") or f"Comparison {next_id}"
                     derived_samples = self.derived_samples(db_id)
                     with self.open_database(db_path) as connection:
                         sample = create_derived_sample(
@@ -1518,7 +1775,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     json_response(self, sample.sample_row(), status=201)
             else:
                 json_response(self, {"error": "Not found"}, status=404)
-        except ValueError as exc:
+        except (ValueError, CatalogAccessError) as exc:
             json_response(self, {"error": str(exc)}, status=400)
         except FileExistsError as exc:
             json_response(self, {"error": str(exc)}, status=409)
@@ -1530,40 +1787,49 @@ class ViewerHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
-            db_id, _db_path = self.resolve_database(self.database_id_from_query(query))
-            derived_samples = self.derived_samples(db_id)
-
             prefix = "/api/derived-samples/"
-            if parsed.path.startswith(prefix):
-                sample_id = unquote(parsed.path[len(prefix):])
-                if not is_derived_sample_id(sample_id):
-                    json_response(
-                        self,
-                        {"error": "Only derived samples can be deleted."},
-                        status=400,
-                    )
-                    return
-                perspective_id, dataset_id = self.catalog_context(query)
-                if perspective_id and dataset_id:
-                    json_response(
-                        self,
-                        {
-                            "error": (
-                                "Durable derived samples and their run "
-                                "history are immutable."
-                            )
-                        },
-                        status=405,
-                    )
-                    return
-                removed = derived_samples.pop(sample_id, None)
-                if removed is None:
-                    json_response(self, {"error": "Derived sample not found."}, status=404)
-                    return
-                json_response(self, removed.sample_row())
-            else:
+            if not parsed.path.startswith(prefix):
                 json_response(self, {"error": "Not found"}, status=404)
-        except ValueError as exc:
+                return
+            sample_id = unquote(parsed.path[len(prefix):])
+            if not is_derived_sample_id(sample_id):
+                json_response(
+                    self,
+                    {"error": "Only derived samples can be deleted."},
+                    status=400,
+                )
+                return
+            perspective_id, dataset_id = self.catalog_context(query)
+            if bool(perspective_id) != bool(dataset_id):
+                raise ValueError(
+                    "Select both a Study Perspective and Dataset."
+                )
+            if perspective_id and dataset_id:
+                json_response(
+                    self,
+                    {
+                        "error": (
+                            "Durable derived samples and their run "
+                            "history are immutable."
+                        )
+                    },
+                    status=405,
+                )
+                return
+
+            db_id, _db_path = self.resolve_database(
+                self.database_id_from_query(query)
+            )
+            removed = self.derived_samples(db_id).pop(sample_id, None)
+            if removed is None:
+                json_response(
+                    self,
+                    {"error": "Derived sample not found."},
+                    status=404,
+                )
+                return
+            json_response(self, removed.sample_row())
+        except (ValueError, CatalogAccessError) as exc:
             json_response(self, {"error": str(exc)}, status=400)
         except Exception as exc:
             json_response(self, {"error": str(exc)}, status=500)

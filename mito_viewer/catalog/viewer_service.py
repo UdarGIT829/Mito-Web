@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 import vcf_parser
 from mito_viewer.domain import (
@@ -32,11 +32,19 @@ DURABLE_DERIVED_PREFIX = "derived:"
 class CatalogViewerService:
     """Expose catalog workspaces through legacy-viewer-shaped values."""
 
-    def __init__(self, catalog: CatalogRepository) -> None:
+    def __init__(
+        self,
+        catalog: CatalogRepository,
+        *,
+        source_database_paths: Mapping[str, str | Path] | None = None,
+    ) -> None:
         self.catalog = catalog
         self.workspaces = CatalogWorkspaceService(catalog)
         self.derived = DerivedCatalogRepository(catalog)
-        self.analysis = DerivedAnalysisService(catalog)
+        self.analysis = DerivedAnalysisService(
+            catalog,
+            source_database_paths=source_database_paths,
+        )
 
     def list_perspectives(self) -> list[dict]:
         return [
@@ -102,18 +110,10 @@ class CatalogViewerService:
         self,
         perspective_id: str,
         dataset_id: str,
-        *,
-        database_id: str,
-        database_path: str | Path,
     ) -> dict:
         workspace = self.workspaces.open_dataset(
             dataset_id,
             acting_perspective_id=perspective_id,
-        )
-        source_cohort = self.source_cohort_for_database(
-            database_id,
-            database_path,
-            cohorts=workspace.cohorts,
         )
         groups = self.catalog.list_sample_groups(
             dataset_id,
@@ -138,9 +138,6 @@ class CatalogViewerService:
                         if cohort.cohort_type is CohortType.SOURCE
                         else ""
                     ),
-                    "current_database": (
-                        source_cohort is not None and cohort.id == source_cohort.id
-                    ),
                 }
                 for cohort in workspace.cohorts
             ],
@@ -148,7 +145,6 @@ class CatalogViewerService:
                 self._group_payload(
                     group.id,
                     perspective_id=perspective_id,
-                    source_cohort=source_cohort,
                 )
                 for group in groups
             ],
@@ -167,24 +163,28 @@ class CatalogViewerService:
         dataset_id: str,
         name: str,
         viewer_sample_ids: Iterable[str],
-        *,
-        database_id: str,
-        database_path: str | Path,
     ) -> dict:
-        source_cohort = self.require_dataset_source_cohort(
-            perspective_id,
-            dataset_id,
-            database_id=database_id,
-            database_path=database_path,
-        )
-        sample_ids = [
-            self._catalog_sample_for_viewer_id(
-                source_cohort,
-                viewer_sample_id,
-                allow_derived=False,
-            ).id
-            for viewer_sample_id in viewer_sample_ids
-        ]
+        dataset_samples = {
+            sample.id: sample
+            for sample in self.workspaces.dataset_samples(
+                dataset_id,
+                acting_perspective_id=perspective_id,
+            )
+        }
+        sample_ids = []
+        for viewer_sample_id in viewer_sample_ids:
+            viewer_sample_id = str(viewer_sample_id)
+            sample = dataset_samples.get(viewer_sample_id)
+            if sample is None:
+                raise CatalogNotFoundError(
+                    "Catalog sample is not available in the Dataset: "
+                    f"{viewer_sample_id}"
+                )
+            if sample.sample_type is not SampleType.OBSERVED:
+                raise ValueError(
+                    "Sample groups can contain observed samples only."
+                )
+            sample_ids.append(sample.id)
         group = self.workspaces.create_sample_group(
             perspective_id,
             dataset_id,
@@ -194,7 +194,6 @@ class CatalogViewerService:
         return self._group_payload(
             group.id,
             perspective_id=perspective_id,
-            source_cohort=source_cohort,
         )
 
     def attach_database(
@@ -252,20 +251,19 @@ class CatalogViewerService:
         name: str,
         viewer_sample_ids: Iterable[str],
         *,
-        database_id: str,
-        database_path: str | Path,
         sample_statuses: dict[str, set[str]],
         global_statuses: Iterable[str],
         filters: MutationFilters,
     ) -> dict:
-        source_cohort = self.require_dataset_source_cohort(
-            perspective_id,
-            dataset_id,
-            database_id=database_id,
-            database_path=database_path,
-        )
         inputs = []
         positive_count = 0
+        dataset_samples = {
+            sample.id: sample
+            for sample in self.workspaces.dataset_samples(
+                dataset_id,
+                acting_perspective_id=perspective_id,
+            )
+        }
         viewer_sample_ids = tuple(str(item) for item in viewer_sample_ids)
         for viewer_sample_id in viewer_sample_ids:
             statuses = set(sample_statuses.get(viewer_sample_id, {"present"}))
@@ -281,9 +279,8 @@ class CatalogViewerService:
                     "rules can still be viewed but cannot yet be persisted."
                 )
             kind, input_id = self._derived_input_for_viewer_sample(
-                source_cohort,
                 viewer_sample_id,
-                perspective_id=perspective_id,
+                dataset_samples=dataset_samples,
             )
             inputs.append(
                 DerivedInput(
@@ -341,93 +338,43 @@ class CatalogViewerService:
         self,
         database_id: str,
         database_path: str | Path,
-        *,
-        cohorts: Iterable[Cohort] | None = None,
     ) -> Cohort | None:
-        candidates = (
-            tuple(cohorts)
-            if cohorts is not None
-            else tuple(self.catalog.list_cohorts())
-        )
         resolved_path = Path(database_path).resolve()
-        for cohort in candidates:
+        for cohort in self.catalog.list_cohorts():
             if cohort.cohort_type is not CohortType.SOURCE:
                 continue
             provenance_path = cohort.provenance.get("source_path")
             if cohort.source_database_identifier == database_id:
                 return cohort
-            if provenance_path and Path(provenance_path).resolve() == resolved_path:
+            if (
+                provenance_path
+                and Path(provenance_path).resolve() == resolved_path
+            ):
                 return cohort
         return None
 
-    def require_dataset_source_cohort(
-        self,
-        perspective_id: str,
-        dataset_id: str,
-        *,
-        database_id: str,
-        database_path: str | Path,
-    ) -> Cohort:
-        workspace = self.workspaces.open_dataset(
-            dataset_id,
-            acting_perspective_id=perspective_id,
-        )
-        cohort = self.source_cohort_for_database(
-            database_id,
-            database_path,
-            cohorts=workspace.cohorts,
-        )
-        if cohort is None:
-            raise ValueError(
-                f"Database {database_id!r} is not part of dataset "
-                f"{workspace.dataset.name!r}."
-            )
-        return cohort
-
     def _derived_input_for_viewer_sample(
         self,
-        source_cohort: Cohort,
         viewer_sample_id: str,
         *,
-        perspective_id: str,
+        dataset_samples: dict[str, CatalogSample] | None = None,
     ) -> tuple[DerivedInputKind, str]:
-        if is_durable_viewer_sample_id(viewer_sample_id):
-            derived_id = parse_durable_viewer_sample_id(viewer_sample_id)
-            record = self.derived.get_derived_sample(
-                derived_id,
-                acting_perspective_id=perspective_id,
+        catalog_sample = (dataset_samples or {}).get(viewer_sample_id)
+        if catalog_sample is not None:
+            if catalog_sample.sample_type is SampleType.OBSERVED:
+                return DerivedInputKind.SAMPLE, catalog_sample.id
+            record = self.derived.find_by_catalog_sample(
+                catalog_sample.id
             )
             if record is None or record.current_run_id is None:
                 raise CatalogNotFoundError(
-                    f"Durable derived sample not found: {viewer_sample_id}"
+                    "Durable derived sample not found for catalog sample: "
+                    f"{viewer_sample_id}"
                 )
             return DerivedInputKind.RUN, record.current_run_id
-        sample = self._catalog_sample_for_viewer_id(
-            source_cohort,
-            viewer_sample_id,
-            allow_derived=False,
-        )
-        return DerivedInputKind.SAMPLE, sample.id
-
-    def _catalog_sample_for_viewer_id(
-        self,
-        source_cohort: Cohort,
-        viewer_sample_id: str,
-        *,
-        allow_derived: bool,
-    ) -> CatalogSample:
-        if is_durable_viewer_sample_id(viewer_sample_id):
-            if not allow_derived:
-                raise ValueError(
-                    "Sample groups can contain observed samples only in "
-                    "the current viewer integration."
-                )
-        else:
-            for sample in self.catalog.list_catalog_samples(source_cohort.id):
-                if sample.source_sample_id == str(viewer_sample_id):
-                    return sample
         raise CatalogNotFoundError(
-            f"Viewer sample not found in the current source cohort: {viewer_sample_id}"
+            "Catalog sample is not available in the Dataset: "
+            f"{viewer_sample_id}"
         )
 
     def _legacy_derived(self, record) -> DerivedSample:
@@ -500,7 +447,6 @@ class CatalogViewerService:
         group_id: str,
         *,
         perspective_id: str,
-        source_cohort: Cohort | None,
     ) -> dict:
         group = self.catalog.get_sample_group(
             group_id,
@@ -510,15 +456,7 @@ class CatalogViewerService:
             group_id,
             acting_perspective_id=perspective_id,
         )
-        visible_ids = [
-            sample.source_sample_id
-            for sample in members
-            if (
-                source_cohort is not None
-                and sample.cohort_id == source_cohort.id
-                and sample.sample_type is SampleType.OBSERVED
-            )
-        ]
+        visible_ids = [sample.id for sample in members]
         return {
             "id": group.id,
             "name": group.name,
@@ -533,6 +471,7 @@ class CatalogViewerService:
     def _derived_payload(record) -> dict:
         return {
             "id": durable_viewer_sample_id(record.id),
+            "catalog_sample_id": record.catalog_sample_id,
             "catalog_derived_sample_id": record.id,
             "name": record.name,
             "description": record.description,

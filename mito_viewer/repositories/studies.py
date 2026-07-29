@@ -411,20 +411,43 @@ class StudyRepository:
         self,
         *,
         sample_id: str | None = None,
+        sample_ids: list[str] | tuple[str, ...] | None = None,
         position: int | str | None = None,
         alt: str | None = None,
         af_rules=(),
         metadata_filters=(),
         limit: int = 500,
+        offset: int = 0,
     ) -> list[dict]:
+        try:
+            limit = int(limit)
+            offset = int(offset)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "Mutation limit and offset must be integers."
+            ) from exc
+        if limit < 1:
+            raise ValueError("Mutation limit must be positive.")
+        if offset < 0:
+            raise ValueError("Mutation offset cannot be negative.")
+
         params = []
         where_clauses = []
         alt_join = ""
         use_alt_rows = False
 
+        if sample_id and sample_ids is not None:
+            raise ValueError("Use sample_id or sample_ids, not both.")
         if sample_id:
             where_clauses.append("samples.id = ?")
             params.append(sample_id)
+        elif sample_ids is not None:
+            sample_ids = tuple(str(item) for item in sample_ids)
+            if not sample_ids:
+                return []
+            placeholders = ",".join("?" for _ in sample_ids)
+            where_clauses.append(f"samples.id IN ({placeholders})")
+            params.extend(sample_ids)
         if position:
             where_clauses.append("mutations.pos = ?")
             params.append(position)
@@ -465,12 +488,16 @@ class StudyRepository:
         af_select = (
             "mutation_alts.af_text" if use_alt_rows else "mutations.af"
         )
+        alt_order = (
+            "mutation_alts.alt_index" if use_alt_rows else "mutations.id"
+        )
 
-        params.append(limit)
+        params.extend((limit, offset))
         rows = self.connection.execute(
             f"""
             SELECT DISTINCT
                 mutations.id,
+                samples.id AS sample_id,
                 subjects.subject_id,
                 samples.population_key,
                 samples.source_file,
@@ -489,12 +516,102 @@ class StudyRepository:
             ORDER BY
                 mutations.pos,
                 subjects.subject_id,
-                samples.population_key
-            LIMIT ?
+                samples.population_key,
+                samples.id,
+                mutations.id,
+                {alt_order}
+            LIMIT ? OFFSET ?
             """,
             params,
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def mutation_count(
+        self,
+        *,
+        sample_id: str | None = None,
+        sample_ids: list[str] | tuple[str, ...] | None = None,
+        position: int | str | None = None,
+        alt: str | None = None,
+        af_rules=(),
+        metadata_filters=(),
+    ) -> int:
+        """Count mutation rows matching the same contract as mutation_rows."""
+        params = []
+        where_clauses = []
+        alt_join = ""
+        use_alt_rows = False
+
+        if sample_id and sample_ids is not None:
+            raise ValueError("Use sample_id or sample_ids, not both.")
+        if sample_id:
+            where_clauses.append("samples.id = ?")
+            params.append(sample_id)
+        elif sample_ids is not None:
+            sample_ids = tuple(str(item) for item in sample_ids)
+            if not sample_ids:
+                return 0
+            placeholders = ",".join("?" for _ in sample_ids)
+            where_clauses.append(f"samples.id IN ({placeholders})")
+            params.extend(sample_ids)
+        if position:
+            where_clauses.append("mutations.pos = ?")
+            params.append(position)
+        if alt:
+            alt_join = (
+                "JOIN mutation_alts "
+                "ON mutation_alts.mutation_id = mutations.id"
+            )
+            use_alt_rows = True
+            where_clauses.append("mutation_alts.alt = ?")
+            params.append(alt)
+        if af_rules:
+            alt_join = (
+                "JOIN mutation_alts "
+                "ON mutation_alts.mutation_id = mutations.id"
+            )
+            use_alt_rows = True
+            for operator, threshold in af_rules:
+                where_clauses.append(
+                    f"mutation_alts.af {AF_OPERATORS[operator]} ?"
+                )
+                params.append(threshold)
+        if metadata_filters and self._add_metadata_filter_sql(
+            where_clauses,
+            params,
+            metadata_filters,
+        ):
+            alt_join = (
+                "JOIN mutation_alts "
+                "ON mutation_alts.mutation_id = mutations.id"
+            )
+            use_alt_rows = True
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+        alt_select = "mutation_alts.alt" if use_alt_rows else "mutations.alt"
+        af_select = (
+            "mutation_alts.af_text" if use_alt_rows else "mutations.af"
+        )
+        row = self.connection.execute(
+            f"""
+            SELECT COUNT(*) AS matched_count
+            FROM (
+                SELECT DISTINCT
+                    mutations.id,
+                    {alt_select} AS alt,
+                    {af_select} AS af
+                FROM mutations
+                JOIN samples ON samples.id = mutations.sample_id
+                JOIN subjects ON subjects.id = samples.subject_id
+                {alt_join}
+                {where_sql}
+            )
+            """,
+            params,
+        ).fetchone()
+        return int(row["matched_count"])
 
     def allele_calls(
         self,
