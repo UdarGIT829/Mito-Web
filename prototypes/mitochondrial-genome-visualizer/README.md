@@ -39,6 +39,12 @@ Selections can also be updated without rerendering:
 MitochondrialGenomeVisualizer.applySelection(container, ["MT-CO1"]);
 ```
 
+The mode box in the center of the ring is part of the visualizer and is always
+rendered. Its two direct buttons switch between the expected position-driven
+workflow and a genes-only workflow. Genes-only mode hides mutation markers
+while retaining the current gene selection. `debugControls` affects only the
+development panel below the visualizer.
+
 Exact rCRS positions can be supplied during rendering or updated later:
 
 ```js
@@ -51,6 +57,14 @@ MitochondrialGenomeVisualizer.applyMutations(container, [73, 9207]);
 
 Markers are drawn at their proportional 1–16,569 coordinate. If a position
 overlaps genes on both visual tracks, both tracks receive a marker.
+
+All mitochondrial tRNA features participate in labeling, direct selection, and
+position-driven selection. Their display names use the conventional `TRN`
+prefix (for example, `MT-TP` is displayed as `TRNP`).
+
+Labels use four ordered billboard lanes around a reduced-radius genome ring.
+Leader lines preserve the exact feature association while keeping dense tRNA
+clusters and adjacent selected labels from occupying the same coordinates.
 
 The expected application workflow can provide selected mutation positions
 directly. The visualizer places their markers and derives the selected genes:

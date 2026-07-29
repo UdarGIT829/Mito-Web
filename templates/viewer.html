@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mito SQL Viewer</title>
+  <link rel="stylesheet" href="/assets/mitochondrial-genome.css">
   <style>
     :root {
       color-scheme: light;
@@ -120,6 +121,107 @@
       opacity: 1;
       pointer-events: auto;
       transform: translateX(0);
+    }
+    .genome-visualizer-drawer {
+      position: fixed;
+      top: 168px;
+      right: 0;
+      z-index: 24;
+      display: none;
+      width: min(580px, calc(100vw - 58px));
+      transform: translateX(100%);
+      transition: transform 200ms ease;
+    }
+    .genome-visualizer-drawer.is-available { display: block; }
+    .genome-visualizer-drawer.is-open {
+      transform: translateX(0);
+    }
+    .genome-visualizer-ear {
+      position: absolute;
+      top: 0;
+      left: -48px;
+      display: grid;
+      place-items: center;
+      width: 48px;
+      min-height: 64px;
+      padding: 7px 5px 7px 8px;
+      border-radius: 9px 0 0 9px;
+      border-color: #8aa9e6;
+      background: #f4f8ff;
+      color: #24436e;
+      box-shadow: -5px 8px 18px rgba(28, 39, 55, 0.14);
+    }
+    .genome-visualizer-ear-icon {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 3px solid #2457c5;
+      border-radius: 50%;
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .genome-visualizer-panel {
+      max-height: calc(100vh - 184px);
+      overflow: hidden;
+      border: 1px solid #b8c9e7;
+      border-right: 0;
+      border-radius: 10px 0 0 10px;
+      background: #ffffff;
+      box-shadow: 0 16px 38px rgba(28, 39, 55, 0.22);
+    }
+    .genome-visualizer-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      padding: 14px 16px;
+      border-bottom: 1px solid #dce4f0;
+      background: #f4f8ff;
+    }
+    .genome-visualizer-header h2 {
+      margin: 0;
+      color: #173f94;
+      font-size: 16px;
+    }
+    .genome-visualizer-source {
+      margin-top: 3px;
+      color: #607086;
+      font-size: 12px;
+    }
+    .genome-visualizer-close {
+      width: 30px;
+      min-height: 30px;
+      padding: 2px 7px;
+      border-color: #c7cfdb;
+      background: #ffffff;
+      color: #24436e;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .genome-visualizer-body {
+      max-height: min(78vh, 820px);
+      overflow: auto;
+      padding: 14px 16px 16px;
+    }
+    .genome-visualizer-body p {
+      margin: 0 0 10px;
+      color: #607086;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .genome-visualizer-map-shell {
+      margin-bottom: 12px;
+      padding: 8px;
+      border: 1px solid #28384b;
+      border-radius: 8px;
+      background: #000000;
+    }
+    .genome-visualizer-map {
+      width: min(100%, 500px);
+      margin: auto;
     }
     .roadmap-link {
       min-height: 34px;
@@ -638,6 +740,7 @@
     }
     .table-compare-ear {
       top: 96px;
+      z-index: 25;
       display: grid;
       opacity: 0;
       pointer-events: none;
@@ -768,6 +871,26 @@
     .saved-note-indicator { color: #2457c5; font-weight: 800; font-size: 16px; }
     .unsaved-note-indicator { color: #a7b0bd; }
     tr:hover td { background: #f7faff; }
+    .comparison-track {
+      min-height: 18px;
+      line-height: 18px;
+      white-space: nowrap;
+    }
+    .comparison-track.sample-label {
+      font-weight: 600;
+    }
+    .comparison-track.sample-start:not(:first-child) {
+      margin-top: 6px;
+    }
+    .comparison-track.source-trace {
+      padding-left: 10px;
+      color: #607086;
+      font-size: 11px;
+    }
+    .comparison-source-state { font-weight: 700; }
+    .comparison-track.present .comparison-source-state { color: #24733f; }
+    .comparison-track.missing .comparison-source-state { color: #a04444; }
+    .comparison-track.filtered_out .comparison-source-state { color: #8a6417; }
     tr.selected-sample td {
       background: #eef5ff;
       box-shadow: inset 4px 0 0 #2457c5;
@@ -1267,7 +1390,8 @@
       .workflow-guide-ear.open { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
-      header, .header-ear, .compare-panel, .table-compare-ear { transition: none; }
+      header, .header-ear, .compare-panel, .table-compare-ear,
+      .genome-visualizer-drawer { transition: none; }
     }
     @media (max-width: 560px) {
       header { padding: 14px 14px; }
@@ -1301,6 +1425,9 @@
       .workflow-database-row, .workflow-filter-grid { grid-template-columns: 1fr; }
       .workflow-database-row button { width: 100%; }
       .workflow-sample-statuses { grid-template-columns: 1fr; }
+      .genome-visualizer-drawer {
+        width: calc(100vw - 58px);
+      }
     }
   </style>
 </head>
@@ -1639,6 +1766,56 @@
       </div>
     </div>
   </main>
+  <aside
+    id="genome-visualizer-drawer"
+    class="genome-visualizer-drawer"
+    aria-label="Mitochondrial genome visualizer"
+  >
+    <button
+      id="genome-visualizer-ear"
+      class="genome-visualizer-ear"
+      type="button"
+      aria-controls="genome-visualizer-panel"
+      aria-expanded="false"
+      aria-label="Show mitochondrial genome visualizer"
+      title="Show mitochondrial genome visualizer"
+    >
+      <span class="genome-visualizer-ear-icon" aria-hidden="true">mt</span>
+    </button>
+    <section
+      id="genome-visualizer-panel"
+      class="genome-visualizer-panel"
+      aria-hidden="true"
+      inert
+    >
+      <div class="genome-visualizer-header">
+        <div>
+          <h2>Mitochondrial genome</h2>
+          <div
+            id="genome-visualizer-source"
+            class="genome-visualizer-source"
+          >Table · 0 positions</div>
+        </div>
+        <button
+          id="genome-visualizer-close"
+          class="genome-visualizer-close"
+          type="button"
+          aria-label="Close mitochondrial genome panel"
+          title="Close"
+        >&rsaquo;</button>
+      </div>
+      <div class="genome-visualizer-body">
+        <div class="genome-visualizer-map-shell">
+          <div
+            id="genome-visualizer-map"
+            class="mitochondrial-genome genome-visualizer-map"
+            aria-label="Selected mutations on the human mitochondrial genome"
+          ></div>
+        </div>
+        <p>The active tab’s positions are applied as selected mutations, placing markers and highlighting affected genes.</p>
+      </div>
+    </section>
+  </aside>
   <div id="metadata-popover" class="metadata-popover" role="dialog" aria-live="polite"></div>
   <div id="repeat-hover-popover" class="repeat-hover-popover" role="dialog" aria-live="polite"></div>
   <div id="mutation-context-menu" class="mutation-context-menu" role="menu">
@@ -1765,6 +1942,7 @@
       </div>
     </div>
   </div>
+  <script src="/assets/mitochondrial-genome.js"></script>
   <script>
     const state = {
       database: "",
@@ -1791,6 +1969,7 @@
     let savedNotes = [];
     let annotationVocabularyPromise = null;
     let currentNoteRows = [];
+    let currentAnnotationPosition = null;
     let contextMenuRowIndex = -1;
     const mutationPageSize = 1000;
     const mutationPagination = {
@@ -1878,6 +2057,13 @@
     const tableCompareEar = document.getElementById("table-compare-ear");
     const mutationContextMenu = document.getElementById("mutation-context-menu");
     const copyTableButton = document.getElementById("copy-table");
+    const genomeVisualizerDrawer = document.getElementById("genome-visualizer-drawer");
+    const genomeVisualizerEar = document.getElementById("genome-visualizer-ear");
+    const genomeVisualizerPanel = document.getElementById("genome-visualizer-panel");
+    const genomeVisualizerClose = document.getElementById("genome-visualizer-close");
+    const genomeVisualizerSource = document.getElementById("genome-visualizer-source");
+    const genomeVisualizerMap = document.getElementById("genome-visualizer-map");
+    let genomeVisualizerRendered = false;
     const mutationTableWrap = document.querySelector(
       "#variant-viewer-panel .main-table > .table-wrap"
     );
@@ -2258,11 +2444,15 @@
     async function viewAnnotationDetails(note) {
       const annotationTab = document.getElementById("annotations-tab");
       const view = document.getElementById("annotation-view");
+      currentAnnotationPosition = normalizedGenomePosition(note.mutation.pos);
       selectTab(annotationTab);
       annotationTab.focus();
       view.innerHTML = `<div class="muted">Loading cached annotations for m.${esc(note.mutation.pos)}${esc(note.mutation.ref)}&gt;${esc(note.mutation.alt)}…</div>`;
       try {
         const data = await fetchAnnotationForNote(note);
+        currentAnnotationPosition = normalizedGenomePosition(data.variant?.pos)
+          ?? currentAnnotationPosition;
+        refreshGenomeVisualizerPositions();
         const clinical = annotationClinvarRecords(data)[0]?.germline_classification || {};
         const returned = ["clinvar", "ensembl", "mitomap"].filter(name => data[name] && !data[name].error && !data[name].skipped);
         view.innerHTML = `
@@ -2327,6 +2517,7 @@
         const note = savedNotes.find(item => item.id === details.dataset.noteId);
         if (note) loadNoteAnnotationOverview(note, details.querySelector(".note-annotation-summary"));
       });
+      refreshGenomeVisualizerPositions();
     }
 
     function saveMutationToNotes(row) {
@@ -2400,6 +2591,94 @@
       }
     }
 
+    const genomeVisualizerTabs = new Map([
+      ["variant-viewer-tab", "Table"],
+      ["notes-tab", "Notes"],
+      ["annotations-tab", "Annotations"]
+    ]);
+
+    function normalizedGenomePosition(value) {
+      const position = Number(value);
+      return Number.isInteger(position) && position >= 1 && position <= 16569
+        ? position
+        : null;
+    }
+
+    function uniqueGenomePositions(values) {
+      return [...new Set(
+        values
+          .map(normalizedGenomePosition)
+          .filter(position => position !== null)
+      )].sort((left, right) => left - right);
+    }
+
+    function activeViewerTab() {
+      return tabButtons.find(
+        tab => tab.getAttribute("aria-selected") === "true"
+      ) || null;
+    }
+
+    function genomePositionsForTab(tabId) {
+      if (tabId === "variant-viewer-tab") {
+        return uniqueGenomePositions(currentNoteRows.map(row => row.pos));
+      }
+      if (tabId === "notes-tab") {
+        return uniqueGenomePositions(
+          savedNotes.map(note => note.mutation?.pos)
+        );
+      }
+      if (tabId === "annotations-tab") {
+        return uniqueGenomePositions([currentAnnotationPosition]);
+      }
+      return [];
+    }
+
+    function setGenomeVisualizerOpen(open, focusControl = false) {
+      const available = genomeVisualizerDrawer.classList.contains("is-available");
+      const shouldOpen = available && open;
+      genomeVisualizerDrawer.classList.toggle("is-open", shouldOpen);
+      genomeVisualizerEar.setAttribute("aria-expanded", String(shouldOpen));
+      genomeVisualizerPanel.setAttribute("aria-hidden", String(!shouldOpen));
+      genomeVisualizerPanel.inert = !shouldOpen;
+      if (focusControl) {
+        (shouldOpen ? genomeVisualizerClose : genomeVisualizerEar).focus();
+      }
+    }
+
+    function refreshGenomeVisualizerPositions(selectedTab = activeViewerTab()) {
+      const tabLabel = selectedTab
+        ? genomeVisualizerTabs.get(selectedTab.id)
+        : null;
+      const available = Boolean(tabLabel);
+      genomeVisualizerDrawer.classList.toggle("is-available", available);
+      if (!available) {
+        setGenomeVisualizerOpen(false);
+        return;
+      }
+      const positions = genomePositionsForTab(selectedTab.id);
+      genomeVisualizerSource.textContent =
+        `${tabLabel} · ${positions.length.toLocaleString()} selected position${positions.length === 1 ? "" : "s"}`;
+      if (!window.MitochondrialGenomeVisualizer) {
+        genomeVisualizerMap.textContent =
+          "The mitochondrial genome visualizer could not be loaded.";
+        return;
+      }
+      if (!genomeVisualizerRendered) {
+        window.MitochondrialGenomeVisualizer.render(
+          genomeVisualizerMap,
+          {
+            selectedMutations: positions
+          }
+        );
+        genomeVisualizerRendered = true;
+      } else {
+        window.MitochondrialGenomeVisualizer.applySelectedMutations(
+          genomeVisualizerMap,
+          positions
+        );
+      }
+    }
+
     function selectTab(selectedTab) {
       tabButtons.forEach(tab => {
         const isSelected = tab === selectedTab;
@@ -2419,6 +2698,7 @@
         selectedTab.id === "variant-viewer-tab" && comparePanel.classList.contains("is-collapsed")
       );
       setHeaderCollapsed(selectedTab.id !== "start-tab");
+      refreshGenomeVisualizerPositions(selectedTab);
     }
 
     tabButtons.forEach(tab => {
@@ -2429,6 +2709,20 @@
     });
     headerEar.addEventListener("click", () => {
       setHeaderCollapsed(false, true);
+    });
+    genomeVisualizerEar.addEventListener("click", () => {
+      setGenomeVisualizerOpen(true, true);
+    });
+    genomeVisualizerClose.addEventListener("click", () => {
+      setGenomeVisualizerOpen(false, true);
+    });
+    document.addEventListener("keydown", event => {
+      if (
+        event.key === "Escape"
+        && genomeVisualizerDrawer.classList.contains("is-open")
+      ) {
+        setGenomeVisualizerOpen(false, true);
+      }
     });
     document.querySelectorAll("[data-start-tab]").forEach(card => {
       card.addEventListener("click", () => {
@@ -4021,6 +4315,7 @@
             mutationPagination.showingDerivedSample
           )
         );
+        refreshGenomeVisualizerPositions();
         document.getElementById("mutations").insertAdjacentHTML(
           "beforeend",
           mutationPagination.showingDerivedSample
@@ -4049,6 +4344,109 @@
       }
     }
 
+    function comparisonTracks(present, missing) {
+      const presentById = new Map(
+        present.map(item => [String(item.sample_id), item])
+      );
+      const missingById = new Map(
+        missing.map(item => [String(item.sample_id), item])
+      );
+      const orderedItems = orderedCompareSampleIds()
+        .map(sampleId => {
+          const key = String(sampleId);
+          if (presentById.has(key)) {
+            return { item: presentById.get(key), side: "present" };
+          }
+          if (missingById.has(key)) {
+            return { item: missingById.get(key), side: "missing" };
+          }
+          return null;
+        })
+        .filter(Boolean);
+      const includedIds = new Set(
+        orderedItems.map(entry => String(entry.item.sample_id))
+      );
+      [...present, ...missing].forEach(item => {
+        if (includedIds.has(String(item.sample_id))) return;
+        orderedItems.push({
+          item,
+          side: present.includes(item) ? "present" : "missing"
+        });
+      });
+
+      const tracks = [];
+      orderedItems.forEach(({ item, side }) => {
+        const trace = item.derived_trace;
+        tracks.push({
+          kind: "sample-label",
+          state: "",
+          sampleStart: true,
+          present: side === "present" ? esc(item.label) : "",
+          af: !trace && side === "present" ? esc(item.af_text || "") : "",
+          missing: side === "missing" ? esc(item.label) : ""
+        });
+        if (!trace) return;
+
+        if (
+          side === "missing"
+          && trace.materialized_state === "present"
+        ) {
+          tracks.push({
+            kind: "source-trace",
+            state: "filtered_out",
+            sampleStart: false,
+            present: "",
+            af: "",
+            missing: (
+              '↳ <span class="comparison-source-state">' +
+              "Filtered from this view</span>"
+            )
+          });
+        }
+        (trace.observed_samples || []).forEach(source => {
+          const path = (source.durable_path || [])
+            .slice(1)
+            .map(step => step.label);
+          const sourceLabel = [...path, source.label]
+            .filter(Boolean)
+            .join(" → ");
+          const stateLabel = {
+            present: "Present",
+            missing: "Missing",
+            filtered_out: "Filtered by saved rules"
+          }[source.state] || source.state;
+          const staleLabel = source.snapshot_stale
+            ? " (source changed)"
+            : "";
+          const sourceHtml = (
+            `↳ <span class="comparison-source-state">${esc(stateLabel)}</span>: ` +
+            `${esc(sourceLabel)}${esc(staleLabel)}`
+          );
+          tracks.push({
+            kind: "source-trace",
+            state: source.state,
+            sampleStart: false,
+            present: side === "present" ? sourceHtml : "",
+            af: source.state === "missing" ? "" : esc(source.af_text || ""),
+            missing: side === "missing" ? sourceHtml : ""
+          });
+        });
+      });
+      return tracks;
+    }
+
+    function renderComparisonTrackCell(tracks, field) {
+      return tracks.map(track => {
+        const classes = [
+          "comparison-track",
+          track.kind,
+          track.state,
+          track.sampleStart ? "sample-start" : ""
+        ].filter(Boolean).join(" ");
+        return `<div class="${esc(classes)}">${track[field] || "&nbsp;"}</div>`;
+      }).join("");
+    }
+
     async function loadMutations() {
       const generation = ++loadGenerations.mutations;
       const compareSamples = [...state.compareSamples];
@@ -4064,6 +4462,7 @@
             );
         if (generation !== loadGenerations.mutations) return false;
         currentNoteRows = rows;
+        refreshGenomeVisualizerPositions();
         document.getElementById("mutation-count").textContent = `${rows.length} comparison rows`;
         const groupNumbers = new Map();
         let nextGroupNumber = 0;
@@ -4081,6 +4480,7 @@
             row.group_end ? "group-end" : "",
             groupNumber % 2 === 0 ? "group-even" : "group-odd"
           ].filter(Boolean).join(" ");
+          const tracks = comparisonTracks(present, missing);
           return `
             <tr class="${esc(groupClasses)}" data-note-row="${rowIndex}">
               <td class="notes-indicator-column"></td>
@@ -4088,9 +4488,9 @@
               <td class="mono">${row.pos}</td>
               <td class="mono">${esc(row.ref)}</td>
               <td class="mono">${esc(row.alt)}</td>
-              <td>${present.map(item => esc(item.label)).join("<br>")}</td>
-              <td class="mono">${present.map(item => esc(item.af_text || "")).join("<br>")}</td>
-              <td>${missing.map(item => esc(item.label)).join("<br>")}</td>
+              <td>${renderComparisonTrackCell(tracks, "present")}</td>
+              <td class="mono">${renderComparisonTrackCell(tracks, "af")}</td>
+              <td>${renderComparisonTrackCell(tracks, "missing")}</td>
             </tr>
           `;
         }).join("");
@@ -4130,6 +4530,7 @@
         mutations,
         showingDerivedSample
       );
+      refreshGenomeVisualizerPositions();
       mutationPagination.active = true;
       mutationPagination.hasMore = Boolean(
         mutationResult.has_more ?? matchedCount > mutations.length

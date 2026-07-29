@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Mapping
 
 from mito_viewer.domain import AlleleKey
+from mito_viewer.domain.comparison import (
+    comparison_status,
+    sample_filters_match,
+)
 from mito_viewer.repositories import StudyRepository
 
 from .derived_models import (
@@ -192,7 +196,10 @@ class DerivedAnalysisService:
             observed_sets,
             parent_sets,
         )
-        result_alleles = self._evaluate_clauses(clause_lookup)
+        result_alleles = self._evaluate_clauses(
+            definition,
+            clause_lookup,
+        )
         if len(result_alleles) > self.maximum_output_count:
             raise ValueError(
                 "Derived result exceeds the configured materialization "
@@ -511,8 +518,12 @@ class DerivedAnalysisService:
 
     @staticmethod
     def _evaluate_clauses(
+        definition: DerivedDefinition,
         clauses: list[_ResolvedClause],
     ) -> set[AlleleKey]:
+        if definition.comparison is not None:
+            return _evaluate_comparison(definition, clauses)
+
         candidates: set[AlleleKey] = set()
         for clause in clauses:
             if clause.definition.requirement is not PresenceRequirement.NONE:
@@ -736,3 +747,45 @@ def _clause_matches(
     if requirement is PresenceRequirement.EXACTLY_ONE:
         return present_count == 1
     return False
+
+
+def _evaluate_comparison(
+    definition: DerivedDefinition,
+    clauses: list[_ResolvedClause],
+) -> set[AlleleKey]:
+    """Evaluate a durable viewer comparison with live-table semantics."""
+    comparison = definition.comparison
+    if comparison is None:
+        raise ValueError("Durable comparison definition is missing.")
+
+    candidates = {
+        allele
+        for clause in clauses
+        for member_set in clause.member_sets
+        for allele in member_set
+    }
+    input_ids = tuple(str(index) for index in range(len(clauses)))
+    sample_statuses = {
+        input_id: set(comparison.input_statuses[index])
+        for index, input_id in enumerate(input_ids)
+    }
+    results = set()
+    for allele in candidates:
+        present_input_ids = {
+            str(index)
+            for index, clause in enumerate(clauses)
+            if any(allele in member_set for member_set in clause.member_sets)
+        }
+        present_count = len(present_input_ids)
+        status = comparison_status(present_count, len(clauses))
+        if status not in comparison.statuses:
+            continue
+        if not sample_filters_match(
+            input_ids,
+            sample_statuses,
+            present_input_ids,
+            present_count,
+        ):
+            continue
+        results.add(allele)
+    return results

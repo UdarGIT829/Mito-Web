@@ -12,6 +12,15 @@ DEFAULT_COMPARE_STATUSES = frozenset({"common", "partial", "unique"})
 DEFAULT_SAMPLE_COMPARE_STATUSES = frozenset({"present"})
 
 
+def comparison_status(present_count: int, total_count: int) -> str:
+    """Classify one allele by how many selected samples contain it."""
+    if present_count == total_count:
+        return "common"
+    if present_count == 1:
+        return "unique"
+    return "partial"
+
+
 def sample_filters_match(
     compare_sample_ids: Sequence[str],
     sample_statuses: Mapping[str, set[str] | frozenset[str]],
@@ -90,12 +99,7 @@ def comparison_rows(
             for call in allele_calls
         }
         present_count = len(present_sample_ids)
-        if present_count == len(compare_sample_ids):
-            status = "common"
-        elif present_count == 1:
-            status = "unique"
-        else:
-            status = "partial"
+        status = comparison_status(present_count, len(compare_sample_ids))
 
         if status not in global_statuses:
             continue

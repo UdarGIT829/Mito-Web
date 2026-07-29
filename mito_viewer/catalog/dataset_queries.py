@@ -8,7 +8,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
-from mito_viewer.domain import SampleAlleleCall
+from mito_viewer.domain import AlleleKey, SampleAlleleCall
 from mito_viewer.domain.comparison import comparison_rows
 from mito_viewer.repositories import (
     NO_TAGS_FILTER,
@@ -791,7 +791,7 @@ class DatasetQueryService:
             }
             for sample in selected
         }
-        return comparison_rows(
+        rows = comparison_rows(
             [sample.id for sample in selected],
             calls,
             sample_labels=labels,
@@ -800,6 +800,36 @@ class DatasetQueryService:
             sample_provenance=provenance,
             limit=limit,
         )
+        derived_samples = {
+            sample.id: sample
+            for sample in selected
+            if sample.sample_type is SampleType.DERIVED
+        }
+        if derived_samples and rows:
+            trace_resolver = _DerivedTraceResolver(
+                derived=self.derived,
+                scope=scope,
+            )
+            for row in rows:
+                allele = AlleleKey(
+                    position=row["pos"],
+                    ref=row["ref"],
+                    alt=row["alt"],
+                )
+                for collection_name, comparison_state in (
+                    ("present", "present"),
+                    ("missing", "missing"),
+                ):
+                    for item in row[collection_name]:
+                        sample = derived_samples.get(str(item["sample_id"]))
+                        if sample is None or sample.current_run is None:
+                            continue
+                        item["derived_trace"] = trace_resolver.trace(
+                            sample.current_run,
+                            allele,
+                            comparison_state=comparison_state,
+                        )
+        return rows
 
     @staticmethod
     def _observed_mutation_payload(
@@ -1043,6 +1073,223 @@ class DatasetQueryService:
         )
 
 
+class _DerivedTraceResolver:
+    """Resolve a durable call back to its observed sample inputs."""
+
+    def __init__(
+        self,
+        *,
+        derived: DerivedCatalogRepository,
+        scope: DatasetQueryScope,
+    ) -> None:
+        self.derived = derived
+        self.scope = scope
+        self._sources_by_cohort = {
+            source.cohort_id: source
+            for source in scope.sources
+        }
+        self._runs: dict[str, dict] = {}
+
+    def trace(
+        self,
+        run: DerivedRunRecord,
+        allele: AlleleKey,
+        *,
+        comparison_state: str,
+    ) -> dict:
+        run_state = self._run_state(run, allele)
+        record = self.derived.derived_sample_for_run(run.id)
+        return {
+            "run_id": run.id,
+            "label": record.name if record is not None else run.id,
+            "comparison_state": comparison_state,
+            "materialized_state": run_state,
+            "observed_samples": self._observed_trace(
+                run,
+                allele,
+                path=(),
+                visited=frozenset(),
+            ),
+        }
+
+    def _observed_trace(
+        self,
+        run: DerivedRunRecord,
+        allele: AlleleKey,
+        *,
+        path: tuple[dict, ...],
+        visited: frozenset[str],
+    ) -> list[dict]:
+        if run.id in visited:
+            return []
+        prepared = self._prepare_run(run)
+        record = prepared["record"]
+        current_path = (
+            *path,
+            {
+                "run_id": run.id,
+                "label": record.name if record is not None else run.id,
+                "state": self._run_state(run, allele),
+            },
+        )
+        next_visited = visited | {run.id}
+        resolved_inputs = [
+            ("sample", item.clause_index, item.display_order, item)
+            for item in prepared["sample_inputs"]
+        ]
+        resolved_inputs.extend(
+            ("parent", item.clause_index, item.display_order, item)
+            for item in prepared["parent_inputs"]
+        )
+        resolved_inputs.sort(
+            key=lambda value: (
+                value[1],
+                value[2],
+                value[0],
+            )
+        )
+
+        leaves = []
+        for kind, clause_index, _display_order, item in resolved_inputs:
+            if kind == "parent":
+                parent = self.derived.get_run(item.parent_run_id)
+                if parent is None:
+                    continue
+                leaves.extend(
+                    self._observed_trace(
+                        parent,
+                        allele,
+                        path=current_path,
+                        visited=next_visited,
+                    )
+                )
+                continue
+
+            sample = self.scope.require_sample(item.catalog_sample_id)
+            raw = prepared["raw_alleles"].get(item.catalog_sample_id, set())
+            qualifying = prepared["qualifying_alleles"].get(
+                item.catalog_sample_id,
+                set(),
+            )
+            af_text = ",".join(
+                prepared["af_texts"]
+                .get(item.catalog_sample_id, {})
+                .get(allele, ())
+            )
+            if allele in qualifying:
+                state = "present"
+            elif allele in raw:
+                state = "filtered_out"
+            else:
+                state = "missing"
+            leaves.append(
+                {
+                    "catalog_sample_id": sample.id,
+                    "label": sample.catalog_sample.display_label,
+                    "state": state,
+                    "af_text": af_text,
+                    "input_role": item.input_role,
+                    "clause_index": clause_index,
+                    "durable_path": list(current_path),
+                    "snapshot_stale": (
+                        item.sample_fingerprint
+                        != sample.catalog_sample.source_fingerprint
+                        or item.source_database_fingerprint
+                        != sample.cohort.source_database_fingerprint
+                    ),
+                }
+            )
+        return leaves
+
+    def _run_state(
+        self,
+        run: DerivedRunRecord,
+        allele: AlleleKey,
+    ) -> str:
+        return (
+            "present"
+            if allele in self._prepare_run(run)["output_alleles"]
+            else "missing"
+        )
+
+    def _prepare_run(self, run: DerivedRunRecord) -> dict:
+        cached = self._runs.get(run.id)
+        if cached is not None:
+            return cached
+
+        sample_inputs = self.derived.list_run_sample_inputs(run.id)
+        prepared = {
+            "record": self.derived.derived_sample_for_run(run.id),
+            "sample_inputs": sample_inputs,
+            "parent_inputs": self.derived.list_run_parent_inputs(run.id),
+            "output_alleles": {
+                item.allele
+                for item in self.derived.list_run_alleles(run.id)
+            },
+            "raw_alleles": {},
+            "qualifying_alleles": {},
+            "af_texts": {},
+        }
+        self._runs[run.id] = prepared
+
+        inputs_by_cohort: dict[str, list] = {}
+        for item in sample_inputs:
+            sample = self.scope.require_sample(item.catalog_sample_id)
+            inputs_by_cohort.setdefault(sample.cohort.id, []).append(item)
+
+        for cohort_id, inputs in inputs_by_cohort.items():
+            source = self._sources_by_cohort.get(cohort_id)
+            if source is None:
+                raise DatasetSourceResolutionError(
+                    f"Durable trace source cohort is unavailable: {cohort_id}"
+                )
+            local_to_catalog = {
+                self.scope.require_sample(
+                    item.catalog_sample_id
+                ).source_sample_id: item.catalog_sample_id
+                for item in inputs
+            }
+            with StudyRepository.open(source.database_path) as study:
+                evidence_rows = study.allele_evidence(
+                    list(local_to_catalog),
+                    position=run.definition.filters.position,
+                    alt=run.definition.filters.alt or None,
+                    af_rules=run.definition.filters.af_rules,
+                    metadata_filters=(
+                        run.definition.filters.metadata_filters
+                    ),
+                )
+            for row in evidence_rows:
+                catalog_sample_id = local_to_catalog.get(
+                    str(row["sample_id"])
+                )
+                if catalog_sample_id is None:
+                    continue
+                evidence_allele = AlleleKey(
+                    position=row["position"],
+                    ref=row["ref"],
+                    alt=row["alt"],
+                )
+                prepared["raw_alleles"].setdefault(
+                    catalog_sample_id,
+                    set(),
+                ).add(evidence_allele)
+                af_text = str(row["af_text"] or "").strip()
+                if af_text:
+                    af_texts = prepared["af_texts"].setdefault(
+                        catalog_sample_id,
+                        {},
+                    ).setdefault(evidence_allele, [])
+                    if af_text not in af_texts:
+                        af_texts.append(af_text)
+                if row["qualifies"]:
+                    prepared["qualifying_alleles"].setdefault(
+                        catalog_sample_id,
+                        set(),
+                    ).add(evidence_allele)
+        return prepared
+
+
 def _compatible_reference(
     source_references: tuple[DatasetReferenceIdentity, ...],
     derived_references: tuple[DatasetReferenceIdentity, ...],
@@ -1085,12 +1332,40 @@ def _compatible_reference(
 
 
 def _definition_expression(run: DerivedRunRecord) -> str:
-    clauses = [
-        f"{item.requirement.value.upper()}({item.role}:{item.input_id})"
-        for item in run.definition.inputs
-    ]
-    expression = " AND ".join(clauses)
-    filters = run.definition.filters
+    definition = run.definition
+    if definition.comparison is None:
+        clauses = [
+            f"{item.requirement.value.upper()}({item.role}:{item.input_id})"
+            for item in definition.inputs
+        ]
+        expression = " AND ".join(clauses)
+    else:
+        present = []
+        unique = []
+        absent = []
+        for item, statuses in zip(
+            definition.inputs,
+            definition.comparison.input_statuses,
+        ):
+            if "present" in statuses:
+                present.append(item.input_id)
+            if "unique" in statuses:
+                unique.append(item.input_id)
+            if "not_in" in statuses:
+                absent.append(item.input_id)
+        branches = []
+        if present:
+            branches.append(f"PRESENT_ALL({', '.join(present)})")
+        if unique:
+            branches.append(f"UNIQUE_ANY({', '.join(unique)})")
+        expression = " OR ".join(branches) if branches else "ANY_SELECTED_INPUT"
+        if len(branches) > 1:
+            expression = f"({expression})"
+        if absent:
+            expression += f" AND NOT_IN_ALL({', '.join(absent)})"
+        statuses = ", ".join(sorted(definition.comparison.statuses))
+        expression = f"({expression}) AND STATUS_IN({statuses})"
+    filters = definition.filters
     filter_values = []
     if filters.position:
         filter_values.append(f"position={filters.position}")

@@ -13,6 +13,8 @@ from mito_viewer.domain import (
 )
 
 from .derived_models import (
+    DERIVED_COMPARISON_STATUSES,
+    DerivedComparison,
     DerivedDefinition,
     DerivedInput,
     DerivedInputKind,
@@ -256,7 +258,6 @@ class CatalogViewerService:
         filters: MutationFilters,
     ) -> dict:
         inputs = []
-        positive_count = 0
         dataset_samples = {
             sample.id: sample
             for sample in self.workspaces.dataset_samples(
@@ -265,19 +266,13 @@ class CatalogViewerService:
             )
         }
         viewer_sample_ids = tuple(str(item) for item in viewer_sample_ids)
+        normalized_sample_statuses = tuple(
+            frozenset(
+                sample_statuses.get(viewer_sample_id, {"present"})
+            )
+            for viewer_sample_id in viewer_sample_ids
+        )
         for viewer_sample_id in viewer_sample_ids:
-            statuses = set(sample_statuses.get(viewer_sample_id, {"present"}))
-            if statuses == {"present"}:
-                requirement = PresenceRequirement.ANY
-                positive_count += 1
-            elif statuses == {"not_in"}:
-                requirement = PresenceRequirement.NONE
-            else:
-                raise ValueError(
-                    "Durable saves currently require each selected sample "
-                    "to be exactly Present or Not In. Mixed Unique/None "
-                    "rules can still be viewed but cannot yet be persisted."
-                )
             kind, input_id = self._derived_input_for_viewer_sample(
                 viewer_sample_id,
                 dataset_samples=dataset_samples,
@@ -286,27 +281,14 @@ class CatalogViewerService:
                 DerivedInput(
                     kind=kind,
                     input_id=input_id,
-                    role=(
-                        "required-present"
-                        if requirement is PresenceRequirement.ANY
-                        else "required-absent"
-                    ),
-                    requirement=requirement,
+                    role="comparison-input",
+                    requirement=PresenceRequirement.ANY,
                 )
             )
-        if positive_count < 1:
-            raise ValueError(
-                "A durable derived sample requires at least one Present input."
-            )
-        expected_status = _fixed_output_status(
-            positive_count,
-            len(viewer_sample_ids),
-        )
-        selected_global_statuses = set(global_statuses)
-        if selected_global_statuses and expected_status not in selected_global_statuses:
-            raise ValueError(
-                "The selected global comparison statuses exclude the "
-                f"{expected_status!r} result implied by the sample rules."
+        selected_global_statuses = frozenset(global_statuses)
+        if not selected_global_statuses:
+            selected_global_statuses = (
+                DERIVED_COMPARISON_STATUSES - {"__none__"}
             )
 
         result = self.analysis.create_derived_sample(
@@ -316,6 +298,11 @@ class CatalogViewerService:
             definition=DerivedDefinition(
                 inputs=tuple(inputs),
                 filters=filters,
+                version=2,
+                comparison=DerivedComparison(
+                    statuses=selected_global_statuses,
+                    input_statuses=normalized_sample_statuses,
+                ),
             ),
         )
         payload = self._derived_payload(result.derived_sample)
@@ -503,19 +490,15 @@ def parse_durable_viewer_sample_id(viewer_sample_id: str) -> str:
     return derived_id
 
 
-def _fixed_output_status(positive_count: int, total_count: int) -> str:
-    if positive_count == total_count:
-        return "common"
-    if positive_count == 1:
-        return "unique"
-    return "partial"
-
-
 def _definition_expression(definition: DerivedDefinition) -> str:
-    clauses = [
-        (f"{item.requirement.value.upper()}({item.role}:{item.input_id})")
-        for item in definition.inputs
-    ]
+    if definition.comparison is None:
+        clauses = [
+            (f"{item.requirement.value.upper()}({item.role}:{item.input_id})")
+            for item in definition.inputs
+        ]
+        expression = " AND ".join(clauses)
+    else:
+        expression = _comparison_expression(definition)
     filters = definition.filters
     filter_values = []
     if filters.position is not None:
@@ -528,10 +511,41 @@ def _definition_expression(definition: DerivedDefinition) -> str:
     filter_values.extend(
         f"{item.field}={item.value}" for item in filters.metadata_filters
     )
-    expression = " AND ".join(clauses)
     if filter_values:
         expression += " FILTER " + " AND ".join(filter_values)
     return expression
+
+
+def _comparison_expression(definition: DerivedDefinition) -> str:
+    comparison = definition.comparison
+    if comparison is None:
+        return ""
+    present = []
+    unique = []
+    absent = []
+    for item, statuses in zip(
+        definition.inputs,
+        comparison.input_statuses,
+    ):
+        if "present" in statuses:
+            present.append(item.input_id)
+        if "unique" in statuses:
+            unique.append(item.input_id)
+        if "not_in" in statuses:
+            absent.append(item.input_id)
+
+    branches = []
+    if present:
+        branches.append(f"PRESENT_ALL({', '.join(present)})")
+    if unique:
+        branches.append(f"UNIQUE_ANY({', '.join(unique)})")
+    expression = " OR ".join(branches) if branches else "ANY_SELECTED_INPUT"
+    if len(branches) > 1:
+        expression = f"({expression})"
+    if absent:
+        expression += f" AND NOT_IN_ALL({', '.join(absent)})"
+    statuses = ", ".join(sorted(comparison.statuses))
+    return f"({expression}) AND STATUS_IN({statuses})"
 
 
 def _unique(values: Iterable[str]) -> list[str]:

@@ -57,6 +57,11 @@
     "complex-v": "#ff9f05"
   };
 
+  const TRACK_RADII = {
+    outer: { inner: 326, outer: 370 },
+    inner: { inner: 278, outer: 318 }
+  };
+
   function svgElement(name, attributes) {
     const element = document.createElementNS(NS, name);
     Object.entries(attributes || {}).forEach(([key, value]) => {
@@ -113,13 +118,25 @@
     return position >= feature.start || position <= feature.end;
   }
 
-  function addFeature(svg, feature, showLabels) {
+  function displayName(feature) {
+    if (feature.type === "trna") {
+      return feature.name.replace("MT-T", "TRN");
+    }
+    if (feature.name === "MT-CYB") return "CYTB";
+    return feature.name.replace("MT-", "");
+  }
+
+  function addFeature(svg, feature) {
     const isInner = feature.track === "inner";
-    const outerRadius = isInner ? 395 : 442;
-    const innerRadius = isInner ? 366 : 402;
+    const radii = isInner ? TRACK_RADII.inner : TRACK_RADII.outer;
     const path = svgElement("path", {
       class: "mitochondrial-genome__segment",
-      d: annularArcPath(feature.start, feature.end, outerRadius, innerRadius),
+      d: annularArcPath(
+        feature.start,
+        feature.end,
+        radii.outer,
+        radii.inner
+      ),
       fill: COLORS[feature.type],
       "data-feature": feature.name,
       "data-start": feature.start,
@@ -127,23 +144,96 @@
     });
     path.appendChild(svgElement("title"));
     path.lastChild.textContent =
-      `${feature.name}: ${feature.start.toLocaleString()}–${feature.end.toLocaleString()} bp`;
+      `${displayName(feature)}: ${feature.start.toLocaleString()}–${feature.end.toLocaleString()} bp`;
     svg.appendChild(path);
+  }
 
-    if (!showLabels || feature.type === "trna") return;
-
+  function labelLane(feature) {
     const angle = positionToAngle(midpoint(feature));
-    const labelRadius = isInner ? 337 : 366;
-    const labelPoint = point(500, 500, labelRadius, angle);
-    const text = svgElement("text", {
-      class: `mitochondrial-genome__label${feature.name.length > 7 ? " mitochondrial-genome__label--small" : ""}`,
-      x: labelPoint.x,
-      y: labelPoint.y,
-      dy: ".35em",
-      "data-label-for": feature.name
+    const radians = angle * Math.PI / 180;
+    const x = Math.cos(radians);
+    const y = Math.sin(radians);
+    if (Math.abs(x) > Math.abs(y)) return x > 0 ? "right" : "left";
+    return y > 0 ? "bottom" : "top";
+  }
+
+  function lanePositions(count, start, end) {
+    if (count === 1) return [(start + end) / 2];
+    return Array.from(
+      { length: count },
+      (_, index) => start + index * ((end - start) / (count - 1))
+    );
+  }
+
+  function addLabels(svg, features) {
+    const lanes = { top: [], right: [], bottom: [], left: [] };
+    features.forEach((feature) => {
+      lanes[labelLane(feature)].push(feature);
     });
-    text.textContent = feature.name.replace("MT-", "");
-    svg.appendChild(text);
+
+    Object.entries(lanes).forEach(([lane, laneFeatures]) => {
+      const horizontal = lane === "top" || lane === "bottom";
+      laneFeatures.sort((a, b) => {
+        const aPoint = point(500, 500, 400, positionToAngle(midpoint(a)));
+        const bPoint = point(500, 500, 400, positionToAngle(midpoint(b)));
+        return horizontal ? aPoint.x - bPoint.x : aPoint.y - bPoint.y;
+      });
+      // Keep labels compact along each wall while reserving the corners so
+      // labels from perpendicular lanes cannot collide.
+      const positions = lanePositions(laneFeatures.length, 90, 910);
+      laneFeatures.forEach((feature, index) => {
+        const angle = positionToAngle(midpoint(feature));
+        const radii = feature.track === "inner"
+          ? TRACK_RADII.inner
+          : TRACK_RADII.outer;
+        const start = point(500, 500, radii.outer + 3, angle);
+        let labelPoint;
+        let leaderEnd;
+        let textAnchor = "middle";
+
+        if (lane === "top") {
+          labelPoint = { x: positions[index], y: 42 };
+          leaderEnd = { x: positions[index], y: 66 };
+        } else if (lane === "bottom") {
+          labelPoint = { x: positions[index], y: 958 };
+          leaderEnd = { x: positions[index], y: 934 };
+        } else if (lane === "left") {
+          labelPoint = { x: 28, y: positions[index] };
+          leaderEnd = { x: 56, y: positions[index] };
+          textAnchor = "start";
+        } else {
+          labelPoint = { x: 972, y: positions[index] };
+          leaderEnd = { x: 944, y: positions[index] };
+          textAnchor = "end";
+        }
+
+        const bend = point(500, 500, 405, angle);
+        const leader = svgElement("path", {
+          class: "mitochondrial-genome__label-leader",
+          d: `M ${start.x} ${start.y} L ${bend.x} ${bend.y} L ${leaderEnd.x} ${leaderEnd.y}`,
+          "data-leader-for": feature.name
+        });
+        svg.appendChild(leader);
+
+        const labelClasses = ["mitochondrial-genome__label"];
+        if (feature.name.length > 7) {
+          labelClasses.push("mitochondrial-genome__label--small");
+        }
+        if (feature.type === "trna") {
+          labelClasses.push("mitochondrial-genome__label--trna");
+        }
+        const text = svgElement("text", {
+          class: labelClasses.join(" "),
+          x: labelPoint.x,
+          y: labelPoint.y,
+          dy: ".35em",
+          "text-anchor": textAnchor,
+          "data-label-for": feature.name
+        });
+        text.textContent = displayName(feature);
+        svg.appendChild(text);
+      });
+    });
   }
 
   function applySelection(container, selectedNames) {
@@ -158,6 +248,12 @@
     container.querySelectorAll("[data-label-for]").forEach((label) => {
       label.classList.toggle("is-selected", selected.has(label.dataset.labelFor));
     });
+    container.querySelectorAll("[data-leader-for]").forEach((leader) => {
+      leader.classList.toggle(
+        "is-selected",
+        selected.has(leader.dataset.leaderFor)
+      );
+    });
   }
 
   function normalizeMutationPositions(positions) {
@@ -171,10 +267,13 @@
     }).sort((a, b) => a - b);
   }
 
-  function applyMutations(container, positions) {
+  function applyMutations(container, positions, preserveStoredPositions) {
     const svg = container.querySelector("svg");
     if (!svg) throw new Error("Render the visualizer before adding mutations.");
     const mutationPositions = normalizeMutationPositions(positions);
+    if (container._mitochondrialGenomeState && !preserveStoredPositions) {
+      container._mitochondrialGenomeState.mutationPositions = mutationPositions;
+    }
     svg.querySelector(".mitochondrial-genome__mutations")?.remove();
     const layer = svgElement("g", {
       class: "mitochondrial-genome__mutations",
@@ -192,8 +291,9 @@
 
       tracks.forEach((track) => {
         const isInner = track === "inner";
-        const innerRadius = isInner ? 360 : 396;
-        const outerRadius = isInner ? 401 : 449;
+        const radii = isInner ? TRACK_RADII.inner : TRACK_RADII.outer;
+        const innerRadius = radii.inner - 6;
+        const outerRadius = radii.outer + 7;
         const angle = positionToAngle(position);
         const inner = point(500, 500, innerRadius, angle);
         const outer = point(500, 500, outerRadius, angle);
@@ -248,12 +348,70 @@
     return result;
   }
 
+  function addModeControl(container, state) {
+    const modeDialog = document.createElement("div");
+    modeDialog.className = "mitochondrial-genome__mode-dialog";
+    modeDialog.setAttribute("role", "dialog");
+    modeDialog.setAttribute("aria-label", "Visualizer mode");
+    modeDialog.innerHTML = `
+      <label>Visualizer mode</label>
+      <div class="mitochondrial-genome__mode-choices">
+        <button
+          class="mitochondrial-genome__mode-button"
+          type="button"
+          data-mode="selected-mutations"
+          aria-pressed="true"
+        >
+          <span
+            class="mitochondrial-genome__mode-icon mitochondrial-genome__mode-icon--mutation"
+            aria-hidden="true"
+          ></span>
+          <span class="mitochondrial-genome__mode-text">Mutations</span>
+        </button>
+        <button
+          class="mitochondrial-genome__mode-button"
+          type="button"
+          data-mode="genes-only"
+          aria-pressed="false"
+        >
+          <span
+            class="mitochondrial-genome__mode-icon mitochondrial-genome__mode-icon--genes"
+            aria-hidden="true"
+          ></span>
+          <span class="mitochondrial-genome__mode-text">Genes only</span>
+        </button>
+      </div>
+    `;
+    const modeButtons = modeDialog.querySelectorAll("[data-mode]");
+    function setMode(mode) {
+      const genesOnly = mode === "genes-only";
+      modeButtons.forEach((button) => {
+        button.setAttribute(
+          "aria-pressed",
+          String(button.dataset.mode === mode)
+        );
+      });
+      container.classList.toggle("mitochondrial-genome--genes-only", genesOnly);
+      applyMutations(
+        container,
+        genesOnly ? [] : state.mutationPositions,
+        true
+      );
+    }
+    modeButtons.forEach((button) => {
+      button.addEventListener("click", () => setMode(button.dataset.mode));
+    });
+    container.querySelector(".mitochondrial-genome__canvas-shell")
+      .appendChild(modeDialog);
+  }
+
   function addDebugControls(
     container,
     selectableFeatures,
     selectedNames,
     mutationPositions,
-    selectedMutationPositions
+    selectedMutationPositions,
+    state
   ) {
     const panel = document.createElement("section");
     panel.className = "mitochondrial-genome__debug";
@@ -266,38 +424,40 @@
           <button type="button" data-action="clear">Clear</button>
         </div>
       </div>
-      <div class="mitochondrial-genome__debug-mutations">
-        <label for="mitochondrial-mutation-positions">Mutation positions</label>
-        <input
-          id="mitochondrial-mutation-positions"
-          type="text"
-          inputmode="numeric"
-          placeholder="e.g. 73, 9207, 10760"
-          aria-describedby="mitochondrial-mutation-error"
-        >
-        <button type="button" data-action="mutations">Apply</button>
+      <div class="mitochondrial-genome__debug-position-controls">
+        <div class="mitochondrial-genome__debug-mutations">
+          <label for="mitochondrial-mutation-positions">Mutation positions</label>
+          <input
+            id="mitochondrial-mutation-positions"
+            type="text"
+            inputmode="numeric"
+            placeholder="e.g. 73, 9207, 10760"
+            aria-describedby="mitochondrial-mutation-error"
+          >
+          <button type="button" data-action="mutations">Apply</button>
+        </div>
+        <div
+          id="mitochondrial-mutation-error"
+          class="mitochondrial-genome__debug-error"
+          aria-live="polite"
+        ></div>
+        <div class="mitochondrial-genome__debug-mutations mitochondrial-genome__debug-mutations--selected">
+          <label for="mitochondrial-selected-mutation-positions">Selected mutation positions</label>
+          <input
+            id="mitochondrial-selected-mutation-positions"
+            type="text"
+            inputmode="numeric"
+            placeholder="e.g. 9207, 10760"
+            aria-describedby="mitochondrial-selected-mutation-error"
+          >
+          <button type="button" data-action="selected-mutations">Apply selection</button>
+        </div>
+        <div
+          id="mitochondrial-selected-mutation-error"
+          class="mitochondrial-genome__debug-error"
+          aria-live="polite"
+        ></div>
       </div>
-      <div
-        id="mitochondrial-mutation-error"
-        class="mitochondrial-genome__debug-error"
-        aria-live="polite"
-      ></div>
-      <div class="mitochondrial-genome__debug-mutations mitochondrial-genome__debug-mutations--selected">
-        <label for="mitochondrial-selected-mutation-positions">Selected mutation positions</label>
-        <input
-          id="mitochondrial-selected-mutation-positions"
-          type="text"
-          inputmode="numeric"
-          placeholder="e.g. 9207, 10760"
-          aria-describedby="mitochondrial-selected-mutation-error"
-        >
-        <button type="button" data-action="selected-mutations">Apply selection</button>
-      </div>
-      <div
-        id="mitochondrial-selected-mutation-error"
-        class="mitochondrial-genome__debug-error"
-        aria-live="polite"
-      ></div>
       <div class="mitochondrial-genome__debug-options"></div>
     `;
 
@@ -319,7 +479,7 @@
       input.type = "checkbox";
       input.value = feature.name;
       input.checked = selectedNames.has(feature.name);
-      label.append(input, feature.name.replace("MT-", ""));
+      label.append(input, displayName(feature));
       options.appendChild(label);
     });
 
@@ -357,6 +517,7 @@
           ? mutationInput.value.split(",").map((value) => value.trim())
           : [];
         const normalized = applyMutations(container, values);
+        state.mutationPositions = normalized;
         mutationInput.value = normalized.join(", ");
         mutationError.textContent = "";
       } catch (error) {
@@ -374,6 +535,7 @@
           ? selectedMutationInput.value.split(",").map((value) => value.trim())
           : [];
         const result = applySelectedMutations(container, values);
+        state.mutationPositions = result.positions;
         selectedMutationInput.value = result.positions.join(", ");
         mutationInput.value = result.positions.join(", ");
         syncGeneInputs(result.genes);
@@ -388,6 +550,7 @@
     selectedMutationInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") updateSelectedMutations();
     });
+
     container.appendChild(panel);
   }
 
@@ -419,11 +582,19 @@
     svg.append(title, description);
 
     FEATURES.filter((feature) => feature.track !== "inner")
-      .forEach((feature) => addFeature(svg, feature, settings.showLabels));
+      .forEach((feature) => {
+        addFeature(svg, feature);
+      });
     FEATURES.filter((feature) => feature.track === "inner")
-      .forEach((feature) => addFeature(svg, feature, settings.showLabels));
+      .forEach((feature) => {
+        addFeature(svg, feature);
+      });
+    if (settings.showLabels) addLabels(svg, FEATURES);
 
-    container.replaceChildren(svg);
+    const canvasShell = document.createElement("div");
+    canvasShell.className = "mitochondrial-genome__canvas-shell";
+    canvasShell.appendChild(svg);
+    container.replaceChildren(canvasShell);
     if (selectedMutationPositions.length) {
       const mutationSelection = genesForMutationPositions(selectedMutationPositions);
       mutationSelection.genes.forEach((gene) => selectedNames.add(gene));
@@ -432,15 +603,23 @@
       applyMutations(container, mutationPositions);
     }
     applySelection(container, selectedNames);
+    const state = {
+      mutationPositions: selectedMutationPositions.length
+        ? selectedMutationPositions
+        : mutationPositions
+    };
+    container._mitochondrialGenomeState = state;
+    addModeControl(container, state);
     if (settings.debugControls) {
       addDebugControls(
         container,
-        FEATURES.filter((feature) => feature.type !== "trna"),
+        FEATURES,
         selectedNames,
         selectedMutationPositions.length
           ? selectedMutationPositions
           : mutationPositions,
-        selectedMutationPositions
+        selectedMutationPositions,
+        state
       );
     }
     return svg;

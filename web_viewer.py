@@ -56,6 +56,21 @@ DEFAULT_CATALOG_DATABASE_PATH = (
 VIEWER_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "viewer.html"
 ROADMAP_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "roadmap.html"
 ROADMAP_DATA_PATH = Path(__file__).resolve().parent / "roadmap.json"
+MITOCHONDRIAL_GENOME_VISUALIZER_DIR = (
+    Path(__file__).resolve().parent
+    / "prototypes"
+    / "mitochondrial-genome-visualizer"
+)
+MITOCHONDRIAL_GENOME_VISUALIZER_ASSETS = {
+    "/assets/mitochondrial-genome.css": (
+        MITOCHONDRIAL_GENOME_VISUALIZER_DIR / "mitochondrial-genome.css",
+        "text/css; charset=utf-8",
+    ),
+    "/assets/mitochondrial-genome.js": (
+        MITOCHONDRIAL_GENOME_VISUALIZER_DIR / "mitochondrial-genome.js",
+        "text/javascript; charset=utf-8",
+    ),
+}
 DEFAULT_COMPARE_STATUSES = {"common", "partial", "unique"}
 DEFAULT_SAMPLE_COMPARE_STATUSES = {"present"}
 DERIVED_SAMPLE_PREFIX = "derived:"
@@ -815,6 +830,15 @@ def html_response(handler, body, status=200):
     handler.wfile.write(encoded)
 
 
+def file_response(handler, path, content_type, status=200):
+    body = Path(path).read_bytes()
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
 def normalize_roadmap_card(card):
     if not isinstance(card, dict):
         raise ValueError("Each roadmap card must be an object.")
@@ -1241,6 +1265,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            visualizer_asset = MITOCHONDRIAL_GENOME_VISUALIZER_ASSETS.get(
+                parsed.path
+            )
+            if visualizer_asset is not None:
+                file_response(self, *visualizer_asset)
+                return
             if parsed.path == "/roadmap":
                 html_response(self, roadmap_html())
                 return

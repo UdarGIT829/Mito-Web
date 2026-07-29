@@ -16,6 +16,7 @@ from .models import (
 from .derived_models import (
     AlleleEvidence,
     DerivedCalculationResult,
+    DerivedComparison,
     DerivedDefinition,
     DerivedInput,
     DerivedInputKind,
@@ -106,6 +107,7 @@ __all__ = [
     "DEFAULT_REFERENCE_ID",
     "DerivedAnalysisService",
     "DerivedCalculationResult",
+    "DerivedComparison",
     "DerivedCatalogRepository",
     "DerivedCycleError",
     "DerivedDefinition",

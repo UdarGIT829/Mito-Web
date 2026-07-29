@@ -317,6 +317,70 @@ class DerivedCatalogRepository:
         ).fetchall()
         return [self._allele_from_row(row) for row in rows]
 
+    def list_run_sample_inputs(
+        self,
+        run_id: str,
+    ) -> list[ResolvedSampleInput]:
+        """Return the immutable observed-sample inputs captured for a run."""
+        if self.get_run(run_id) is None:
+            raise CatalogNotFoundError(f"Derived run not found: {run_id}")
+        rows = self.connection.execute(
+            """
+            SELECT *
+            FROM derived_run_input_samples
+            WHERE run_id = ?
+            ORDER BY input_clause_index, display_order, catalog_sample_id
+            """,
+            (run_id,),
+        ).fetchall()
+        return [
+            ResolvedSampleInput(
+                clause_index=row["input_clause_index"],
+                catalog_sample_id=row["catalog_sample_id"],
+                source_group_id=row["source_group_id"],
+                group_membership_fingerprint=(
+                    row["group_membership_fingerprint"]
+                ),
+                sample_fingerprint=row["sample_fingerprint"],
+                source_database_fingerprint=(
+                    row["source_database_fingerprint"]
+                ),
+                input_role=row["input_role"],
+                display_order=row["display_order"],
+            )
+            for row in rows
+        ]
+
+    def list_run_parent_inputs(
+        self,
+        run_id: str,
+    ) -> list[ResolvedParentInput]:
+        """Return the immutable parent-run inputs captured for a run."""
+        if self.get_run(run_id) is None:
+            raise CatalogNotFoundError(f"Derived run not found: {run_id}")
+        rows = self.connection.execute(
+            """
+            SELECT *
+            FROM derived_run_parent_runs
+            WHERE run_id = ?
+            ORDER BY input_clause_index, display_order, parent_run_id
+            """,
+            (run_id,),
+        ).fetchall()
+        return [
+            ResolvedParentInput(
+                clause_index=row["input_clause_index"],
+                parent_run_id=row["parent_run_id"],
+                source_group_id=row["source_group_id"],
+                group_membership_fingerprint=(
+                    row["group_membership_fingerprint"]
+                ),
+                input_role=row["input_role"],
+                display_order=row["display_order"],
+            )
+            for row in rows
+        ]
+
     def list_allele_evidence(
         self,
         derived_allele_id: str,
