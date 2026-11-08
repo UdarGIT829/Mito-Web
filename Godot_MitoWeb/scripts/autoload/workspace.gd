@@ -86,6 +86,20 @@ func undo_imports(source_ids: Array) -> void:
 
 ## Evaluated analysis graph: {node id: {frame, error, summary}}. Cached per
 ## node, so calling this often is cheap.
+## Adds tags from a parsed table to imported samples, and to the import
+## settings of their files so a re-import keeps them.
+func import_tags(table: Dictionary, match_column: int, tag_columns: Array, prefix: bool) -> Dictionary:
+	var result := TagImport.apply(model.store.samples, table, match_column, tag_columns, prefix)
+	var planned: Array = []
+	for source in model.sources():
+		planned.append_array(source["plan"].get("samples", []))
+	TagImport.apply(planned, table, match_column, tag_columns, prefix)
+	data_revision += 1
+	model.touch()
+	_mark_changed()
+	return result
+
+
 ## Stores live Ensembl results in the workspace.
 func add_live_annotations(results: Dictionary) -> void:
 	var live := model.live_annotations()

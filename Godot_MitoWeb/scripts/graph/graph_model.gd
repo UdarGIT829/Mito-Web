@@ -34,6 +34,20 @@ const TYPES := {
 		"outputs": 1,
 		"config": {"filters": {}, "mode": "drop", "flag_name": "passes"},
 	},
+	"germline_somatic": {
+		"title": "Germline / Somatic",
+		"help": "Classifies each sample's call by AF in fixed quarters: >= 0.75 germline, 0.50-0.75 indeterminate, < 0.50 somatic, no AF unknown. Keeps only the calls of the chosen classes, or labels them.",
+		"inputs": [{"name": "Mutations", "multi": false}],
+		"outputs": 1,
+		"config": {"thresholds": {"germline_min": 0.75, "somatic_below": 0.5}, "keep": ["somatic"], "mode": "keep"},
+	},
+	"annotation_filter": {
+		"title": "Annotation Filter",
+		"help": "Keeps or removes mutations by ClinVar category and review, gnomAD frequency, haplogroup-marker status, consequence or tRNA prediction.",
+		"inputs": [{"name": "Mutations", "multi": false}],
+		"outputs": 1,
+		"config": {"rules": {"clinvar_categories": ["benign"], "action": "remove"}, "mode": "drop", "flag_name": "passes"},
+	},
 	"enrich": {
 		"title": "Enrich with Annotations",
 		"help": "Adds public annotations: gnomAD mtDNA frequencies, haplogroup markers and consequences, ClinVar classifications, and Ensembl VEP lookups you run from the Tables tab.",

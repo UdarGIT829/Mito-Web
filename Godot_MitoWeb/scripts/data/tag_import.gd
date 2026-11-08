@@ -1,0 +1,96 @@
+class_name TagImport
+extends RefCounted
+## Assigns tags to imported samples from a table (CSV or TSV) such as a lab
+## metadata sheet or a haplogroup list:
+##   sample,cell_line,treatment,haplogroup
+##   C10_EV_PCR...,C10,Treated,J1c
+## One column identifies the sample (matched to sample name, then subject);
+## each chosen column's value becomes a tag, optionally prefixed with the
+## column name ("haplogroup=J1c").
+
+
+## Parses CSV (with quotes) or TSV text. Returns {"ok", "error", "header",
+## "rows"}; rows are Arrays of Strings padded to the header width.
+static func parse(text: String) -> Dictionary:
+	text = text.trim_prefix("﻿").replace("\r\n", "\n").replace("\r", "\n")
+	var lines := Array(text.split("\n")).filter(func(l): return l.strip_edges() != "")
+	if lines.size() < 2:
+		return {"ok": false, "error": "The table needs a header row and at least one data row."}
+	var tab: bool = lines[0].count("\t") > lines[0].count(",")
+	var header := _split(lines[0], tab)
+	header = header.map(func(h): return h.strip_edges())
+	var rows: Array = []
+	for i in range(1, lines.size()):
+		var cells := _split(lines[i], tab).map(func(c): return c.strip_edges())
+		while cells.size() < header.size():
+			cells.append("")
+		rows.append(cells)
+	return {"ok": true, "error": "", "header": header, "rows": rows}
+
+
+## Adds tags to matching samples (any dictionaries with "name", "subject"
+## and "tags", e.g. imported samples or import-plan samples). Returns
+## {"matched": int, "tags_added": int, "unmatched": [names]}. Tags already
+## present are not duplicated.
+static func apply(samples: Array, table: Dictionary, match_column: int, tag_columns: Array, prefix: bool) -> Dictionary:
+	var by_name := {}
+	var by_subject := {}
+	var by_lower := {}
+	for sample in samples:
+		by_name.get_or_add(sample["name"], []).append(sample)
+		by_lower.get_or_add(sample["name"].to_lower(), []).append(sample)
+		by_subject.get_or_add(sample["subject"], []).append(sample)
+	var matched := 0
+	var added := 0
+	var unmatched: Array = []
+	for row in table["rows"]:
+		var id: String = row[match_column]
+		if id.is_empty():
+			continue
+		var targets: Array = by_name.get(id, by_subject.get(id, by_lower.get(id.to_lower(), [])))
+		if targets.is_empty():
+			unmatched.append(id)
+			continue
+		matched += targets.size()
+		for sample in targets:
+			var tags := PackedStringArray(sample["tags"])
+			for col in tag_columns:
+				var value: String = row[col]
+				if value.is_empty():
+					continue
+				var tag := "%s=%s" % [table["header"][col], value] if prefix else value
+				if not tag in tags:
+					tags.append(tag)
+					added += 1
+			sample["tags"] = tags
+	return {"matched": matched, "tags_added": added, "unmatched": unmatched}
+
+
+static func _split(line: String, tab: bool) -> Array:
+	if tab:
+		return Array(line.split("\t"))
+	var out: Array = []
+	var cell := ""
+	var quoted := false
+	var i := 0
+	while i < line.length():
+		var ch := line[i]
+		if quoted:
+			if ch == "\"":
+				if i + 1 < line.length() and line[i + 1] == "\"":
+					cell += "\""
+					i += 1
+				else:
+					quoted = false
+			else:
+				cell += ch
+		elif ch == "\"":
+			quoted = true
+		elif ch == ",":
+			out.append(cell)
+			cell = ""
+		else:
+			cell += ch
+		i += 1
+	out.append(cell)
+	return out

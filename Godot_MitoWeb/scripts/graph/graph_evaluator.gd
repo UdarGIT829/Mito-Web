@@ -82,6 +82,29 @@ func _evaluate_node(graph: Dictionary, node: Dictionary, store: VariantStore, re
 				return _error(problem)
 			var flag: String = config.get("flag_name", "passes").strip_edges()
 			return _ok(MutationFilters.apply(inputs[0][0], filters, config.get("mode", "drop"), flag if flag else "passes"))
+		"germline_somatic":
+			if inputs[0].is_empty():
+				return _error("Connect an input.")
+			var thresholds: Dictionary = config.get("thresholds", AfClasses.DEFAULT_THRESHOLDS)
+			var problem := AfClasses.validate(thresholds)
+			if problem:
+				return _error(problem)
+			var keep: Array = config.get("keep", [])
+			if config.get("mode", "keep") == "keep" and keep.is_empty():
+				return _error("Choose which call classes to keep.")
+			return _ok(AfClasses.apply(inputs[0][0], thresholds, keep, config.get("mode", "keep")))
+		"annotation_filter":
+			if inputs[0].is_empty():
+				return _error("Connect an input.")
+			var load_problem := AnnotationDb.ensure_loaded()
+			if load_problem:
+				return _error(load_problem)
+			var rules: Dictionary = config.get("rules", {})
+			var problem := AnnotationFilters.validate(rules)
+			if problem:
+				return _error(problem)
+			var flag: String = config.get("flag_name", "passes").strip_edges()
+			return _ok(AnnotationFilters.apply(inputs[0][0], rules, config.get("mode", "drop"), flag if flag else "passes"))
 		"enrich":
 			if inputs[0].is_empty():
 				return _error("Connect an input.")
@@ -141,6 +164,13 @@ static func _ok(frame: MutationFrame) -> Dictionary:
 	var summary := "%d mutation%s · %d sample%s" % [
 		frame.row_count(), "" if frame.row_count() == 1 else "s",
 		frame.samples.size(), "" if frame.samples.size() == 1 else "s"]
+	if frame.af_thresholds:
+		var totals := {}
+		for r in frame.row_count():
+			var counts := AfClasses.row_counts(frame, r)
+			for c in counts:
+				totals[c] = totals.get(c, 0) + counts[c]
+		summary += "\ncalls: " + (AfClasses.describe_counts(totals) if totals else "none")
 	if frame.annotation_sources:
 		var annotated := 0
 		for allele in frame.alleles:

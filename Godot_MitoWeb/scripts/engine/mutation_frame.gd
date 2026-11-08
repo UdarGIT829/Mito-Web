@@ -20,6 +20,8 @@ var flag_reasons := {}  ## name -> PackedStringArray: why each row failed ("" if
 var duplicate_calls := 0
 ## Annotation sources added by an Enrich step ("gnomad", "clinvar", "ensembl").
 var annotation_sources: Array = []
+## AF cut-offs from a Germline / Somatic step; tables then show call classes.
+var af_thresholds := {}
 
 
 func row_count() -> int:
@@ -137,6 +139,7 @@ func _empty_like(universe: PackedInt32Array) -> MutationFrame:
 	out.samples = universe
 	out.duplicate_calls = duplicate_calls
 	out.annotation_sources = annotation_sources.duplicate()
+	out.af_thresholds = af_thresholds.duplicate()
 	for name in flags:
 		out.flags[name] = PackedByteArray()
 	for name in flag_reasons:
