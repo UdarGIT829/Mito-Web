@@ -24,6 +24,11 @@ const METADATA_FIELDS := [
 	"repeat_base", "repeat_count", "repeat_2_bases", "repeat_2_count", "repeat_3_bases", "repeat_3_count",
 ]
 const COUNT_FIELDS := ["repeat_count", "repeat_2_count", "repeat_3_count"]
+const REASON_LABELS := {
+	"position": "position", "gene": "gene", "reference": "reference base", "alt": "ALT",
+	"slippage_risk": "slippage risk", "slippage_metadata": "slippage metadata",
+	"presence": "too few carriers", "af": "AF condition",
+}
 const REFERENCE_REPEAT_VALUES := ["before", "after", "one", "both", "none", "either"]
 const METADATA_KEYS := {
 	"repeat_base": "REPEAT_1_BASE", "repeat_count": "REPEAT_1_BASE_COUNT",
@@ -161,9 +166,11 @@ static func apply(frame: MutationFrame, config: Dictionary, mode: String = "drop
 	if mode == "flag":
 		var out := frame.take_rows(range(frame.row_count()))
 		var column := PackedByteArray()
+		var reasons := PackedStringArray()
 		for result in results:
 			column.append(1 if result["passes"] else 0)
-		out.set_flag(flag_name, column)
+			reasons.append(", ".join(result["reasons"].map(func(r): return REASON_LABELS.get(r, r))))
+		out.set_flag(flag_name, column, reasons)
 		return out
 	return frame.take_rows(range(frame.row_count()).filter(func(r: int) -> bool: return results[r]["passes"]))
 

@@ -21,7 +21,8 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/data/` | Columnar `VariantStore` and the VCF importer |
 | `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci |
 | `scripts/graph/` | Analysis graph data (`GraphModel`) and cached evaluation (`GraphEvaluator`) |
-| `scripts/ui/` | Files, Samples and Analysis (GraphEdit) tabs; filter and table dialogs |
+| `scripts/table/` | `TableViewModel`: columns, column filters, sorting, paging, export |
+| `scripts/ui/` | Files, Samples, Analysis (GraphEdit) and Tables tabs; filter dialog |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
 | `tests/` | Headless tests; `fixtures/mapper_cases.json` is generated from the Python mapper |
 
@@ -72,10 +73,22 @@ carries a `MutationFrame`.
 | Logical Comparison | Include inputs (in every / in any), minus every Exclude input |
 | Logical Filter | `MutationFilters` settings; removes failing rows or adds a pass/fail column |
 | Enrich with Annotations | Pass-through until annotations are added |
-| Table | Views, copies or downloads the mutations at that point |
+| Table | Names a point in the graph to view on the Tables tab |
 
 Results are cached per node; an edit recomputes only that node and what is
 downstream of it. "Insert example" builds the treated-vs-untreated design.
+
+## Tables tab
+
+Shows a Table node's mutations, 100–1000 rows per page. Click a column title
+to sort or filter it (number ranges, text contains, genes, flag yes/no, or
+per sample: carries / does not carry / AF range). Column filters only change
+the view, not the graph. Up to 60 samples get one AF column each (optional up
+to 300); larger sets use a compact samples column. Flag columns from a
+Logical Filter in flag mode come with a "why not" column. Double-click a row
+for its calls: AF, FILTER, the allele as written in the VCF, placement on
+rCRS, repeats and reference context. Copy (TSV) and Download CSV export
+every filtered row, not just the current page.
 
 ## Commands
 

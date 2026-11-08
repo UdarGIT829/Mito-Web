@@ -5,6 +5,7 @@ extends VBoxContainer
 ## re-evaluated shortly after (unchanged nodes reuse cached results).
 
 signal status_message(text: String)
+signal open_table(node_id: String)
 
 const FRAME_COLOR := Color(0.45, 0.8, 1.0)
 const EXCLUDE_COLOR := Color(1.0, 0.45, 0.4)
@@ -17,9 +18,7 @@ var _add_menu: MenuButton
 var _context_menu: PopupMenu
 var _context_position := Vector2.ZERO
 var _filter_dialog: FilterDialog
-var _table_dialog: TableDialog
 var _confirm: ConfirmationDialog
-var _evaluator := GraphEvaluator.new()
 var _results := {}
 var _graph_ref: Dictionary = {}
 var _views := {}  # node id -> {"node": GraphNode, "status": Label, ...}
@@ -75,8 +74,6 @@ func _ready() -> void:
 	add_child(_context_menu)
 	_filter_dialog = FilterDialog.new()
 	add_child(_filter_dialog)
-	_table_dialog = TableDialog.new()
-	add_child(_table_dialog)
 	_confirm = ConfirmationDialog.new()
 	_confirm.confirmed.connect(func() -> void:
 		var g := Workspace.model.graph()
@@ -330,7 +327,7 @@ func _create_view(n: Dictionary) -> void:
 				if result.get("frame") == null:
 					status_message.emit(result.get("error", "Nothing to show yet."))
 					return
-				_table_dialog.show_frame(result["frame"], config.get("name", "")))
+				open_table.emit(n["id"]))
 			rows = [table_name, open]
 
 	var status := Label.new()
@@ -369,7 +366,7 @@ func _evaluate() -> void:
 	if Workspace.importing:
 		return
 	var started := Time.get_ticks_msec()
-	_results = _evaluator.evaluate(Workspace.model.graph(), Workspace.model.store, Workspace.data_revision)
+	_results = Workspace.graph_results()
 	for node_id in _views:
 		var result: Dictionary = _results.get(node_id, {})
 		var status: Label = _views[node_id]["status"]

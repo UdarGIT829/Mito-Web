@@ -75,6 +75,13 @@ func _build_ui() -> void:
 	analysis.name = "Analysis"
 	analysis.status_message.connect(_set_status)
 	_tabs.add_child(analysis)
+	var tables := TablePanel.new()
+	tables.name = "Tables"
+	tables.status_message.connect(_set_status)
+	_tabs.add_child(tables)
+	analysis.open_table.connect(func(node_id: String) -> void:
+		_tabs.current_tab = tables.get_index()
+		tables.show_node(node_id))
 
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 8)

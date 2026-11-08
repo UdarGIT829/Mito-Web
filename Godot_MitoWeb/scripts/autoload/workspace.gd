@@ -20,6 +20,8 @@ var importing := false
 ## Increases whenever imported samples or calls change, so cached analysis
 ## results know to recompute. Not saved.
 var data_revision := 0
+var _evaluator := GraphEvaluator.new()
+var _last_results := {}
 var _importer: VcfImporter
 var _autosave_timer: Timer
 
@@ -77,6 +79,14 @@ func undo_imports(source_ids: Array) -> void:
 		model.undo_import(source_id)
 	data_revision += 1
 	_mark_changed()
+
+
+## Evaluated analysis graph: {node id: {frame, error, summary}}. Cached per
+## node, so calling this often is cheap.
+func graph_results() -> Dictionary:
+	if not importing:
+		_last_results = _evaluator.evaluate(model.graph(), model.store, data_revision)
+	return _last_results
 
 
 ## Call after editing the analysis graph in place.

@@ -16,6 +16,7 @@ var samples := PackedInt32Array()  ## Sample universe (denominator), in order.
 var alleles := PackedInt32Array()  ## Row allele ids, sorted by position/REF/ALT.
 var carriers: Array = []  ## Per row: {sample_id: call_index}.
 var flags := {}  ## name -> PackedByteArray parallel to rows.
+var flag_reasons := {}  ## name -> PackedStringArray: why each row failed ("" if it passed).
 var duplicate_calls := 0
 
 
@@ -69,6 +70,8 @@ func take_rows(rows: Array) -> MutationFrame:
 		out.carriers.append(carriers[r])
 		for name in flags:
 			out.flags[name].append(flags[name][r])
+		for name in flag_reasons:
+			out.flag_reasons[name].append(flag_reasons[name][r])
 	return out
 
 
@@ -101,6 +104,7 @@ func union(other: MutationFrame) -> MutationFrame:
 			universe.append(id)
 	var out := _empty_like(universe)
 	out.flags = {}
+	out.flag_reasons = {}
 	var merged := {}
 	for frame in [self, other]:
 		for r in frame.row_count():
@@ -116,8 +120,10 @@ func union(other: MutationFrame) -> MutationFrame:
 	return out
 
 
-func set_flag(name: String, values: PackedByteArray) -> void:
+func set_flag(name: String, values: PackedByteArray, reasons := PackedStringArray()) -> void:
 	flags[name] = values
+	if reasons.size() == values.size():
+		flag_reasons[name] = reasons
 
 
 func _empty_like(universe: PackedInt32Array) -> MutationFrame:
@@ -127,6 +133,8 @@ func _empty_like(universe: PackedInt32Array) -> MutationFrame:
 	out.duplicate_calls = duplicate_calls
 	for name in flags:
 		out.flags[name] = PackedByteArray()
+	for name in flag_reasons:
+		out.flag_reasons[name] = PackedStringArray()
 	return out
 
 

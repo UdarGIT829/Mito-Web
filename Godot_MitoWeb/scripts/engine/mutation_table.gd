@@ -67,6 +67,10 @@ static func row_for(frame: MutationFrame, r: int, summary: Dictionary, features:
 	}
 	for name in frame.flags:
 		row[name] = frame.flags[name][r] == 1
+	var reasons := {}
+	for name in frame.flag_reasons:
+		reasons[name] = frame.flag_reasons[name][r]
+	row["flag_reasons"] = reasons
 	return row
 
 
