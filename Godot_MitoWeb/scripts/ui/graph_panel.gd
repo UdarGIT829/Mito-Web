@@ -11,13 +11,14 @@ const FRAME_COLOR := Color(0.45, 0.8, 1.0)
 const EXCLUDE_COLOR := Color(1.0, 0.45, 0.4)
 const ERROR_COLOR := Color(1, 0.5, 0.45)
 const OK_COLOR := Color(0.7, 0.95, 0.75)
-const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "enrich", "table"]
+const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "germline_somatic", "enrich", "annotation_filter", "table"]
 
 var _graph_edit: GraphEdit
 var _add_menu: MenuButton
 var _context_menu: PopupMenu
 var _context_position := Vector2.ZERO
 var _filter_dialog: FilterDialog
+var _annotation_dialog: AnnotationFilterDialog
 var _confirm: ConfirmationDialog
 var _results := {}
 var _graph_ref: Dictionary = {}
@@ -74,6 +75,8 @@ func _ready() -> void:
 	add_child(_context_menu)
 	_filter_dialog = FilterDialog.new()
 	add_child(_filter_dialog)
+	_annotation_dialog = AnnotationFilterDialog.new()
+	add_child(_annotation_dialog)
 	_confirm = ConfirmationDialog.new()
 	_confirm.confirmed.connect(func() -> void:
 		var g := Workspace.model.graph()
@@ -309,6 +312,61 @@ func _create_view(n: Dictionary) -> void:
 				config["flag_name"] = text
 				_commit())
 			rows = [summary, edit, mode, flag_name]
+		"germline_somatic":
+			var thresholds: Dictionary = config.get("thresholds", AfClasses.DEFAULT_THRESHOLDS).duplicate()
+			config["thresholds"] = thresholds
+			var germline := _number_edit(thresholds.get("germline_min", 0.75))
+			var somatic := _number_edit(thresholds.get("somatic_below", 0.5))
+			var set_thresholds := func(_t = "") -> void:
+				if germline.text.is_valid_float():
+					thresholds["germline_min"] = germline.text.to_float()
+				if somatic.text.is_valid_float():
+					thresholds["somatic_below"] = somatic.text.to_float()
+				_commit()
+			germline.text_changed.connect(set_thresholds)
+			somatic.text_changed.connect(set_thresholds)
+			var keep := CheckListButton.new("Choose classes")
+			keep.set_items(AfClasses.CLASSES)
+			keep.set_selected(config.get("keep", []))
+			keep.selection_changed.connect(func(selected: Array) -> void:
+				config["keep"] = selected
+				_commit())
+			var mode := _option(["Keep only calls of these classes", "Keep all calls, label their class"], 1 if config.get("mode") == "label" else 0)
+			mode.item_selected.connect(func(i: int) -> void:
+				config["mode"] = "label" if i == 1 else "keep"
+				keep.disabled = i == 1
+				_commit())
+			keep.disabled = config.get("mode") == "label"
+			rows = [_labeled("Germline: AF at least", germline), _labeled("Somatic: AF below", somatic),
+				_labeled("Calls", keep), mode]
+		"annotation_filter":
+			var summary := Label.new()
+			summary.text = AnnotationFilters.describe(config.get("rules", {}))
+			summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			summary.custom_minimum_size.x = 230
+			var edit := Button.new()
+			edit.text = "Edit rules…"
+			edit.pressed.connect(func() -> void:
+				for c in _annotation_dialog.saved.get_connections():
+					_annotation_dialog.saved.disconnect(c["callable"])
+				_annotation_dialog.saved.connect(func(new_rules: Dictionary) -> void:
+					config["rules"] = new_rules
+					summary.text = AnnotationFilters.describe(new_rules)
+					_commit(), CONNECT_ONE_SHOT)
+				_annotation_dialog.edit(config.get("rules", {})))
+			var mode := _option(["Remove failing mutations", "Keep all, add a pass/fail column"], 1 if config.get("mode") == "flag" else 0)
+			var flag_name := LineEdit.new()
+			flag_name.placeholder_text = "column name"
+			flag_name.text = config.get("flag_name", "passes")
+			flag_name.visible = config.get("mode") == "flag"
+			mode.item_selected.connect(func(i: int) -> void:
+				config["mode"] = "flag" if i == 1 else "drop"
+				flag_name.visible = i == 1
+				_commit())
+			flag_name.text_changed.connect(func(text: String) -> void:
+				config["flag_name"] = text
+				_commit())
+			rows = [summary, edit, mode, flag_name]
 		"enrich":
 			var labels := {"gnomad": "gnomAD v3.1 mtDNA (frequency, haplogroups, VEP)",
 				"clinvar": "ClinVar classifications", "ensembl": "Ensembl VEP lookups (Tables tab)"}
@@ -394,6 +452,13 @@ func _evaluate() -> void:
 	var elapsed := Time.get_ticks_msec() - started
 	if elapsed > 500:
 		status_message.emit("Graph updated in %.1f s." % (elapsed / 1000.0))
+
+
+static func _number_edit(value) -> LineEdit:
+	var edit := LineEdit.new()
+	edit.text = str(value)
+	edit.custom_minimum_size.x = 70
+	return edit
 
 
 static func _option(items: Array, selected: int) -> OptionButton:

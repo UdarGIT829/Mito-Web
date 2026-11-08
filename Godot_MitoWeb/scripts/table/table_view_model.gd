@@ -130,11 +130,20 @@ func cell_text(row: Dictionary, col: Dictionary, full := false) -> String:
 		"presence": return String.num(s["presence_percent"], 1)
 		"af_passing": return "" if s["af_passing_count"] == null else "%d" % s["af_passing_count"]
 		"slippage": return row["slippage"]["footprint"] if full else compact_slippage(row["slippage"])
+		"af_classes":
+			var counts := {}
+			for r in row["sample_results"]:
+				var c := AfClasses.classify(NAN if r["af"] == null else r["af"], frame.af_thresholds)
+				counts[c] = counts.get(c, 0) + 1
+			return AfClasses.describe_counts(counts)
 		"samples":
 			var results: Array = row["sample_results"]
 			var shown := results if full or results.size() <= COMPACT_SAMPLES_SHOWN else results.slice(0, COMPACT_SAMPLES_SHOWN)
 			var text := "; ".join(shown.map(func(r):
-				return "%s %s" % [r["sample_label"], "AF n/a" if r["af"] == null else String.num(r["af"], 4)]))
+				var label := "%s %s" % [r["sample_label"], "AF n/a" if r["af"] == null else String.num(r["af"], 4)]
+				if frame.af_thresholds:
+					label += " " + AfClasses.SHORT[AfClasses.classify(NAN if r["af"] == null else r["af"], frame.af_thresholds)]
+				return label))
 			if shown.size() < results.size():
 				text += "; … +%d more" % (results.size() - shown.size())
 			return text
@@ -153,7 +162,10 @@ func cell_text(row: Dictionary, col: Dictionary, full := false) -> String:
 			if not by_sample.has(col["sample_id"]):
 				return ""
 			var af = by_sample[col["sample_id"]]
-			return "n/a" if af == null else String.num(af, 4)
+			var text := "n/a" if af == null else String.num(af, 4)
+			if frame.af_thresholds:
+				text += " " + AfClasses.SHORT[AfClasses.classify(NAN if af == null else af, frame.af_thresholds)]
+			return text
 	return ""
 
 
@@ -304,6 +316,8 @@ func _build_columns() -> void:
 		columns.append({"id": "flag:" + name, "title": name, "kind": "flag", "flag": name})
 		if frame.flag_reasons.has(name):
 			columns.append({"id": "why:" + name, "title": name + ": why not", "kind": "reason", "flag": name})
+	if frame.af_thresholds:
+		columns.append({"id": "af_classes", "title": "Call classes", "kind": "text"})
 	var sources: Array = frame.annotation_sources
 	if "gnomad" in sources:
 		columns.append({"id": "ann:gnomad_af_hom", "title": "gnomAD AF hom", "kind": "number"})

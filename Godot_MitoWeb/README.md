@@ -74,6 +74,8 @@ carries a `MutationFrame`.
 | Filter on Tag | Mutations with a carrier having any of the tags, or every tag across carriers; can also narrow the samples |
 | Logical Comparison | Include inputs (in every / in any), minus every Exclude input |
 | Logical Filter | `MutationFilters` settings; removes failing rows or adds a pass/fail column |
+| Germline / Somatic | Classifies every call by AF (see below); keeps only calls of chosen classes, or labels them |
+| Annotation Filter | Keeps or removes mutations by ClinVar category/review, gnomAD frequency, haplogroup marker, consequence, tRNA prediction |
 | Enrich with Annotations | Adds gnomAD, ClinVar and live Ensembl annotation columns to the tables after it |
 | Table | Names a point in the graph to view on the Tables tab |
 
@@ -91,6 +93,31 @@ Logical Filter in flag mode come with a "why not" column. Double-click a row
 for its calls: AF, FILTER, the allele as written in the VCF, placement on
 rCRS, repeats and reference context. Copy (TSV) and Download CSV export
 every filtered row, not just the current page.
+
+## Germline / somatic classification
+
+Rule `af-quarters-v1`, applied to each sample's call (never to a mutation as
+a whole): AF >= 0.75 germline, 0.50 <= AF < 0.75 indeterminate, AF < 0.50
+somatic, no AF unknown. These are fixed quarters of the AF scale, not
+quantiles of the data: mitochondrial heteroplasmy is bimodal (one hump near
+1, one near 0), so the middle band is nearly empty and calls there are
+flagged rather than labelled. Cut-offs are editable per node. Keeping only
+somatic calls removes germline carriers from a mutation; mutations left with
+no carriers drop out, while the sample universe (presence denominator) stays.
+
+## Annotation rules
+
+Rule `annotation-rules-v1`. ClinVar wording is grouped into pathogenic,
+benign, uncertain, conflicting (conflicting or mixed), other (risk factor,
+affects, association, ...) and absent (no record; never treated as benign).
+Review status maps to ClinVar's stars (0-4).
+
+## Tags from a table
+
+Samples tab, "Import tags from a table": a CSV/TSV with a header row. One
+column names the sample (matched to sample name, then subject); chosen
+columns become tags, optionally as `column=value`. Tags are also written into
+the files' import settings, so they survive Undo import and re-import.
 
 ## Annotations
 
