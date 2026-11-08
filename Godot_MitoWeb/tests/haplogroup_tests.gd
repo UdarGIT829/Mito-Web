@@ -23,8 +23,17 @@ func check(condition: bool, label: String) -> void:
 
 func test_notation() -> void:
 	check(Array(HaplogroupClassifier.notation(73, "A", "G")) == ["73G"], "SNV")
-	check(Array(HaplogroupClassifier.notation(522, "ACA", "A")) == ["523D", "524D"], "deletion: one entry per deleted base")
-	check(Array(HaplogroupClassifier.notation(309, "C", "CC")) == ["309.1C"], "insertion after the anchor")
+	# rCRS 50-61: TTTGGTATTTTC. Deleting two T's from the run at 57-60:
+	# left-normalized 56 ATT>A, PhyloTree writes it 59d 60d (as HaploGrep).
+	check(Array(HaplogroupClassifier.notation(56, "ATT", "A")) == ["59D", "60D"], "deletions move to the end of a repeat")
+	# Poly-C 303-309: a left-normalized C insertion (302 A>AC) is PhyloTree's 309.1C hotspot.
+	check(Array(HaplogroupClassifier.notation(302, "A", "AC")) == ["309.1C"], "insertions move to the end of a repeat")
+	# Native VCF alleles are read literally, as HaploGrep does.
+	check(Array(HaplogroupClassifier.literal_notation(313, "CC", "C")) == ["314D"], "literal deletion keeps the VCF position")
+	check(Array(HaplogroupClassifier.literal_notation(308, "CCTCCCC", "CTCCCC")) == ["314D"], "HaploGrep reads a shorter ALT as deleting the tail (314d)")
+	check(Array(HaplogroupClassifier.literal_notation(263, "AC", "GC")) == ["263G"], "equal lengths: per-base substitutions")
+	check(Array(HaplogroupClassifier.literal_notation(309, "C", "CCT")) == ["309.1CT"], "literal insertion")
+	check(Array(HaplogroupClassifier.literal_notation(73, "A", "G")) == ["73G"], "literal SNV")
 	check(Array(HaplogroupClassifier.notation(73, "AT", "GC")) == ["73G", "74C"], "multi-base substitution split per base")
 
 
