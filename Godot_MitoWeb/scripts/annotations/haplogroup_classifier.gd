@@ -297,8 +297,19 @@ static func macro(node: int) -> String:
 ## whichever of those two is on its side.
 static func clades(node: int) -> PackedStringArray:
 	var out := PackedStringArray()
+	for n in true_ancestors(node):
+		var name := _names[n]
+		var cluster: String = _cluster_nodes.get(name, name if _clusters.has(name) else "")
+		if cluster and not cluster in out:
+			out.append(cluster)
+	return out
+
+
+## The node and its true ancestors, innermost first, ending next to the
+## mt-MRCA (L0 or L1'2'3'4'5'6). See clades().
+static func true_ancestors(node: int) -> PackedInt32Array:
 	if node < 0:
-		return out
+		return PackedInt32Array()
 	var up := _path_up(node)
 	var l0 := _names.find("L0")
 	var other := _names.find("L1'2'3'4'5'6")
@@ -315,12 +326,27 @@ static func clades(node: int) -> PackedStringArray:
 		var down: Array = Array(target_up.slice(0, target_up.find(up[meet])))
 		down.reverse()
 		path.append_array(down)
-	for n in path:
-		var name := _names[n]
-		var cluster: String = _cluster_nodes.get(name, name if _clusters.has(name) else "")
-		if cluster and not cluster in out:
-			out.append(cluster)
+	return PackedInt32Array(path)
+
+
+## The variants on the edge between a node and its true parent, i.e. what
+## defines the haplogroup (written as on the stored edge, so for nodes on
+## the reference's own lineage they are the parent's state).
+static func defining_variants(node: int) -> PackedStringArray:
+	var path := true_ancestors(node)
+	if path.size() < 2:
+		return PackedStringArray()
+	var edge := node if _parent[node] == path[1] else path[1]  # stored on the child side
+	var out := PackedStringArray()
+	for p in _adds[edge]:
+		out.append(_polys[p])
+	for p in _removes[edge]:
+		out.append(_polys[p] + "!")
 	return out
+
+
+static func node_name(node: int) -> String:
+	return _names[node]
 
 
 ## Node ids from `node` up the stored parent links to the root.
