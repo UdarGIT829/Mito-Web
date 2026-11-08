@@ -292,9 +292,8 @@ static func macro(node: int) -> String:
 ##
 ## The tree is stored rooted at the reference (rCRS, in H2a2a1), so parent
 ## links do not lead to true ancestors: walking up from L0a passes L3, N,
-## R and H. The true root (mt-MRCA) lies between L0 and L1'2'3'4'5'6, so a
-## node's true ancestors are the nodes on the tree path from it to
-## whichever of those two is on its side.
+## R and H. A node's true ancestors are the nodes on the tree path from it
+## to the true root (see true_ancestors).
 static func clades(node: int) -> PackedStringArray:
 	var out := PackedStringArray()
 	for n in true_ancestors(node):
@@ -305,15 +304,16 @@ static func clades(node: int) -> PackedStringArray:
 	return out
 
 
-## The node and its true ancestors, innermost first, ending next to the
-## mt-MRCA (L0 or L1'2'3'4'5'6). See clades().
+## The node and its true ancestors, innermost first, ending at the root.
 static func true_ancestors(node: int) -> PackedInt32Array:
 	if node < 0:
 		return PackedInt32Array()
 	var up := _path_up(node)
-	var l0 := _names.find("L0")
-	var other := _names.find("L1'2'3'4'5'6")
-	var target := l0 if up.has(l0) else other
+	# In the rCRS-rooted file the three backbone nodes nearest the root are
+	# named one step off: the node called L1'2'3'4'5'6 is the junction where
+	# L0 joins, i.e. the true root (mt-MRCA); "L2'3'4'5'6" is where L1 joins
+	# and "L2'3'4'6+" where L5 joins.
+	var target := _names.find("L1'2'3'4'5'6")
 	var path: Array = []
 	if target < 0:
 		path = Array(up)  # tree without the L0 split: parents are ancestors
