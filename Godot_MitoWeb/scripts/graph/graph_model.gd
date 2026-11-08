@@ -87,6 +87,7 @@ static func add_node(graph: Dictionary, type: String, position: Vector2 = Vector
 		"id": "n%d" % graph["next_id"],
 		"type": type,
 		"title": spec["title"],
+		"description": "",
 		"position": position,
 		"config": merged,
 	}
@@ -176,6 +177,12 @@ static func _visit(graph: Dictionary, node_id: String, visited: Dictionary, orde
 	order.append(node_id)
 
 
+## The name the user gave a node, or "" if it still has its type's name.
+static func custom_title(n: Dictionary) -> String:
+	var title := str(n.get("title", "")).strip_edges()
+	return "" if title.is_empty() or title == TYPES.get(n.get("type"), {}).get("title", "") else title
+
+
 ## Copies every node and edge of `source` into `target` (new ids), placed
 ## below whatever `target` already holds. Returns the new node ids.
 static func merge(target: Dictionary, source: Dictionary) -> Array:
@@ -186,6 +193,7 @@ static func merge(target: Dictionary, source: Dictionary) -> Array:
 	for n in source["nodes"]:
 		var copy := add_node(target, n["type"], n["position"] + offset, n["config"])
 		copy["title"] = n["title"]
+		copy["description"] = str(n.get("description", ""))
 		renamed[n["id"]] = copy["id"]
 	for e in source["edges"]:
 		connect_nodes(target, renamed[e["from"]], e["from_port"], renamed[e["to"]], e["to_port"])

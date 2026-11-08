@@ -114,6 +114,12 @@ carries a `MutationFrame`.
 Results are cached per node; an edit recomputes only that node and what is
 downstream of it.
 
+Every node can be given a name and a description: double-click its title bar
+or press "Edit". The description is shown on the node and in its tooltip. A
+named group labels its series on the Statistics tab, and named Table and
+Statistics nodes are listed by that name when they have no table name.
+Names and descriptions are saved with the workspace and in workflows.
+
 ## Workflows
 
 Preset analyses, from "Workflows…" on the Analysis tab. A workflow asks for
@@ -121,7 +127,8 @@ its settings, then inserts its graph (or replaces the current one).
 
 - **Treated vs untreated** (group tags A and B): exclusive and shared
   mutations, annotated, with density statistics including all somatic calls.
-- **Recreate haplogroup markers** (major haplogroup, common %, rare %):
+- **Recreate haplogroup markers** (major haplogroup, common %, rare %;
+  assigns haplogroups first if no sample has them):
   *gained* = carried by >= common% of the haplogroup and < rare% of everyone
   else; *absent* = the reverse (how H, the rCRS haplogroup, is defined: it
   lacks 2706G and 7028T). Both sets are flagged against PhyloTree markers.

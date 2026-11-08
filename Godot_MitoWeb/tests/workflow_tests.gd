@@ -23,6 +23,7 @@ func run(runner) -> void:
 	test_haplogroup_graph()
 	test_merge()
 	test_files_and_saving()
+	test_node_names()
 
 
 func check(condition: bool, label: String) -> void:
@@ -96,3 +97,29 @@ func test_files_and_saving() -> void:
 	model.saved_workflows().append(saved)
 	var loaded := WorkspaceModel.from_bytes(model.to_bytes())
 	check(loaded["ok"] and loaded["model"].saved_workflows().size() == 1 and loaded["model"].saved_workflows()[0]["title"] == "U markers", "saved workflows survive save/load")
+
+
+func test_node_names() -> void:
+	var g := GraphModel.new_graph()
+	var source := GraphModel.add_node(g, "data_provider")
+	var stats := GraphModel.add_node(g, "statistics")
+	GraphModel.connect_nodes(g, source["id"], 0, stats["id"], 0)
+	check(source["description"] == "" and GraphModel.custom_title(source) == "", "new nodes have their type's name and no description")
+	var evaluator := GraphEvaluator.new()
+	var before: Dictionary = evaluator.evaluate(g, store, 1)[stats["id"]]
+	check(before["stats"]["groups"][0]["label"] == "Samples: all", "an unnamed group is labelled from its settings")
+	source["title"] = "Cohort"
+	source["description"] = "Every sample, PASS or not."
+	var after: Dictionary = evaluator.evaluate(g, store, 1)[stats["id"]]
+	check(GraphModel.custom_title(source) == "Cohort" and after["stats"]["groups"][0]["label"] == "Cohort", "renaming a node relabels its group (cache refreshed)")
+	var target := GraphModel.new_graph()
+	GraphModel.merge(target, g)
+	check(target["nodes"][0]["title"] == "Cohort" and target["nodes"][0]["description"] == "Every sample, PASS or not.", "merge keeps names and descriptions")
+	var back := Workflows.from_file_text(Workflows.to_file_text(Workflows.from_graph(g, "x", "")))
+	check(back["workflow"]["graph"]["nodes"][0]["description"] == "Every sample, PASS or not.", "workflow files keep descriptions")
+	var model := WorkspaceModel.new()
+	model.graph()["nodes"] = g["nodes"]
+	model.graph()["edges"] = g["edges"]
+	model.graph()["next_id"] = g["next_id"]
+	var loaded := WorkspaceModel.from_bytes(model.to_bytes())
+	check(loaded["ok"] and loaded["model"].graph()["nodes"][0]["description"] == "Every sample, PASS or not.", "descriptions survive save/load")

@@ -12,6 +12,7 @@ const FRAME_COLOR := Color(0.45, 0.8, 1.0)
 const EXCLUDE_COLOR := Color(1.0, 0.45, 0.4)
 const ERROR_COLOR := Color(1, 0.5, 0.45)
 const OK_COLOR := Color(0.7, 0.95, 0.75)
+const NOTE_COLOR := Color(0.85, 0.85, 0.7)
 const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "germline_somatic", "enrich", "annotation_filter", "table", "statistics"]
 
 var _graph_edit: GraphEdit
@@ -28,6 +29,10 @@ var _views := {}  # node id -> {"node": GraphNode, "status": Label, ...}
 var _tag_pickers: Array = []
 var _eval_timer: Timer
 var _tags_revision := -1
+var _info_dialog: ConfirmationDialog
+var _info_name: LineEdit
+var _info_description: TextEdit
+var _info_node_id := ""
 
 
 func _ready() -> void:
@@ -90,6 +95,7 @@ func _ready() -> void:
 		g["edges"].clear()
 		_commit(true))
 	add_child(_confirm)
+	_build_info_dialog()
 
 	_eval_timer = Timer.new()
 	_eval_timer.one_shot = true
@@ -260,9 +266,18 @@ func _create_view(n: Dictionary) -> void:
 	gn.name = n["id"]
 	gn.title = n["title"]
 	gn.position_offset = n["position"]
-	gn.tooltip_text = spec["help"]
 	gn.custom_minimum_size.x = 250
 	_apply_opaque_style(gn)
+	var info_button := Button.new()
+	info_button.text = "Edit"
+	info_button.flat = true
+	info_button.tooltip_text = "Name this node and add a description (or double-click the title)"
+	info_button.pressed.connect(func() -> void: _open_info(n["id"]))
+	gn.get_titlebar_hbox().add_child(info_button)
+	gn.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.double_click and event.button_index == MOUSE_BUTTON_LEFT \
+				and event.position.y < gn.get_titlebar_hbox().size.y + 6:
+			_open_info(n["id"]))
 	var close := Button.new()
 	close.text = "×"
 	close.flat = true
@@ -504,6 +519,12 @@ func _create_view(n: Dictionary) -> void:
 	status.custom_minimum_size.x = 230
 	rows.append(status)
 	view["status"] = status
+	var note := Label.new()  # after the slot rows, so ports stay where they are
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size.x = 230
+	note.add_theme_color_override("font_color", NOTE_COLOR)
+	rows.append(note)
+	view["note"] = note
 	for row in rows:
 		gn.add_child(row)
 	var inputs: Array = spec["inputs"]
@@ -517,6 +538,81 @@ func _create_view(n: Dictionary) -> void:
 		gn.set_slot_color_right(0, FRAME_COLOR)
 	_graph_edit.add_child(gn)
 	_views[n["id"]] = view
+	_show_info(n)
+
+
+## Shows a node's name and description on its view.
+func _show_info(n: Dictionary) -> void:
+	var view: Dictionary = _views.get(n["id"], {})
+	if view.is_empty():
+		return
+	var gn: GraphNode = view["node"]
+	var spec: Dictionary = GraphModel.TYPES[n["type"]]
+	var description := str(n.get("description", "")).strip_edges()
+	gn.title = n["title"]
+	var type_line := "" if GraphModel.custom_title(n).is_empty() else "%s node. " % spec["title"]
+	gn.tooltip_text = (description + "\n\n" if description else "") + type_line + spec["help"]
+	view["note"].text = description
+	view["note"].visible = not description.is_empty()
+	gn.reset_size()  # shrink back when a long description is removed
+
+
+func _build_info_dialog() -> void:
+	_info_dialog = ConfirmationDialog.new()
+	_info_dialog.title = "Node name and description"
+	_info_dialog.ok_button_text = "Save"
+	var box := VBoxContainer.new()
+	_info_dialog.add_child(box)
+	box.add_child(_text_label("Name (shown on the node; also labels its group in statistics)"))
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	_info_name = LineEdit.new()
+	_info_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_info_name)
+	var reset := Button.new()
+	reset.text = "Default name"
+	reset.pressed.connect(func() -> void:
+		var n := GraphModel.node(Workspace.model.graph(), _info_node_id)
+		if n:
+			_info_name.text = GraphModel.TYPES[n["type"]]["title"])
+	row.add_child(reset)
+	_info_dialog.register_text_enter(_info_name)
+	box.add_child(_text_label("Description (notes: what this step is for, why these settings)"))
+	_info_description = TextEdit.new()
+	_info_description.custom_minimum_size = Vector2(460, 110)
+	_info_description.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	box.add_child(_info_description)
+	_info_dialog.confirmed.connect(_save_info)
+	add_child(_info_dialog)
+
+
+func _open_info(node_id: String) -> void:
+	var n := GraphModel.node(Workspace.model.graph(), node_id)
+	if n.is_empty():
+		return
+	_info_node_id = node_id
+	_info_name.text = n["title"]
+	_info_description.text = str(n.get("description", ""))
+	_info_dialog.popup_centered()
+	_info_name.grab_focus.call_deferred()
+	_info_name.select_all.call_deferred()
+
+
+func _save_info() -> void:
+	var n := GraphModel.node(Workspace.model.graph(), _info_node_id)
+	if n.is_empty():
+		return
+	var name := _info_name.text.strip_edges()
+	n["title"] = name if name else GraphModel.TYPES[n["type"]]["title"]
+	n["description"] = _info_description.text.strip_edges()
+	_show_info(n)
+	_commit()
+
+
+static func _text_label(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	return l
 
 
 func _refresh_tag_lists() -> void:
