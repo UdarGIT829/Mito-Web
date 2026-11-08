@@ -117,7 +117,10 @@ func _sync() -> void:
 	for i in _node_ids.size():
 		var n := GraphModel.node(graph, _node_ids[i])
 		var name: String = n["config"].get("name", "")
+		if name.is_empty():
+			name = GraphModel.custom_title(n)
 		_picker.add_item(name if name else "Statistics %s" % n["id"].trim_prefix("n"))
+		_picker.set_item_tooltip(i, str(n.get("description", "")))
 		if _node_ids[i] == _node_id:
 			_picker.select(i)
 	var result: Dictionary = results.get(_node_id, {})

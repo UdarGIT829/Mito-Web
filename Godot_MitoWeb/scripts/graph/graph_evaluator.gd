@@ -23,7 +23,8 @@ func evaluate(graph: Dictionary, store: VariantStore, revision: int) -> Dictiona
 		var node := GraphModel.node(graph, node_id)
 		var input_keys: Array = []
 		for port in GraphModel.TYPES[node["type"]]["inputs"].size():
-			input_keys.append(GraphModel.inputs_of(graph, node_id, port).map(func(id): return keys.get(id, "?")))
+			# Input names too: renaming a group relabels it downstream (statistics series).
+			input_keys.append(GraphModel.inputs_of(graph, node_id, port).map(func(id): return [keys.get(id, "?"), GraphModel.node(graph, id).get("title", "")]))
 		var key := str([node["type"], node["config"], input_keys]).sha256_text()
 		keys[node_id] = key
 		var cached: Dictionary = _cache.get(node_id, {})
@@ -150,6 +151,9 @@ func _evaluate_node(graph: Dictionary, node: Dictionary, store: VariantStore, re
 
 ## A readable name for a group arriving from `source`.
 static func group_label(source: Dictionary) -> String:
+	var custom := GraphModel.custom_title(source)
+	if custom:
+		return custom
 	var config: Dictionary = source.get("config", {})
 	match source.get("type"):
 		"tag_filter":
