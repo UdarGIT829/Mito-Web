@@ -42,6 +42,8 @@ static func builtin() -> Array:
 			"build": func(p: Dictionary) -> Dictionary: return haplogroup_markers_graph(str(p["haplogroup"]), float(p["common"]), float(p["rare"]), str(p["scope"])),
 		},
 		_lupus_entry(),
+		_lupus_mutations_entry(),
+		_population_entry(),
 	]
 
 
@@ -106,6 +108,118 @@ static func lupus_graph(tag: String) -> Dictionary:
 		GraphModel.describe(compare, t[0], t[1])
 		for group in groups:
 			GraphModel.connect_nodes(g, group["id"], 0, compare["id"], 0)
+	return g
+
+
+static func _lupus_mutations_entry() -> Dictionary:
+	return {
+		"id": "lupus_mutations",
+		"title": "Lupus: mutations and outcomes",
+		"description": "Extends the lupus lineage study from haplogroups to the mutations themselves. Per patient: somatic (AF < 0.50, also with a 5% floor that drops low-AF noise), indeterminate and germline mutation counts by lineage, and their Spearman correlation with SLEDAI-2K and SDI. Then the somatic mutations found only in Amerindian patients, and only in African patients, annotated with gnomAD and ClinVar. Results are on the Patients and Tables tabs.",
+		"needs": "Haplogroups and lineages (Samples tab) and SLEDAI and SDI values from Import from a table, as for Lupus lineages.",
+		"needs_haplogroups": true,
+		"lineage_preset": "psle_2026",
+		"params": [{"id": "tag", "label": "Patients tag", "type": "tag", "default": "lupusN"}],
+		"build": func(p: Dictionary) -> Dictionary: return lupus_mutations_graph(str(p["tag"])),
+	}
+
+
+static func _population_entry() -> Dictionary:
+	return {
+		"id": "cohort_vs_population",
+		"title": "Cohort vs 1000 Genomes",
+		"description": "Compares the lineage make-up of a patient cohort with 1000 Genomes reference populations: share of African, Amerindian, Caucasian and Asian lineages in the cohort, in Mexican Ancestry from Los Angeles (MXL), in the other admixed American populations and in the rest of 1000 Genomes, with Fisher's exact tests. Shows whether the cohort's lineages differ from the population it was drawn from.",
+		"needs": "The 1000 Genomes bundle (tags 1000G and population codes) and a patient cohort, all with haplogroups. Lineage rules are set to the pSLE 2026 ones if none exist.",
+		"needs_haplogroups": true,
+		"lineage_preset": "psle_2026",
+		"params": [
+			{"id": "tag", "label": "Cohort tag", "type": "tag", "default": "lupusN"},
+			{"id": "population", "label": "Local population tag", "type": "tag", "default": "MXL"},
+		],
+		"build": func(p: Dictionary) -> Dictionary: return population_graph(str(p["tag"]), str(p["population"])),
+	}
+
+
+static func _lineage_providers(g: Dictionary, tag: String, lineages: Array, x: float = 0.0, step: float = 380.0) -> Array:
+	var out: Array = []
+	var y := 0.0
+	for lineage in lineages:
+		var n := GraphModel.add_node(g, "data_provider", Vector2(x, y), {"criteria": {"tags_all": [tag, Lineages.PREFIX + lineage]}})
+		GraphModel.describe(n, lineage, "Patients tagged %s whose lineage is %s." % [tag, lineage])
+		out.append(n)
+		y += step
+	return out
+
+
+## Mutation counts per patient by lineage and against outcomes, plus the
+## somatic mutations unique to the two most severe lineages in the paper.
+static func lupus_mutations_graph(tag: String) -> Dictionary:
+	var g := GraphModel.new_graph()
+	var lineages := ["African", "Amerindian", "Caucasian", "Asian"]
+	var groups := _lineage_providers(g, tag, lineages)
+	var counts := GraphModel.add_node(g, "patient_compare", Vector2(560, 0), {"name": "Mutation counts by lineage", "measures": [
+		{"label": "Somatic mutations (AF < 0.50)", "attribute": "[Mutations: somatic, AF < 0.50]", "summary": "median", "pairwise": true},
+		{"label": "Somatic mutations (0.05 <= AF < 0.50)", "attribute": "[Mutations: somatic, 0.05 <= AF < 0.50]", "summary": "median", "pairwise": true},
+		{"label": "Indeterminate (0.50-0.75)", "attribute": "[Mutations: indeterminate, 0.50-0.75]", "summary": "median", "pairwise": false},
+		{"label": "Germline (AF >= 0.75)", "attribute": "[Mutations: germline, AF >= 0.75]", "summary": "median", "pairwise": false}]})
+	GraphModel.describe(counts, "Mutation counts by lineage", "Mutations per patient by AF class (a patient with several samples gets their mean). Germline counts mostly reflect how far the haplogroup is from rCRS; somatic counts are the heteroplasmic load.")
+	var outcomes := GraphModel.add_node(g, "patient_compare", Vector2(560, 600), {"name": "Mutations vs SLEDAI-2K and SDI", "measures": [
+		{"label": "Somatic (AF < 0.50) vs SLEDAI-2K", "attribute": "[Mutations: somatic, AF < 0.50]", "summary": "correlation", "with": "SLEDAI", "pairwise": false},
+		{"label": "Somatic (>= 0.05) vs SLEDAI-2K", "attribute": "[Mutations: somatic, 0.05 <= AF < 0.50]", "summary": "correlation", "with": "SLEDAI", "pairwise": false},
+		{"label": "Somatic (>= 0.05) vs SDI", "attribute": "[Mutations: somatic, 0.05 <= AF < 0.50]", "summary": "correlation", "with": "SDI", "pairwise": false},
+		{"label": "Indeterminate vs SLEDAI-2K", "attribute": "[Mutations: indeterminate, 0.50-0.75]", "summary": "correlation", "with": "SLEDAI", "pairwise": false}]})
+	GraphModel.describe(outcomes, "Mutations vs SLEDAI-2K and SDI", "Spearman correlation of each patient's mutation counts with disease activity and damage, per lineage and overall. With 25 patients, treat these as leads.")
+	for compare in [counts, outcomes]:
+		for group in groups:
+			GraphModel.connect_nodes(g, group["id"], 0, compare["id"], 0)
+	var y := 1200.0
+	for k in [1, 0]:  # Amerindian, African
+		var lineage: String = lineages[k]
+		var somatic := GraphModel.add_node(g, "germline_somatic", Vector2(560, y), {"keep": ["somatic"], "mode": "keep"})
+		GraphModel.describe(somatic, "Somatic calls: %s" % lineage, "%s patients' calls with AF < 0.50." % lineage)
+		GraphModel.connect_nodes(g, groups[k]["id"], 0, somatic["id"], 0)
+		var only := GraphModel.add_node(g, "comparison", Vector2(900, y))
+		GraphModel.describe(only, "Only in %s patients" % lineage, "Somatic mutations of %s patients that no patient of another lineage carries at any AF." % lineage)
+		GraphModel.connect_nodes(g, somatic["id"], 0, only["id"], 0)
+		for j in lineages.size():
+			if j != k:
+				GraphModel.connect_nodes(g, groups[j]["id"], 0, only["id"], 1)
+		var enrich := GraphModel.describe(GraphModel.add_node(g, "enrich", Vector2(1240, y), {"sources": ["gnomad", "clinvar"]}),
+			"Annotate %s-only" % lineage, "gnomAD population frequency and ClinVar significance, to tell known polymorphisms from candidates.")
+		GraphModel.connect_nodes(g, only["id"], 0, enrich["id"], 0)
+		var table := GraphModel.describe(GraphModel.add_node(g, "table", Vector2(1580, y), {"name": "Somatic, only in %s patients" % lineage}),
+			"Table: %s-only somatic" % lineage, "Open on the Tables tab; double-click a row for each patient's call and AF.")
+		GraphModel.connect_nodes(g, enrich["id"], 0, table["id"], 0)
+		y += 420.0
+	return g
+
+
+## A cohort's lineage shares against 1000 Genomes populations.
+static func population_graph(tag: String, population: String) -> Dictionary:
+	var g := GraphModel.new_graph()
+	# Non-overlapping groups, so the across-group test is valid.
+	var other_amr: Array = ["MXL", "PUR", "CLM", "PEL"].filter(func(code): return code != population)
+	var specs := [
+		[tag, {"tags_all": [tag]}, "The patient cohort (samples tagged %s)." % tag],
+		["1000G %s" % population, {"tags_all": ["1000G", population]}, "1000 Genomes samples of population %s (MXL: Mexican Ancestry from Los Angeles)." % population],
+		["1000G other AMR", {"tags_any": other_amr}, "The other admixed American populations in 1000 Genomes (%s)." % ", ".join(other_amr)],
+		["1000G rest", {"tags_any": ["AFR", "EAS", "EUR", "SAS"]}, "All other 1000 Genomes samples (African, East Asian, European, South Asian)."],
+	]
+	var groups: Array = []
+	var y := 0.0
+	for spec in specs:
+		var n := GraphModel.add_node(g, "data_provider", Vector2(0, y), {"criteria": spec[1]})
+		GraphModel.describe(n, spec[0], spec[2])
+		groups.append(n)
+		y += 300.0
+	var measures: Array = []
+	for lineage in ["African", "Amerindian", "Caucasian", "Asian"]:
+		measures.append({"label": "%s lineage, n (%%)" % lineage, "attribute": "[Lineage]", "summary": "percent",
+			"condition": {"op": "=", "value": lineage}, "pairwise": true})
+	var compare := GraphModel.add_node(g, "patient_compare", Vector2(560, 0), {"name": "Lineage shares", "measures": measures})
+	GraphModel.describe(compare, "Lineage shares", "Share of each lineage per group, Fisher's exact test across groups and for each pair. The cohort vs %s column asks whether the patients' maternal lineages differ from the local population." % population)
+	for group in groups:
+		GraphModel.connect_nodes(g, group["id"], 0, compare["id"], 0)
 	return g
 
 

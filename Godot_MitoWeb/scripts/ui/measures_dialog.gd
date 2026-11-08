@@ -62,7 +62,7 @@ func open(measures: Array, attributes: Array) -> void:
 	_rows.clear()
 	for m in measures:
 		_add_row(m)
-	_hint.text = "" if attributes else "No values imported yet: on the Samples tab use Import from a table and choose value columns."
+	_hint.text = "" if attributes.any(func(a): return not PatientCompare.is_computed(a)) else "No values imported yet (only computed ones): on the Samples tab use Import from a table and choose value columns."
 	popup_centered()
 
 

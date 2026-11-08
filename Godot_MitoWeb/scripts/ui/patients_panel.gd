@@ -95,14 +95,14 @@ func _fill_roster() -> void:
 	var by_subject := {}
 	for sample in store.samples:
 		by_subject.get_or_add(sample["subject"], []).append(sample)
-	var attributes := PatientCompare.attribute_names(store)
-	var titles := ["Patient", "Samples", "Haplogroup", "Lineage"] + attributes
+	var attributes := PatientCompare.attribute_names(store, false)
+	var titles := ["Patient", "Samples", "Haplogroup", "Lineage", "Mixture check"] + attributes
 	_roster.clear()
 	_roster.columns = titles.size()
 	for i in titles.size():
 		_roster.set_column_title(i, titles[i])
 		_roster.set_column_expand(i, i == 0)
-		_roster.set_column_custom_minimum_width(i, 140 if i < 4 else 90)
+		_roster.set_column_custom_minimum_width(i, 140 if i < 5 else 90)
 	var root := _roster.create_item()
 	var subjects := by_subject.keys()
 	subjects.sort_custom(func(a, b): return str(a).naturalnocasecmp_to(str(b)) < 0)
@@ -132,12 +132,27 @@ func _fill_roster() -> void:
 			for c in [2, 3]:
 				item.set_custom_color(c, WARN)
 			item.set_tooltip_text(2, "Its samples disagree. Set the haplogroup by hand on the Samples tab (select the samples, Set haplogroup…).")
+		var mixed: Array = samples.filter(func(x): return x.get("haplogroup_check", {}).get("flag", false))
+		var disagree: Array = samples.filter(func(x): return HaplogroupClassifier.manual_disagreement(x) != "")
+		if mixed or disagree:
+			var parts: Array = []
+			if disagree:
+				parts.append("%d file(s) look like another haplogroup" % disagree.size())
+			if mixed:
+				parts.append("%d mixed" % mixed.size())
+			item.set_text(4, ", ".join(parts))
+			item.set_custom_color(4, Color(1, 0.6, 0.35))
+			var lines: Array = disagree.map(func(x): return "%s looks like %s (set to %s)" % [x["name"], HaplogroupClassifier.manual_disagreement(x), x["haplogroup"]["name"]])
+			lines.append_array(mixed.map(func(x): return "%s: %s in %s" % [x["name"], x["haplogroup_check"]["minor"], x["haplogroup_check"]["major"]]))
+			item.set_tooltip_text(4, "\n".join(lines))
+		elif samples.any(func(x): return x.has("haplogroup_check")):
+			item.set_text(4, "no mixture")
 		for k in attributes.size():
 			var value = null
 			for s in samples:
 				value = s.get("attributes", {}).get(attributes[k], value)
 			if value != null:
-				item.set_text(4 + k, PatientCompare._num(value) if typeof(value) == TYPE_FLOAT else str(value))
+				item.set_text(5 + k, PatientCompare._num(value) if typeof(value) == TYPE_FLOAT else str(value))
 	_roster_info.text = ("%d patients, %d with values imported%s." % [subjects.size(),
 		subjects.filter(func(s): return by_subject[s].any(func(x): return not x.get("attributes", {}).is_empty())).size(),
 		"; %d with disagreeing samples (highlighted)" % conflicts if conflicts else ""]) if subjects else \
@@ -175,7 +190,7 @@ func _show_result() -> void:
 		_results.set_column_title(i, titles[i])
 		_results.set_column_title_tooltip_text(i, titles[i])
 		_results.set_column_expand(i, i == 0)
-		_results.set_column_custom_minimum_width(i, 180 if i == 0 else 120)
+		_results.set_column_custom_minimum_width(i, 290 if i == 0 else 120)
 	for i in groups.size():
 		_results.set_column_title_tooltip_text(1 + i, "%s: %s" % [groups[i]["label"], ", ".join(groups[i]["subjects"])])
 	var root := _results.create_item()

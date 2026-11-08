@@ -229,13 +229,25 @@ func assign_haplogroups(af_min: float) -> String:
 			haplogroup_progress.emit(k + 1, ids.size())
 			await get_tree().process_frame
 			last = Time.get_ticks_msec()
+	var all_ids := SampleQuery.select(store)
+	var checks := HaplogroupClassifier.mixture_check(store, all_ids)
+	var flagged := 0
+	for id in checks:
+		store.sample_by_id(id)["haplogroup_check"] = checks[id]
+		if checks[id]["flag"]:
+			flagged += 1
 	_apply_lineages()
 	data_revision += 1
 	model.touch()
 	_mark_changed()
+	var disagree := Array(all_ids).filter(func(id): return HaplogroupClassifier.manual_disagreement(store.sample_by_id(id)) != "").size()
+	var checked := "Mixture check: %s%s." % ["%d possible mixture(s)" % flagged if flagged else "no mixtures",
+		"; %d file(s) disagree with the haplogroup set by hand" % disagree if disagree else ""]
+	if ids.is_empty():
+		return "All %d samples have haplogroups set by hand, so none were reclassified. %s See the Mixture check column." % [manual, checked]
 	var macros := counts.keys()
 	macros.sort_custom(func(a, b): return counts[a] > counts[b])
-	return "Assigned haplogroups to %d samples (%s)%s. Tags: haplogroup=…, macro haplogroup=…, haplogroup clade=…" % [ids.size(),
+	return checked + " Assigned haplogroups to %d samples (%s)%s. Tags: haplogroup=…, macro haplogroup=…, haplogroup clade=…" % [ids.size(),
 		", ".join(macros.slice(0, 6).map(func(m): return "%s %d" % [m, counts[m]])),
 		"; kept %d set by hand" % manual if manual else ""]
 

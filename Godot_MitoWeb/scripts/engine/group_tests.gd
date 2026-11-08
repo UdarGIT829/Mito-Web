@@ -135,9 +135,49 @@ static func fisher_exact(table: Array) -> Dictionary:
 	for row in trimmed:
 		for x in row:
 			observed -= _log_factorial(x)
-	var acc := [0.0]
-	_fisher_walk(row_sums, col_sums.duplicate(), 0, log_const, observed + 1e-7, acc)
-	return {"p": minf(1.0, acc[0])}
+	# Exact enumeration when the number of tables is manageable; otherwise a
+	# seeded Monte Carlo over random tables with the same margins.
+	var tables := 1.0
+	for i in trimmed.size() - 1:
+		tables *= _choose(row_sums[i] + col_sums.size() - 1, col_sums.size() - 1)
+	if tables <= MAX_EXACT_TABLES:
+		var acc := [0.0]
+		_fisher_walk(row_sums, col_sums.duplicate(), 0, log_const, observed + 1e-7, acc)
+		return {"p": minf(1.0, acc[0]), "method": "exact"}
+	return {"p": _fisher_monte_carlo(row_sums, col_sums, log_const, observed + 1e-7), "method": "Monte Carlo"}
+
+
+const MAX_EXACT_TABLES := 3.0e6
+const MONTE_CARLO_TABLES := 20000
+
+
+## Random tables with fixed margins: shuffle the column labels of the units.
+static func _fisher_monte_carlo(row_sums: Array, col_sums: Array, log_const: float, limit: float) -> float:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260101
+	var labels := PackedInt32Array()
+	for c in col_sums.size():
+		for _k in col_sums[c]:
+			labels.append(c)
+	var hits := 0
+	for _t in MONTE_CARLO_TABLES:
+		for i in range(labels.size() - 1, 0, -1):
+			var j := rng.randi_range(0, i)
+			var tmp := labels[i]
+			labels[i] = labels[j]
+			labels[j] = tmp
+		var lp := log_const
+		var at := 0
+		for r in row_sums:
+			var counts := {}
+			for _k in r:
+				counts[labels[at]] = counts.get(labels[at], 0) + 1
+				at += 1
+			for x in counts.values():
+				lp -= _log_factorial(x)
+		if lp <= limit:
+			hits += 1
+	return (hits + 1.0) / (MONTE_CARLO_TABLES + 1.0)
 
 
 ## Enumerates tables row by row: each row splits its total across the

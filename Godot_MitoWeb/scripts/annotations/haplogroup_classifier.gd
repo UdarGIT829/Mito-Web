@@ -115,7 +115,7 @@ static func sample_variants(store: VariantStore, sample_id: int, af_min: float) 
 
 ## sample_variants for many samples in one pass over the calls:
 ## {sample_id: PackedStringArray}.
-static func all_sample_variants(store: VariantStore, sample_ids: PackedInt32Array, af_min: float) -> Dictionary:
+static func all_sample_variants(store: VariantStore, sample_ids: PackedInt32Array, af_min: float, af_max: float = INF) -> Dictionary:
 	var found := {}
 	for id in sample_ids:
 		found[id] = {}
@@ -131,8 +131,10 @@ static func all_sample_variants(store: VariantStore, sample_ids: PackedInt32Arra
 		if a == VariantStore.NO_ALLELE or not found.has(sample_col[i]):
 			continue
 		var af := af_col[i]
-		if not is_nan(af) and af < af_min:
+		if not is_nan(af) and (af < af_min or af >= af_max):
 			continue
+		if is_nan(af) and af_max != INF:
+			continue  # calls without AF are homoplasmic for the mixture check
 		# Native rCRS calls: the VCF's own allele, read like HaploGrep does.
 		# Calls mapped from another build: the rCRS allele, shifted to
 		# PhyloTree's indel positions (their VCF positions are not rCRS).
@@ -388,6 +390,82 @@ static func apply_to_sample(sample: Dictionary, result: Dictionary, af_min: floa
 	for clade in clades(node_index(result["haplogroup"])):
 		tags.append(CLADE_PREFIX + clade)
 	sample["tags"] = tags
+
+
+const MIX_HOMOPLASMIC := 0.9
+const MIX_MIN_AF := 0.01
+const MIX_MIN_SITES := 3
+const MIX_MIN_DISTANCE := 2
+
+
+## Mixture check in the spirit of haplocheck (Weissensteiner et al. 2021):
+## a major profile (homoplasmic calls plus heteroplasmic ones at AF >= 0.5)
+## and a minor profile (homoplasmic plus heteroplasmic below 0.5) are
+## classified separately. Two haplogroups at least MIX_MIN_DISTANCE nodes
+## apart, with at least MIX_MIN_SITES low-AF variants that the minor
+## haplogroup expects and the major one does not, suggest contamination or
+## a sample mix-up.
+## Returns {sample_id: {"major", "minor", "distance", "sites", "support", "flag"}}.
+static func mixture_check(store: VariantStore, sample_ids: PackedInt32Array) -> Dictionary:
+	if ensure_loaded():
+		return {}
+	var hom := all_sample_variants(store, sample_ids, MIX_HOMOPLASMIC)
+	var het_major := all_sample_variants(store, sample_ids, 0.5, MIX_HOMOPLASMIC)
+	var het_minor := all_sample_variants(store, sample_ids, MIX_MIN_AF, 0.5)
+	var out := {}
+	for id in sample_ids:
+		var major := PackedStringArray(hom[id])
+		major.append_array(het_major[id])
+		var minor := PackedStringArray(hom[id])
+		minor.append_array(het_minor[id])
+		var a := classify(major)
+		var b := classify(minor)
+		# Support: low-AF variants the minor haplogroup expects and the major
+		# one does not. Noise and reference-like minors have none.
+		var expected_major := {}
+		for v in profile(node_index(a["haplogroup"])):
+			expected_major[v] = true
+		var low := {}
+		for v in het_minor[id]:
+			low[v] = true
+		var support := PackedStringArray()
+		for v in profile(node_index(b["haplogroup"])):
+			if low.has(v) and not expected_major.has(v):
+				support.append(v)
+		var distance := tree_distance(node_index(a["haplogroup"]), node_index(b["haplogroup"]))
+		out[id] = {"major": a["haplogroup"], "minor": b["haplogroup"], "distance": distance, "sites": support.size(),
+			"support": support, "flag": distance >= MIX_MIN_DISTANCE and support.size() >= MIX_MIN_SITES}
+	return out
+
+
+## For a haplogroup set by hand: the haplogroup its own calls point to
+## (the mixture check's major profile) when that is in a different major
+## haplogroup, e.g. a swapped or mislabelled file; "" when they agree.
+static func manual_disagreement(sample: Dictionary) -> String:
+	var hg: Dictionary = sample.get("haplogroup", {})
+	var check: Dictionary = sample.get("haplogroup_check", {})
+	if not hg.get("manual", false) or check.is_empty():
+		return ""
+	var own := node_index(check["major"])
+	var given := node_index(hg["name"])
+	if own < 0 or given < 0 or macro(own) == macro(given):
+		return ""
+	return check["major"]
+
+
+## Number of edges between two tree nodes.
+static func tree_distance(a: int, b: int) -> int:
+	if a < 0 or b < 0:
+		return -1
+	if a == b:
+		return 0
+	var up_a := _path_up(a)
+	var up_b := _path_up(b)
+	for i in up_a.size():
+		var j := up_b.find(up_a[i])
+		if j >= 0:
+			return i + j
+	return -1
 
 
 ## Classifies samples (synchronously). Samples whose haplogroup was set by
