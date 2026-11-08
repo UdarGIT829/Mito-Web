@@ -127,15 +127,22 @@ its settings, then inserts its graph (or replaces the current one).
 
 - **Treated vs untreated** (group tags A and B): exclusive and shared
   mutations, annotated, with density statistics including all somatic calls.
-- **Recreate haplogroup markers** (major haplogroup, common %, rare %;
+- **Recreate haplogroup markers** (haplogroup, whole clade or major
+  haplogroup only, common %, rare %;
   assigns haplogroups first if no sample has them):
   *gained* = carried by >= common% of the haplogroup and < rare% of everyone
   else; *absent* = the reverse (how H, the rCRS haplogroup, is defined: it
   lacks 2706G and 7028T). Both sets are flagged against PhyloTree markers.
-  On 1000 Genomes it recovers J (295T, 12612G, 13708A, 16069T + JT markers),
-  U (11467G, 12308G, 12372A) and H (absent 2706G, 7028T), every one a
-  PhyloTree marker. Recurrent markers (e.g. 10398G) are excluded, and
-  paraphyletic groups such as L3 find little.
+  On 1000 Genomes (defaults: whole clade, 90% / 5%) 25 of the 27 clades
+  present find markers, 175 in all, and every one is a PhyloTree marker:
+  e.g. J (295T, 12612G, 13708A, 16069T + JT markers), U (11467G, 12308G,
+  12372A), M (489C, 10400T, 14783C, 15043A), B (the 8281-8289 9-bp
+  deletion), and as absent markers H (2706G, 7028T), HV (11719A, 14766T),
+  R (12705T, 16223T), N (8701G, 9540C, 10873C) and L3 (769A, 1018A, ...);
+  ancestral clades show up as "absent" because rCRS itself is H, inside R,
+  N and L3. With "major haplogroup only" ancestral groups find little,
+  because their descendants count as everyone else. Recurrent markers (e.g.
+  10398G) are excluded.
 
 "Save current graph as workflow…" keeps the graph in the project;
 saved workflows can be exported as `.mitoflow.json` and imported elsewhere.
@@ -223,7 +230,10 @@ Kulczynski score, using its variant weights, hotspots (309.1C, 315.1C,
 16182C, ...) and indel alignment rules. Calls count when AF >= the chosen
 cut-off (default 0.75, the germline cut-off) or when there is no AF. Results
 are stored on the sample (score, runner-up, missing and extra variants) and as
-tags `haplogroup=J1c2` and `macro haplogroup=J`, usable in tag filters.
+tags `haplogroup=J1c2`, `macro haplogroup=J`, and `haplogroup clade=` for
+every major haplogroup it belongs to (J, R, N, L3), usable in tag filters.
+`macro` is the nearest major haplogroup only; `clade` includes descendants,
+so `haplogroup clade=R` selects H, J, T, U, K... samples too.
 
 Tree data: github.com/genepi/phylotree-rcrs-17 (MIT), from van Oven M.
 (2015) PhyloTree Build 17, Forensic Sci Int Genet Suppl 5; method from

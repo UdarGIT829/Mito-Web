@@ -30,14 +30,16 @@ static func builtin() -> Array:
 		{
 			"id": "haplogroup_markers",
 			"title": "Recreate haplogroup markers",
-			"description": "Finds the variants that define a haplogroup from the data alone, then checks them against PhyloTree. Gained: carried by nearly every sample of the haplogroup and almost no one else. Absent: carried by nearly everyone else but almost no sample of the haplogroup (how H, the rCRS haplogroup, is defined: by lacking 2706G and 7028T). Each set gets a PhyloTree marker column. Markers that recur in other lineages are excluded, and a haplogroup whose descendants are counted as everyone else (e.g. L3, ancestral to M and N) finds few.",
+			"description": "Finds the variants that define a haplogroup from the data alone, then checks them against PhyloTree. Gained: carried by nearly every sample of the haplogroup and almost no one else. Absent: carried by nearly everyone else but almost no sample of the haplogroup (how H, the rCRS haplogroup, is defined: by lacking 2706G and 7028T). Each set gets a PhyloTree marker column. By default the haplogroup is its whole clade (R includes H, J, T, U, K...), so ancestral haplogroups like R, N, M and L3 work too. Markers that recur in other lineages are excluded.",
 			"needs": "Haplogroup tags: Samples tab, Assign haplogroups. Works best with many samples (e.g. 1000 Genomes).",
 			"params": [
-				{"id": "haplogroup", "label": "Major haplogroup", "type": "haplogroup", "default": "H"},
-				{"id": "common", "label": "Common means carried by at least (%)", "type": "number", "default": 95, "min": 50, "max": 100},
+				{"id": "haplogroup", "label": "Haplogroup", "type": "haplogroup", "default": "H"},
+				{"id": "scope", "label": "Samples in the group", "type": "choice", "default": "clade",
+					"options": [["clade", "Whole clade (with descendant haplogroups)"], ["macro", "This major haplogroup only"]]},
+				{"id": "common", "label": "Common means carried by at least (%)", "type": "number", "default": 90, "min": 50, "max": 100},
 				{"id": "rare", "label": "Rare means carried by under (%)", "type": "number", "default": 5, "min": 0, "max": 50},
 			],
-			"build": func(p: Dictionary) -> Dictionary: return haplogroup_markers_graph(str(p["haplogroup"]), float(p["common"]), float(p["rare"])),
+			"build": func(p: Dictionary) -> Dictionary: return haplogroup_markers_graph(str(p["haplogroup"]), float(p["common"]), float(p["rare"]), str(p["scope"])),
 		},
 	]
 
@@ -65,23 +67,27 @@ static func build(workflow: Dictionary, values: Dictionary = {}) -> Dictionary:
 	return workflow["graph"].duplicate(true)
 
 
-## The haplogroup marker recreation graph for major haplogroup X:
-##   In X / Everyone else (tag "macro haplogroup=X")
+## The haplogroup marker recreation graph for haplogroup X:
+##   In X / Everyone else (tag "haplogroup clade=X" for the whole clade,
+##   or "macro haplogroup=X" for samples whose nearest major group is X)
 ##   Gained in X  = common in X  minus  seen (>= rare%) in everyone else
 ##   Absent in X  = common in everyone else  minus  seen (>= rare%) in X
 ## Both annotated (gnomAD) and flagged against PhyloTree markers.
-static func haplogroup_markers_graph(haplogroup: String, common: float, rare: float) -> Dictionary:
-	var tag := "macro haplogroup=" + haplogroup
+static func haplogroup_markers_graph(haplogroup: String, common: float, rare: float, scope: String = "clade") -> Dictionary:
+	var clade := scope != "macro"
+	var tag := (HaplogroupClassifier.CLADE_PREFIX if clade else HaplogroupClassifier.MACRO_PREFIX) + haplogroup
 	var x := haplogroup
+	var members := ("in clade %s (%s and every haplogroup descended from it)" % [x, x]) if clade else \
+		("whose nearest major haplogroup is %s (descendant major haplogroups not included)" % x)
 	var c := _pct(common)
 	var r := _pct(rare)
 	var g := GraphModel.new_graph()
 	var all := GraphModel.describe(GraphModel.add_node(g, "data_provider", Vector2(0, 40)), "All samples",
 		"Every imported sample, before splitting by haplogroup.")
 	var others := GraphModel.describe(GraphModel.add_node(g, "data_provider", Vector2(0, 640), {"criteria": {"tags_none": [tag]}}), "Everyone else",
-		"Samples whose major haplogroup is not %s (no \"%s\" tag): the comparison group." % [x, tag])
+		"Samples without the \"%s\" tag (not %s): the comparison group." % [tag, ("in clade " + x) if clade else x])
 	var in_x := GraphModel.describe(GraphModel.add_node(g, "tag_filter", Vector2(330, 40), {"tags": [tag], "restrict_samples": true}), "In %s" % x,
-		"Samples tagged \"%s\" by the haplogroup classifier, with their mutations. Only these samples count toward presence below." % tag)
+		"Samples %s, tagged \"%s\" by the haplogroup classifier. Only these samples count toward presence below." % [members, tag])
 	var common_x := _presence(g, Vector2(660, 0), common, "Common in %s" % x,
 		"Mutations carried by at least %s%% of %s samples: candidate markers %s has gained." % [c, x, x])
 	var seen_x := _presence(g, Vector2(660, 320), rare, "Seen in %s" % x,
@@ -93,7 +99,7 @@ static func haplogroup_markers_graph(haplogroup: String, common: float, rare: fl
 	var gained := GraphModel.describe(GraphModel.add_node(g, "comparison", Vector2(1000, 120)), "Gained in %s" % x,
 		"Common in %s minus Seen in everyone else: carried by >= %s%% of %s and < %s%% of everyone else." % [x, c, x, r])
 	var absent := GraphModel.describe(GraphModel.add_node(g, "comparison", Vector2(1000, 760)), "Absent in %s" % x,
-		"Common in everyone else minus Seen in %s: carried by >= %s%% of the others and < %s%% of %s (how H is defined: by lacking 2706G and 7028T)." % [x, c, r, x])
+		"Common in everyone else minus Seen in %s: carried by >= %s%% of the others and < %s%% of %s.%s" % [x, c, r, x, _absent_note(x)])
 	GraphModel.connect_nodes(g, all["id"], 0, in_x["id"], 0)
 	for pair in [[in_x, common_x], [in_x, seen_x], [others, common_o], [others, seen_o]]:
 		GraphModel.connect_nodes(g, pair[0]["id"], 0, pair[1]["id"], 0)
@@ -124,18 +130,33 @@ static func _presence(g: Dictionary, position: Vector2, percent: float, title: S
 	return GraphModel.describe(n, title, description)
 
 
+## Haplogroups the reference (rCRS, in H2a2a1) belongs to.
+const RCRS_CLADES := ["H", "HV", "R", "N", "L3"]
+
+
+## Why "absent" markers matter for haplogroups that contain the reference.
+static func _absent_note(haplogroup: String) -> String:
+	if haplogroup == "H":
+		return " This is how H shows up: rCRS is itself H, so H is defined by lacking 2706G and 7028T, which everyone else carries."
+	if haplogroup in RCRS_CLADES:
+		return " rCRS is itself in %s, so %s's own defining variants show up here: everyone else carries the older base." % [haplogroup, haplogroup]
+	return ""
+
+
 ## 95.0 -> "95", 2.5 -> "2.5".
 static func _pct(value: float) -> String:
 	return str(snappedf(value, 0.1)).trim_suffix(".0")
 
 
-## Major haplogroups present in the data, most common first: [[name, count]].
-static func haplogroups_in(store: VariantStore) -> Array:
+## Haplogroups present in the data, most common first: [[name, count]].
+## Counts whole clades by default, or samples per major haplogroup with
+## prefix MACRO_PREFIX.
+static func haplogroups_in(store: VariantStore, prefix: String = HaplogroupClassifier.CLADE_PREFIX) -> Array:
 	var counts := {}
 	for sample in store.samples:
 		for tag in sample["tags"]:
-			if tag.begins_with("macro haplogroup="):
-				var name: String = tag.trim_prefix("macro haplogroup=")
+			if tag.begins_with(prefix):
+				var name: String = tag.trim_prefix(prefix)
 				counts[name] = counts.get(name, 0) + 1
 	var names := counts.keys()
 	names.sort_custom(func(a, b): return counts[a] > counts[b] or (counts[a] == counts[b] and a < b))

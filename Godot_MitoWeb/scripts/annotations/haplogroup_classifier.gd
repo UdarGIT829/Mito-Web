@@ -287,11 +287,60 @@ static func macro(node: int) -> String:
 	return _names[node].left(1)
 
 
-const TAG_PREFIXES := ["haplogroup=", "macro haplogroup="]
+## Every major haplogroup the node belongs to, innermost first
+## (e.g. H1 -> H, HV, R, N, L3): the clades it is part of.
+##
+## The tree is stored rooted at the reference (rCRS, in H2a2a1), so parent
+## links do not lead to true ancestors: walking up from L0a passes L3, N,
+## R and H. The true root (mt-MRCA) lies between L0 and L1'2'3'4'5'6, so a
+## node's true ancestors are the nodes on the tree path from it to
+## whichever of those two is on its side.
+static func clades(node: int) -> PackedStringArray:
+	var out := PackedStringArray()
+	if node < 0:
+		return out
+	var up := _path_up(node)
+	var l0 := _names.find("L0")
+	var other := _names.find("L1'2'3'4'5'6")
+	var target := l0 if up.has(l0) else other
+	var path: Array = []
+	if target < 0:
+		path = Array(up)  # tree without the L0 split: parents are ancestors
+	else:
+		var target_up := _path_up(target)
+		var meet := 0
+		while not target_up.has(up[meet]):
+			meet += 1
+		path = Array(up.slice(0, meet + 1))
+		var down: Array = Array(target_up.slice(0, target_up.find(up[meet])))
+		down.reverse()
+		path.append_array(down)
+	for n in path:
+		var name := _names[n]
+		var cluster: String = _cluster_nodes.get(name, name if _clusters.has(name) else "")
+		if cluster and not cluster in out:
+			out.append(cluster)
+	return out
+
+
+## Node ids from `node` up the stored parent links to the root.
+static func _path_up(node: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var n := node
+	while n >= 0:
+		out.append(n)
+		n = _parent[n]
+	return out
+
+
+const MACRO_PREFIX := "macro haplogroup="
+const CLADE_PREFIX := "haplogroup clade="
+const TAG_PREFIXES := ["haplogroup=", MACRO_PREFIX, CLADE_PREFIX]
 
 
 ## Stores a classification on a sample and replaces its haplogroup tags:
-## "haplogroup=J1c2" and "macro haplogroup=J" (usable in tag filters).
+## "haplogroup=J1c2", "macro haplogroup=J" and one "haplogroup clade=" tag
+## per enclosing major haplogroup (J, R, N, L3), usable in tag filters.
 static func apply_to_sample(sample: Dictionary, result: Dictionary, af_min: float) -> void:
 	sample["haplogroup"] = {
 		"name": result["haplogroup"], "score": result["score"], "macro": result["macro"],
@@ -304,7 +353,9 @@ static func apply_to_sample(sample: Dictionary, result: Dictionary, af_min: floa
 		if not TAG_PREFIXES.any(func(p): return tag.begins_with(p)):
 			tags.append(tag)
 	tags.append("haplogroup=" + result["haplogroup"])
-	tags.append("macro haplogroup=" + result["macro"])
+	tags.append(MACRO_PREFIX + result["macro"])
+	for clade in clades(node_index(result["haplogroup"])):
+		tags.append(CLADE_PREFIX + clade)
 	sample["tags"] = tags
 
 

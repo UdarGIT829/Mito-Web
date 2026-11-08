@@ -44,13 +44,22 @@ func _init() -> void:
 	_title = Label.new()
 	_title.add_theme_font_size_override("font_size", 18)
 	detail.add_child(_title)
+	# Long descriptions scroll; the settings and buttons below stay in view.
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size.y = 120
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	detail.add_child(scroll)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(text)
 	_description = _wrapped()
-	detail.add_child(_description)
+	text.add_child(_description)
 	_needs = _wrapped()
 	_needs.add_theme_color_override("font_color", Color(1, 0.8, 0.4))
-	detail.add_child(_needs)
+	text.add_child(_needs)
 	_assign = _button("Assign haplogroups now", _assign_haplogroups)
-	_assign.tooltip_text = "Classifies every sample against PhyloTree 17 using calls with AF >= 0.75 (as on the Samples tab) and adds haplogroup= / macro haplogroup= tags."
+	_assign.tooltip_text = "Classifies every sample against PhyloTree 17 using calls with AF >= 0.75 (as on the Samples tab) and adds haplogroup=, macro haplogroup= and haplogroup clade= tags. Samples already classified keep their AF setting."
 	_assign.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	detail.add_child(_assign)
 	_form = GridContainer.new()
@@ -157,11 +166,24 @@ func _param_control(p: Dictionary) -> Control:
 		"haplogroup":
 			var option := OptionButton.new()
 			var found := Workflows.haplogroups_in(Workspace.model.store)
+			var only := {}
+			for pair in Workflows.haplogroups_in(Workspace.model.store, HaplogroupClassifier.MACRO_PREFIX):
+				only[pair[0]] = pair[1]
 			if found.is_empty():
 				option.add_item("%s (no haplogroup tags yet)" % p["default"])
 				option.set_item_metadata(0, p["default"])
 			for pair in found:
-				option.add_item("%s (%d samples)" % pair)
+				var directly: int = only.get(pair[0], 0)
+				option.add_item(("%s (%d samples)" % pair) if directly == pair[1] else
+					"%s (%d in clade, %d as major haplogroup)" % [pair[0], pair[1], directly])
+				option.set_item_metadata(option.item_count - 1, pair[0])
+				if pair[0] == p["default"]:
+					option.select(option.item_count - 1)
+			return option
+		"choice":
+			var option := OptionButton.new()
+			for pair in p["options"]:
+				option.add_item(pair[1])
 				option.set_item_metadata(option.item_count - 1, pair[0])
 				if pair[0] == p["default"]:
 					option.select(option.item_count - 1)
@@ -210,7 +232,7 @@ static func _needs_haplogroups(w: Dictionary) -> bool:
 func _untagged_samples() -> int:
 	var n := 0
 	for sample in Workspace.model.store.samples:
-		if not Array(sample["tags"]).any(func(t): return str(t).begins_with("macro haplogroup=")):
+		if not Array(sample["tags"]).any(func(t): return str(t).begins_with(HaplogroupClassifier.CLADE_PREFIX)):
 			n += 1
 	return n
 
@@ -220,7 +242,13 @@ func _assign_haplogroups() -> void:
 	_insert.disabled = true
 	_replace.disabled = true
 	_assign.text = "Assigning haplogroups…"
-	var message: String = await Workspace.assign_haplogroups(0.75)
+	# Keep the AF cut-off of an earlier assignment (Samples tab), if any.
+	var af := 0.75
+	for sample in Workspace.model.store.samples:
+		if sample.has("haplogroup"):
+			af = float(sample["haplogroup"].get("af_min", af))
+			break
+	var message: String = await Workspace.assign_haplogroups(af)
 	status_message.emit(message)
 	_show_selected()  # refresh the haplogroup list and counts
 
