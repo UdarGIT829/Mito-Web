@@ -110,3 +110,113 @@ static func groups(rules: Array) -> Array:
 		if not r[1] in out:
 			out.append(r[1])
 	return out
+
+
+## Colours for lineages, in order of first appearance in the rules
+## (readable on the dark theme; validated categorical palette).
+const PALETTE := ["#3987e5", "#d95926", "#199e70", "#c98500", "#9d5ce0", "#d1477a", "#2aa6b8", "#8b9a46"]
+const NO_GROUP_COLOR := "#7a8591"
+
+
+static func color_for(group: String, rules: Array) -> Color:
+	var i := groups(rules).find(group)
+	return Color(PALETTE[i % PALETTE.size()]) if i >= 0 else Color(NO_GROUP_COLOR)
+
+
+## The rules as a tree for display: every clade named by a rule plus every
+## major haplogroup the samples fall in, each under its nearest such
+## ancestor. Returns {"nodes": {name: {"parent", "children", "group",
+## "own_rule", "split", "total", "here"}}, "roots": [names]}.
+## total = samples in the clade; here = samples whose nearest shown clade is
+## this one. split = the node's lineage differs from its parent's.
+static func tree(rules: Array, samples: Array) -> Dictionary:
+	HaplogroupClassifier.ensure_loaded()
+	var by_clade := {}
+	for r in rules:
+		by_clade[r[0]] = r[1]
+	var shown := {}
+	for r in rules:
+		shown[r[0]] = true
+	var sample_nodes: Array = []
+	for sample in samples:
+		var hg: Dictionary = sample.get("haplogroup", {})
+		if hg.is_empty():
+			continue
+		var n := HaplogroupClassifier.node_index(hg["name"])
+		if n < 0:
+			continue
+		sample_nodes.append(n)
+		for clade in HaplogroupClassifier.clades(n):
+			shown[clade] = true
+	var nodes := {}
+	for name in shown:
+		var rep := _representative(name)
+		var parent := ""
+		if rep >= 0:
+			var path := HaplogroupClassifier.true_ancestors(rep)
+			for k in range(1, path.size()):
+				var hit := _shown_name(path[k], shown)
+				if hit and hit != name:
+					parent = hit
+					break
+		var group: String = group_for(rep, rules) if rep >= 0 else by_clade.get(name, "")
+		nodes[name] = {"parent": parent, "children": [], "group": group, "own_rule": by_clade.has(name),
+			"split": false, "total": 0, "here": 0, "node": rep}
+	var roots: Array = []
+	for name in nodes:
+		var parent: String = nodes[name]["parent"]
+		if parent:
+			nodes[parent]["children"].append(name)
+		else:
+			roots.append(name)
+	for name in nodes:
+		var parent: String = nodes[name]["parent"]
+		nodes[name]["split"] = parent != "" and nodes[parent]["group"] != nodes[name]["group"]
+		nodes[name]["children"].sort_custom(_name_order)
+	roots.sort_custom(_name_order)
+	for n in sample_nodes:
+		var counted := {}  # a cluster such as B can match several nodes on one path
+		for a in HaplogroupClassifier.true_ancestors(n):
+			var hit := _shown_name(a, shown)
+			if hit == "" or counted.has(hit):
+				continue
+			if counted.is_empty():
+				nodes[hit]["here"] += 1
+			counted[hit] = true
+			nodes[hit]["total"] += 1
+	return {"nodes": nodes, "roots": roots}
+
+
+static func _name_order(a, b) -> bool:
+	return str(a).naturalnocasecmp_to(str(b)) < 0
+
+
+## The name a tree node is shown under ("" when not shown): its own name,
+## or the cluster it belongs to (B4'5 -> B).
+static func _shown_name(node: int, shown: Dictionary) -> String:
+	var name := HaplogroupClassifier.node_name(node)
+	if shown.has(name):
+		return name
+	var cluster: String = HaplogroupClassifier._cluster_nodes.get(name, "")
+	if cluster and shown.has(cluster) and HaplogroupClassifier.node_index(cluster) < 0:
+		return cluster
+	return ""
+
+
+## A tree node standing for a clade name: the node itself, or for a
+## cluster without its own node (B) the member nearest the root.
+static func _representative(name: String) -> int:
+	var n := HaplogroupClassifier.node_index(name)
+	if n >= 0:
+		return n
+	var best := -1
+	var best_depth := 1 << 30
+	for member in HaplogroupClassifier._cluster_nodes:
+		if HaplogroupClassifier._cluster_nodes[member] != name:
+			continue
+		var m := HaplogroupClassifier.node_index(member)
+		var depth := HaplogroupClassifier.true_ancestors(m).size()
+		if m >= 0 and depth < best_depth:
+			best = m
+			best_depth = depth
+	return best

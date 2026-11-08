@@ -26,6 +26,7 @@ var _lineage_dialog: ConfirmationDialog
 var _lineage_preset: OptionButton
 var _lineage_text: TextEdit
 var _lineage_errors: Label
+var _lineage_tree: LineageTree
 
 
 func _ready() -> void:
@@ -340,6 +341,7 @@ func _build_lineage_dialog() -> void:
 	_lineage_dialog = ConfirmationDialog.new()
 	_lineage_dialog.title = "Lineages"
 	_lineage_dialog.ok_button_text = "Apply"
+	_lineage_dialog.min_size = Vector2i(1000, 560)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	_lineage_dialog.add_child(box)
@@ -359,10 +361,16 @@ func _build_lineage_dialog() -> void:
 			_lineage_text.text = Lineages.to_text(Lineages.PRESETS[_lineage_preset.get_item_metadata(i)]["rules"])
 		_check_lineage_text())
 	row.add_child(_lineage_preset)
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override("separation", 12)
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(split)
 	_lineage_text = TextEdit.new()
-	_lineage_text.custom_minimum_size = Vector2(460, 300)
+	_lineage_text.custom_minimum_size = Vector2(250, 300)
 	_lineage_text.text_changed.connect(_check_lineage_text)
-	box.add_child(_lineage_text)
+	split.add_child(_lineage_text)
+	_lineage_tree = LineageTree.new()
+	split.add_child(_lineage_tree)
 	_lineage_errors = _plain("")
 	_lineage_errors.add_theme_color_override("font_color", Color(1, 0.8, 0.4))
 	box.add_child(_lineage_errors)
@@ -392,6 +400,8 @@ func _check_lineage_text() -> void:
 	var parsed := Lineages.parse_text(_lineage_text.text)
 	_lineage_errors.text = " ".join(parsed["errors"].slice(0, 3)) if parsed["errors"] else "%d rules, %d lineages: %s" % [
 		parsed["rules"].size(), Lineages.groups(parsed["rules"]).size(), ", ".join(Lineages.groups(parsed["rules"]))]
+	var valid: Array = parsed["rules"].filter(func(r): return Lineages.validate([r]).is_empty())
+	_lineage_tree.show_rules(valid, Workspace.model.store.samples)
 
 
 static func _plain(text: String) -> Label:

@@ -202,7 +202,12 @@ haplogroup by hand for the selected samples (or a patient's row);
 Samples tab, "Lineages…": rules `clade = lineage`, one per line. The most
 specific rule on a sample's path to the root wins, so `N = Asian` with
 `A2 = Amerindian` puts A2 in Amerindian and other N in Asian. Samples get
-`lineage=` tags (re-applied whenever haplogroups change). The built-in preset
+`lineage=` tags (re-applied whenever haplogroups change). Beside the rules,
+the dialog draws them as a haplogroup tree (every clade a rule names plus the
+major haplogroups of the samples, nested as in PhyloTree), coloured by
+lineage: a solid band where a rule sets it, a faint one where it is
+inherited, "split from" where a clade leaves its parent's lineage, with
+sample counts and a colour legend. It updates as you edit. The built-in preset
 is the pSLE 2026 paper's: African = L; Amerindian = A2, B2, C1b, C1c, C1d,
 C4c, D1, D4h3a, X2a; Caucasian = H, HV, J, T, V, U, K, W, X, I; Asian = the
 rest of M and N.
