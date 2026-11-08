@@ -25,6 +25,7 @@ func run(runner) -> void:
 	test_manual_and_lineages()
 	test_compare()
 	test_table_import()
+	test_lineage_tree()
 	await test_mixture()
 
 
@@ -199,3 +200,19 @@ func test_mixture() -> void:
 	var even := GroupTests.fisher_exact([[100, 100, 100], [100, 100, 100], [100, 100, 100]])
 	check(even["method"] == "Monte Carlo" and even["p"] > 0.5, "Monte Carlo p is high when nothing differs (p %s)" % even["p"])
 	check(GroupTests.fisher_exact([[3, 1], [1, 3]])["method"] == "exact", "small tables stay exact")
+
+
+func test_lineage_tree() -> void:
+	var store := _store()
+	var rules: Array = Lineages.PRESETS["psle_2026"]["rules"]
+	var t := Lineages.tree(rules, store.samples)
+	var nodes: Dictionary = t["nodes"]
+	check(t["roots"].has("L0") and t["roots"].has("L1") and not t["roots"].has("N"), "roots are the deepest clades (got %s)" % [t["roots"]])
+	check(nodes["N"]["parent"] == "L3" and nodes["M"]["parent"] == "L3" and nodes["A2"]["parent"] == "A" and nodes["A"]["parent"] == "N", "clades nest as in the tree")
+	check(nodes["A"]["group"] == "Asian" and not nodes["A"]["own_rule"], "A outside A2 inherits Asian from N")
+	check(nodes["B2"]["parent"] == "B" and nodes["B"]["parent"] == "R", "B (a cluster without its own node) sits between R and B2")
+	check(nodes["A2"]["split"] and nodes["A2"]["group"] == "Amerindian" and not nodes["R"]["split"], "A2 splits from Asian; R inherits Asian")
+	check(nodes["A2"]["total"] == 8 and nodes["A2"]["own_rule"], "A2 counts its 8 samples")
+	check(nodes["L3"]["total"] == 24 and nodes["L3"]["here"] == 4, "L3 counts every sample below it (24 of 26; 2 are L1), 4 directly (got %d, %d)" % [nodes["L3"]["total"], nodes["L3"]["here"]])
+	check(nodes["B"]["total"] == 2, "B samples counted once although B matches several nodes (got %d)" % nodes["B"]["total"])
+	check(Lineages.color_for("African", rules) != Lineages.color_for("Asian", rules), "lineages get distinct colours")
