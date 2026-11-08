@@ -71,6 +71,10 @@ func _build_ui() -> void:
 	var samples := SamplesPanel.new()
 	samples.name = "Samples"
 	_tabs.add_child(samples)
+	var analysis := GraphPanel.new()
+	analysis.name = "Analysis"
+	analysis.status_message.connect(_set_status)
+	_tabs.add_child(analysis)
 
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 8)

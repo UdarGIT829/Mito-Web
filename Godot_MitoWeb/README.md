@@ -20,7 +20,8 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/genome/` | Bundled references, rCRS mapper (port of `mito_viewer/mapping`), repeat profiles |
 | `scripts/data/` | Columnar `VariantStore` and the VCF importer |
 | `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci |
-| `scripts/ui/` | Files and Samples tabs |
+| `scripts/graph/` | Analysis graph data (`GraphModel`) and cached evaluation (`GraphEvaluator`) |
+| `scripts/ui/` | Files, Samples and Analysis (GraphEdit) tabs; filter and table dialogs |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
 | `tests/` | Headless tests; `fixtures/mapper_cases.json` is generated from the Python mapper |
 
@@ -58,6 +59,23 @@ chosen by `SampleQuery` (tags all/any/none, `<NONE>`, subjects, files).
 
 One intentional difference from the Python Table: the `polymorphism`
 metadata filter is applied (the Python Table accepted it but ignored it).
+
+## Analysis graph
+
+The Analysis tab is a node graph saved in the workspace. Every connection
+carries a `MutationFrame`.
+
+| Node | Does |
+|---|---|
+| Data Provider | Samples (all, or by tags) and their mutations; optional PASS-only calls |
+| Filter on Tag | Mutations with a carrier having any of the tags, or every tag across carriers; can also narrow the samples |
+| Logical Comparison | Include inputs (in every / in any), minus every Exclude input |
+| Logical Filter | `MutationFilters` settings; removes failing rows or adds a pass/fail column |
+| Enrich with Annotations | Pass-through until annotations are added |
+| Table | Views, copies or downloads the mutations at that point |
+
+Results are cached per node; an edit recomputes only that node and what is
+downstream of it. "Insert example" builds the treated-vs-untreated design.
 
 ## Commands
 
