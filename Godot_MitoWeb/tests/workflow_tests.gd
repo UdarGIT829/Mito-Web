@@ -24,6 +24,7 @@ func run(runner) -> void:
 	test_merge()
 	test_files_and_saving()
 	test_node_names()
+	test_builtin_descriptions()
 
 
 func check(condition: bool, label: String) -> void:
@@ -123,3 +124,13 @@ func test_node_names() -> void:
 	model.graph()["next_id"] = g["next_id"]
 	var loaded := WorkspaceModel.from_bytes(model.to_bytes())
 	check(loaded["ok"] and loaded["model"].graph()["nodes"][0]["description"] == "Every sample, PASS or not.", "descriptions survive save/load")
+
+
+func test_builtin_descriptions() -> void:
+	for w in Workflows.builtin():
+		var g := Workflows.build(w)
+		var unnamed: Array = g["nodes"].filter(func(n): return GraphModel.custom_title(n) == "" or str(n.get("description", "")).length() < 20)
+		check(unnamed.is_empty(), "%s: every node has a name and description (missing: %s)" % [w["id"], unnamed.map(func(n): return n["title"])])
+	var hg := Workflows.build(Workflows.find_builtin("haplogroup_markers"), {"haplogroup": "J", "common": 90.0, "rare": 2.5})
+	var gained: Dictionary = hg["nodes"].filter(func(n): return n["title"] == "Gained in J")[0]
+	check(">= 90% of J and < 2.5% of everyone else" in gained["description"], "descriptions use the chosen settings (%s)" % gained["description"])

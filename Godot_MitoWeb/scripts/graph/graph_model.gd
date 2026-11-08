@@ -177,6 +177,13 @@ static func _visit(graph: Dictionary, node_id: String, visited: Dictionary, orde
 	order.append(node_id)
 
 
+## Sets a node's name and description; returns the node.
+static func describe(n: Dictionary, title: String, description: String) -> Dictionary:
+	n["title"] = title
+	n["description"] = description
+	return n
+
+
 ## The name the user gave a node, or "" if it still has its type's name.
 static func custom_title(n: Dictionary) -> String:
 	var title := str(n.get("title", "")).strip_edges()
@@ -222,21 +229,28 @@ static func validate(graph) -> String:
 ## calls (the group to test Treated vs Untreated in, by subject).
 static func example_graph(tag_a: String = "Treated", tag_b: String = "Untreated") -> Dictionary:
 	var g := new_graph()
-	var source := add_node(g, "data_provider", Vector2(0, 160))
+	var source := describe(add_node(g, "data_provider", Vector2(0, 330)), "All samples",
+		"Every imported sample and its calls: the starting point for both groups and for the somatic baseline.")
 	# "Keep only these samples" makes each group's sample count its own
 	# samples, so per-sample statistics divide by the right number.
-	var treated := add_node(g, "tag_filter", Vector2(340, 0), {"tags": [tag_a], "restrict_samples": true})
-	var both := add_node(g, "tag_filter", Vector2(340, 200), {"tags": [tag_a, tag_b], "match": "all"})
-	var untreated := add_node(g, "tag_filter", Vector2(340, 400), {"tags": [tag_b], "restrict_samples": true})
-	var treated_only := add_node(g, "comparison", Vector2(700, 40))
-	treated_only["title"] = "%s-exclusive" % tag_a
-	var untreated_only := add_node(g, "comparison", Vector2(700, 380))
-	untreated_only["title"] = "%s-exclusive" % tag_b
-	var e1 := add_node(g, "enrich", Vector2(1040, 0))
-	var e3 := add_node(g, "enrich", Vector2(1040, 400))
-	var t1 := add_node(g, "table", Vector2(1420, 0), {"name": "%s-exclusive" % tag_a})
-	var t2 := add_node(g, "table", Vector2(1040, 230), {"name": "In both"})
-	var t3 := add_node(g, "table", Vector2(1420, 560), {"name": "%s-exclusive" % tag_b})
+	var treated := describe(add_node(g, "tag_filter", Vector2(340, 0), {"tags": [tag_a], "restrict_samples": true}), "%s samples" % tag_a,
+		"Mutations carried by at least one %s sample. Only %s samples are kept, so counts and per-sample rates refer to this group alone." % [tag_a, tag_a])
+	var both := describe(add_node(g, "tag_filter", Vector2(340, 340), {"tags": [tag_a, tag_b], "match": "all"}), "In both groups",
+		"Mutations carried by at least one %s and at least one %s sample. Subtracted from each group to leave its exclusive mutations." % [tag_a, tag_b])
+	var untreated := describe(add_node(g, "tag_filter", Vector2(340, 680), {"tags": [tag_b], "restrict_samples": true}), "%s samples" % tag_b,
+		"Mutations carried by at least one %s sample. Only %s samples are kept, so counts and per-sample rates refer to this group alone." % [tag_b, tag_b])
+	var treated_only := describe(add_node(g, "comparison", Vector2(700, 0)), "%s-exclusive" % tag_a,
+		"%s samples minus In both: mutations seen in %s samples and in no %s sample." % [tag_a, tag_a, tag_b])
+	var untreated_only := describe(add_node(g, "comparison", Vector2(700, 680)), "%s-exclusive" % tag_b,
+		"%s samples minus In both: mutations seen in %s samples and in no %s sample." % [tag_b, tag_b, tag_a])
+	var annotate := "Adds gnomAD population frequency, ClinVar significance and Ensembl consequence, to tell known polymorphisms from candidate new mutations."
+	var e1 := describe(add_node(g, "enrich", Vector2(1040, 0)), "Annotate %s-exclusive" % tag_a, annotate)
+	var e3 := describe(add_node(g, "enrich", Vector2(1040, 680)), "Annotate %s-exclusive" % tag_b, annotate)
+	var view := "Open on the Tables tab; double-click a row to see each sample's call and AF."
+	var t1 := describe(add_node(g, "table", Vector2(1420, 0), {"name": "%s-exclusive" % tag_a}), "Table: %s-exclusive" % tag_a, view)
+	var t2 := describe(add_node(g, "table", Vector2(1040, 340), {"name": "In both"}), "Table: in both",
+		"Mutations shared by the two groups (often germline variants of the same lineage). " + view)
+	var t3 := describe(add_node(g, "table", Vector2(1420, 780), {"name": "%s-exclusive" % tag_b}), "Table: %s-exclusive" % tag_b, view)
 	for f in [treated, both, untreated]:
 		connect_nodes(g, source["id"], 0, f["id"], 0)
 	connect_nodes(g, treated["id"], 0, treated_only["id"], 0)
@@ -248,10 +262,11 @@ static func example_graph(tag_a: String = "Treated", tag_b: String = "Untreated"
 	connect_nodes(g, both["id"], 0, t2["id"], 0)
 	connect_nodes(g, untreated_only["id"], 0, e3["id"], 0)
 	connect_nodes(g, e3["id"], 0, t3["id"], 0)
-	var somatic := add_node(g, "germline_somatic", Vector2(340, 640))
-	somatic["title"] = "Somatic calls"
+	var somatic := describe(add_node(g, "germline_somatic", Vector2(340, 1020)), "Somatic calls",
+		"Every sample's calls with AF below 0.5 (germline is AF >= 0.75; 0.5-0.75 is indeterminate). The baseline for density, and where %s vs %s can be tested by subject on the Statistics tab." % [tag_a, tag_b])
 	connect_nodes(g, source["id"], 0, somatic["id"], 0)
-	var stats := add_node(g, "statistics", Vector2(1420, 200), {"name": "Mutation density"})
+	var stats := describe(add_node(g, "statistics", Vector2(1420, 340), {"name": "Mutation density"}), "Mutation density",
+		"Mutations per window along the genome for each connected group. The Statistics tab shows the chart, the feature matrix and permutation tests.")
 	connect_nodes(g, treated_only["id"], 0, stats["id"], 0)
 	connect_nodes(g, untreated_only["id"], 0, stats["id"], 0)
 	connect_nodes(g, somatic["id"], 0, stats["id"], 0)
