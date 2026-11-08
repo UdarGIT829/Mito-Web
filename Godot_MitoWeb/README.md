@@ -133,7 +133,7 @@ its settings, then inserts its graph (or replaces the current one).
   *gained* = carried by >= common% of the haplogroup and < rare% of everyone
   else; *absent* = the reverse (how H, the rCRS haplogroup, is defined: it
   lacks 2706G and 7028T). Both sets are flagged against PhyloTree markers.
-  On 1000 Genomes (defaults: whole clade, 90% / 5%) 25 of the 27 clades
+  On 1000 Genomes (defaults: whole clade, 90% / 5%) all 27 clades
   present find markers, 175 in all, and every one is a PhyloTree marker:
   e.g. J (295T, 12612G, 13708A, 16069T + JT markers), U (11467G, 12308G,
   12372A), M (489C, 10400T, 14783C, 15043A), B (the 8281-8289 9-bp
