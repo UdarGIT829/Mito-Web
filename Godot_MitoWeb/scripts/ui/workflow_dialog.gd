@@ -169,13 +169,13 @@ func _param_control(p: Dictionary) -> Control:
 			var only := {}
 			for pair in Workflows.haplogroups_in(Workspace.model.store, HaplogroupClassifier.MACRO_PREFIX):
 				only[pair[0]] = pair[1]
+			option.tooltip_text = "In clade: samples in this haplogroup or any haplogroup descended from it.\nAs major haplogroup: samples whose nearest major haplogroup is this one."
 			if found.is_empty():
 				option.add_item("%s (no haplogroup tags yet)" % p["default"])
 				option.set_item_metadata(0, p["default"])
 			for pair in found:
 				var directly: int = only.get(pair[0], 0)
-				option.add_item(("%s (%d samples)" % pair) if directly == pair[1] else
-					"%s (%d in clade, %d as major haplogroup)" % [pair[0], pair[1], directly])
+				option.add_item("%s (%d in clade, %d as major haplogroup)" % [pair[0], pair[1], directly])
 				option.set_item_metadata(option.item_count - 1, pair[0])
 				if pair[0] == p["default"]:
 					option.select(option.item_count - 1)
