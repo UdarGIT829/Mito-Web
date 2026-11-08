@@ -72,21 +72,28 @@ static func build(workflow: Dictionary, values: Dictionary = {}) -> Dictionary:
 ## Both annotated (gnomAD) and flagged against PhyloTree markers.
 static func haplogroup_markers_graph(haplogroup: String, common: float, rare: float) -> Dictionary:
 	var tag := "macro haplogroup=" + haplogroup
+	var x := haplogroup
+	var c := _pct(common)
+	var r := _pct(rare)
 	var g := GraphModel.new_graph()
-	var all := GraphModel.add_node(g, "data_provider", Vector2(0, 40))
-	all["title"] = "All samples"
-	var others := GraphModel.add_node(g, "data_provider", Vector2(0, 420), {"criteria": {"tags_none": [tag]}})
-	others["title"] = "Everyone else"
-	var in_x := GraphModel.add_node(g, "tag_filter", Vector2(330, 40), {"tags": [tag], "restrict_samples": true})
-	in_x["title"] = "In %s" % haplogroup
-	var common_x := _presence(g, Vector2(660, 0), common, "Common in %s" % haplogroup)
-	var seen_x := _presence(g, Vector2(660, 300), rare, "Seen in %s" % haplogroup)
-	var common_o := _presence(g, Vector2(660, 560), common, "Common in everyone else")
-	var seen_o := _presence(g, Vector2(660, 860), rare, "Seen in everyone else")
-	var gained := GraphModel.add_node(g, "comparison", Vector2(1000, 120))
-	gained["title"] = "Gained in %s" % haplogroup
-	var absent := GraphModel.add_node(g, "comparison", Vector2(1000, 640))
-	absent["title"] = "Absent in %s" % haplogroup
+	var all := GraphModel.describe(GraphModel.add_node(g, "data_provider", Vector2(0, 40)), "All samples",
+		"Every imported sample, before splitting by haplogroup.")
+	var others := GraphModel.describe(GraphModel.add_node(g, "data_provider", Vector2(0, 640), {"criteria": {"tags_none": [tag]}}), "Everyone else",
+		"Samples whose major haplogroup is not %s (no \"%s\" tag): the comparison group." % [x, tag])
+	var in_x := GraphModel.describe(GraphModel.add_node(g, "tag_filter", Vector2(330, 40), {"tags": [tag], "restrict_samples": true}), "In %s" % x,
+		"Samples tagged \"%s\" by the haplogroup classifier, with their mutations. Only these samples count toward presence below." % tag)
+	var common_x := _presence(g, Vector2(660, 0), common, "Common in %s" % x,
+		"Mutations carried by at least %s%% of %s samples: candidate markers %s has gained." % [c, x, x])
+	var seen_x := _presence(g, Vector2(660, 320), rare, "Seen in %s" % x,
+		"Mutations carried by at least %s%% of %s samples. Anything here is not absent from %s." % [r, x, x])
+	var common_o := _presence(g, Vector2(660, 640), common, "Common in everyone else",
+		"Mutations carried by at least %s%% of the other samples: candidates for what %s lacks." % [c, x])
+	var seen_o := _presence(g, Vector2(660, 960), rare, "Seen in everyone else",
+		"Mutations carried by at least %s%% of the other samples. Anything here is not specific to %s." % [r, x])
+	var gained := GraphModel.describe(GraphModel.add_node(g, "comparison", Vector2(1000, 120)), "Gained in %s" % x,
+		"Common in %s minus Seen in everyone else: carried by >= %s%% of %s and < %s%% of everyone else." % [x, c, x, r])
+	var absent := GraphModel.describe(GraphModel.add_node(g, "comparison", Vector2(1000, 760)), "Absent in %s" % x,
+		"Common in everyone else minus Seen in %s: carried by >= %s%% of the others and < %s%% of %s (how H is defined: by lacking 2706G and 7028T)." % [x, c, r, x])
 	GraphModel.connect_nodes(g, all["id"], 0, in_x["id"], 0)
 	for pair in [[in_x, common_x], [in_x, seen_x], [others, common_o], [others, seen_o]]:
 		GraphModel.connect_nodes(g, pair[0]["id"], 0, pair[1]["id"], 0)
@@ -95,23 +102,31 @@ static func haplogroup_markers_graph(haplogroup: String, common: float, rare: fl
 	GraphModel.connect_nodes(g, common_o["id"], 0, absent["id"], 0)
 	GraphModel.connect_nodes(g, seen_x["id"], 0, absent["id"], 1)
 	var y := 60
-	for pair in [[gained, "%s: gained markers" % haplogroup], [absent, "%s: absent markers" % haplogroup]]:
-		var enrich := GraphModel.add_node(g, "enrich", Vector2(1340, y), {"sources": ["gnomad", "clinvar"]})
-		var marker := GraphModel.add_node(g, "annotation_filter", Vector2(1680, y), {
-			"rules": {"haplogroup_marker": "yes", "action": "keep"}, "mode": "flag", "flag_name": "PhyloTree marker"})
-		marker["title"] = "Check against PhyloTree"
-		var table := GraphModel.add_node(g, "table", Vector2(2020, y), {"name": pair[1]})
+	for pair in [[gained, "%s: gained markers" % x, "gained"], [absent, "%s: absent markers" % x, "absent"]]:
+		var enrich := GraphModel.describe(GraphModel.add_node(g, "enrich", Vector2(1340, y), {"sources": ["gnomad", "clinvar"]}),
+			"Annotate %s markers" % pair[2],
+			"Adds gnomAD frequencies, including the haplogroups each variant is common in, and ClinVar significance.")
+		var marker := GraphModel.describe(GraphModel.add_node(g, "annotation_filter", Vector2(1680, y), {
+			"rules": {"haplogroup_marker": "yes", "action": "keep"}, "mode": "flag", "flag_name": "PhyloTree marker"}),
+			"Check against PhyloTree",
+			"Keeps every mutation and adds a \"PhyloTree marker\" column: yes if gnomAD lists it as haplogroup-defining.")
+		var table := GraphModel.describe(GraphModel.add_node(g, "table", Vector2(2020, y), {"name": pair[1]}), "Table: %s markers" % pair[2],
+			"The %s markers found from the data, with the PhyloTree check. Open on the Tables tab." % pair[2])
 		GraphModel.connect_nodes(g, pair[0]["id"], 0, enrich["id"], 0)
 		GraphModel.connect_nodes(g, enrich["id"], 0, marker["id"], 0)
 		GraphModel.connect_nodes(g, marker["id"], 0, table["id"], 0)
-		y += 520
+		y += 700
 	return g
 
 
-static func _presence(g: Dictionary, position: Vector2, percent: float, title: String) -> Dictionary:
+static func _presence(g: Dictionary, position: Vector2, percent: float, title: String, description: String) -> Dictionary:
 	var n := GraphModel.add_node(g, "logical_filter", position, {"filters": {"minimum_presence_percent": percent}})
-	n["title"] = title
-	return n
+	return GraphModel.describe(n, title, description)
+
+
+## 95.0 -> "95", 2.5 -> "2.5".
+static func _pct(value: float) -> String:
+	return str(snappedf(value, 0.1)).trim_suffix(".0")
 
 
 ## Major haplogroups present in the data, most common first: [[name, count]].
