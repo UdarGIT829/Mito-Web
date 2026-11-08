@@ -22,15 +22,63 @@ const SUMMARY_TITLES := {"median": "Median [25th, 75th]", "mean": "Mean (SD)", "
 const TESTS := {"median": "Kruskal-Wallis", "mean": "ANOVA", "percent": "Fisher's exact", "correlation": "Spearman"}
 const OPS := [">", ">=", "<", "<=", "=", "!="]
 
+## Values computed from the data rather than imported. Mutation counts come
+## from the group's own mutations (so filters upstream apply), per sample by
+## AF class (Germline / Somatic thresholds of the frame, else 0.75 / 0.50);
+## a patient with several samples gets their mean.
+## Value: [AF class ("" = any), minimum AF]. The 5% floor drops the
+## low-AF noise that amplicon data carries in large numbers.
+const COMPUTED_MUTATIONS := {
+	"[Mutations: all]": ["", 0.0],
+	"[Mutations: somatic, AF < 0.50]": [AfClasses.SOMATIC, 0.0],
+	"[Mutations: somatic, 0.05 <= AF < 0.50]": [AfClasses.SOMATIC, 0.05],
+	"[Mutations: indeterminate, 0.50-0.75]": [AfClasses.INDETERMINATE, 0.0],
+	"[Mutations: germline, AF >= 0.75]": [AfClasses.GERMLINE, 0.0],
+}
+const COMPUTED_TAGS := {
+	"[Haplogroup]": "haplogroup=",
+	"[Major haplogroup]": "macro haplogroup=",
+	"[Lineage]": "lineage=",
+}
 
-## Every attribute name present on any sample, sorted.
-static func attribute_names(store: VariantStore) -> Array:
+
+## Every attribute name present on any sample, sorted, then the computed ones.
+static func attribute_names(store: VariantStore, with_computed: bool = true) -> Array:
 	var names := {}
 	for sample in store.samples:
 		for key in sample.get("attributes", {}):
 			names[key] = true
 	var out := names.keys()
 	out.sort_custom(func(a, b): return str(a).naturalnocasecmp_to(str(b)) < 0)
+	if with_computed:
+		out.append_array(COMPUTED_MUTATIONS.keys())
+		out.append_array(COMPUTED_TAGS.keys())
+	return out
+
+
+static func is_computed(attribute: String) -> bool:
+	return COMPUTED_MUTATIONS.has(attribute) or COMPUTED_TAGS.has(attribute)
+
+
+## Per-sample mutation counts in a frame: {sample_id: {computed name: n}}.
+static func mutation_counts(frame: MutationFrame) -> Dictionary:
+	var thresholds: Dictionary = frame.af_thresholds if not frame.af_thresholds.is_empty() else AfClasses.DEFAULT_THRESHOLDS
+	var af_col: PackedFloat64Array = frame.store.calls["af"]
+	var out := {}
+	for id in frame.samples:
+		out[id] = {}
+		for key in COMPUTED_MUTATIONS:
+			out[id][key] = 0
+	for r in frame.row_count():
+		var row: Dictionary = frame.carriers[r]
+		for id in row:
+			var counts: Dictionary = out[id]
+			var af := af_col[row[id]]
+			var cls := AfClasses.classify(af, thresholds)
+			for key in COMPUTED_MUTATIONS:
+				var spec: Array = COMPUTED_MUTATIONS[key]
+				if (spec[0] == "" or spec[0] == cls) and (spec[1] <= 0.0 or (not is_nan(af) and af >= spec[1])):
+					counts[key] += 1
 	return out
 
 
@@ -39,6 +87,7 @@ static func attribute_names(store: VariantStore) -> Array:
 static func run(groups: Array, store: VariantStore, measures: Array) -> Dictionary:
 	var warnings: Array = []
 	var group_subjects: Array = []  # per group: {subject: [sample dicts]}
+	var contexts: Array = []  # per group: {"frame", "counts" (computed lazily)}
 	var where := {}  # subject -> [group labels]
 	for g in groups:
 		var by_subject := {}
@@ -47,11 +96,14 @@ static func run(groups: Array, store: VariantStore, measures: Array) -> Dictiona
 			var sample := store.sample_by_id(id)
 			by_subject.get_or_add(sample["subject"], []).append(sample)
 		group_subjects.append(by_subject)
+		contexts.append({"frame": frame, "counts": null})
 		for subject in by_subject:
 			where.get_or_add(subject, []).append(g["label"])
-	for subject in where:
-		if where[subject].size() > 1:
-			warnings.append("%s is in more than one group (%s); set its haplogroup or tags so it is in one." % [subject, ", ".join(where[subject])])
+	var shared: Array = where.keys().filter(func(subject): return where[subject].size() > 1)
+	if shared:
+		shared.sort_custom(func(a, b): return str(a).naturalnocasecmp_to(str(b)) < 0)
+		warnings.append("%d patient(s) are in more than one group, so the groups are not independent: %s%s. Set their haplogroup or tags so each is in one group." % [
+			shared.size(), ", ".join(shared.slice(0, 5).map(func(x): return "%s (%s)" % [x, ", ".join(where[x])])), ", …" if shared.size() > 5 else ""])
 	var out_groups: Array = []
 	for i in groups.size():
 		var subjects: Array = group_subjects[i].keys()
@@ -59,13 +111,27 @@ static func run(groups: Array, store: VariantStore, measures: Array) -> Dictiona
 		out_groups.append({"label": groups[i]["label"], "n": subjects.size(), "subjects": subjects})
 	var rows: Array = []
 	for m in measures:
-		rows.append(_measure_row(m, group_subjects, out_groups, warnings))
+		rows.append(_measure_row(m, group_subjects, contexts, out_groups, warnings))
 	return {"groups": out_groups, "rows": rows, "warnings": warnings}
 
 
 ## A subject's value for an attribute (first sample that has it), noting
-## disagreements between its samples.
-static func _value(samples: Array, attribute: String, warnings: Array) -> Variant:
+## disagreements between its samples. Computed values use the group context.
+static func _value(samples: Array, attribute: String, warnings: Array, ctx: Dictionary = {}) -> Variant:
+	if COMPUTED_MUTATIONS.has(attribute):
+		if ctx["counts"] == null:
+			ctx["counts"] = mutation_counts(ctx["frame"])
+		var total := 0.0
+		for sample in samples:
+			total += ctx["counts"].get(sample["id"], {}).get(attribute, 0)
+		return total / samples.size()
+	if COMPUTED_TAGS.has(attribute):
+		var prefix: String = COMPUTED_TAGS[attribute]
+		for sample in samples:
+			for tag in sample["tags"]:
+				if tag.begins_with(prefix):
+					return tag.trim_prefix(prefix)
+		return null
 	var value = null
 	for sample in samples:
 		var v = sample.get("attributes", {}).get(attribute)
@@ -80,7 +146,7 @@ static func _value(samples: Array, attribute: String, warnings: Array) -> Varian
 	return value
 
 
-static func _measure_row(m: Dictionary, group_subjects: Array, groups: Array, warnings: Array) -> Dictionary:
+static func _measure_row(m: Dictionary, group_subjects: Array, contexts: Array, groups: Array, warnings: Array) -> Dictionary:
 	var summary: String = m.get("summary", "median")
 	var attribute: String = m.get("attribute", "")
 	var row := {"label": m.get("label", attribute), "summary": summary, "cells": [], "test": TESTS.get(summary, ""),
@@ -92,9 +158,9 @@ static func _measure_row(m: Dictionary, group_subjects: Array, groups: Array, wa
 		var vals: Array = []
 		var xy: Array = []
 		for subject in by_subject:
-			var v = _value(by_subject[subject], attribute, warnings)
+			var v = _value(by_subject[subject], attribute, warnings, contexts[i])
 			if summary == "correlation":
-				var w = _value(by_subject[subject], m.get("with", ""), warnings)
+				var w = _value(by_subject[subject], m.get("with", ""), warnings, contexts[i])
 				if typeof(v) == TYPE_FLOAT and typeof(w) == TYPE_FLOAT:
 					xy.append([v, w])
 				else:
@@ -129,7 +195,10 @@ static func _measure_row(m: Dictionary, group_subjects: Array, groups: Array, wa
 				var yes: int = vals.reduce(func(s, x): return s + x, 0)
 				table.append([yes, vals.size() - yes])
 				row["cells"].append({"text": "%d (%s%%)" % [yes, _num(100.0 * yes / vals.size(), 0)] if vals else "–", "n": vals.size()})
-			row["p"] = GroupTests.fisher_exact(table)["p"]
+			var fisher := GroupTests.fisher_exact(table)
+			row["p"] = fisher["p"]
+			if fisher.get("method") == "Monte Carlo":
+				row["test"] = "Fisher's exact (Monte Carlo, 20,000 tables)"
 		"correlation":
 			var all_x: Array = []
 			var all_y: Array = []

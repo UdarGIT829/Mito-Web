@@ -65,15 +65,15 @@ func _ready() -> void:
 		_summary.text = "Assigning haplogroups… %d of %d" % [done, total])
 	_tree = Tree.new()
 	_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_tree.columns = 7
+	_tree.columns = 8
 	_tree.column_titles_visible = true
 	_tree.hide_root = true
 	_tree.select_mode = Tree.SELECT_MULTI
-	var titles := ["Subject / sample", "Tags", "Haplogroup (score)", "Build", "Calls", "On rCRS", "Source file"]
-	var widths := [0, 180, 160, 100, 70, 80, 0]
-	for i in 7:
+	var titles := ["Subject / sample", "Tags", "Haplogroup (score)", "Mixture check", "Build", "Calls", "On rCRS", "Source file"]
+	var widths := [0, 180, 160, 150, 100, 70, 80, 0]
+	for i in 8:
 		_tree.set_column_title(i, titles[i])
-		_tree.set_column_expand(i, i == 0 or i == 6)
+		_tree.set_column_expand(i, i == 0 or i == 7)
 		_tree.set_column_custom_minimum_width(i, widths[i])
 	add_child(_tree)
 	Workspace.changed.connect(refresh)
@@ -132,16 +132,31 @@ func _add_sample_row(parent: TreeItem, sample: Dictionary, summary: Dictionary, 
 			", ".join(hg["extra"]) if hg["extra"] else "none", hg["af_min"], hg["tree"]])
 		if hg["score"] < 0.9:
 			item.set_custom_color(2, Color(1, 0.8, 0.4))
-	item.set_text(3, FilesPanel._short_build(sample["build"]))
-	item.set_text(4, str(summary["calls"]))
-	item.set_text(5, str(summary["placed"]))
+	var check: Dictionary = sample.get("haplogroup_check", {})
+	if check:
+		var disagree := HaplogroupClassifier.manual_disagreement(sample)
+		var parts: Array = []
+		if disagree:
+			parts.append("file looks like %s" % disagree)
+		if check["flag"]:
+			parts.append("%s in %s" % [check["minor"], check["major"]])
+		item.set_text(3, "; ".join(parts) if parts else "no mixture")
+		item.set_custom_color(3, Color(1, 0.6, 0.35) if parts else Color(0.6, 0.65, 0.7))
+		item.set_tooltip_text(3, "%sMajor profile (homoplasmic + AF >= 0.5): %s\nMinor profile (homoplasmic + AF < 0.5): %s\nTree distance %d; %d low-AF variant(s) the minor haplogroup expects and the major does not%s\n%s" % [
+			("The haplogroup set by hand (%s) is in a different major haplogroup from this file's own calls (%s): a swapped or mislabelled file?\n" % [sample["haplogroup"]["name"], disagree]) if disagree else "",
+			check["major"], check["minor"], check["distance"], check["sites"],
+			(": " + ", ".join(Array(check.get("support", [])).slice(0, 12))) if check["sites"] else "",
+			"Possible contamination or a sample mix-up." if check["flag"] else "One haplogroup explains the calls."])
+	item.set_text(4, FilesPanel._short_build(sample["build"]))
+	item.set_text(5, str(summary["calls"]))
+	item.set_text(6, str(summary["placed"]))
 	var lines: Array = []
 	for status_name in summary["status"]:
 		lines.append("%s: %d" % [status_name.capitalize(), summary["status"][status_name]])
-	item.set_tooltip_text(5, "\n".join(lines))
+	item.set_tooltip_text(6, "\n".join(lines))
 	if summary["placed"] < summary["calls"]:
-		item.set_custom_color(5, Color(1, 0.8, 0.4))
-	item.set_text(6, Workspace.model.source_by_id(sample["source_id"]).get("name", ""))
+		item.set_custom_color(6, Color(1, 0.8, 0.4))
+	item.set_text(7, Workspace.model.source_by_id(sample["source_id"]).get("name", ""))
 
 
 func _build_tag_dialog() -> void:
@@ -391,7 +406,7 @@ func _build_haplogroup_dialog() -> void:
 	_hg_dialog.ok_button_text = "Assign"
 	var box := VBoxContainer.new()
 	_hg_dialog.add_child(box)
-	var note := _plain("Each sample is matched against PhyloTree Build 17 with HaploGrep's weighted\nKulczynski score. Results become tags (haplogroup=…, macro haplogroup=…, and haplogroup clade=…\nfor every major group it descends from) that tag filters can use. Calls without an AF (genotype-only data) always count.")
+	var note := _plain("Each sample is matched against PhyloTree Build 17 with HaploGrep's weighted\nKulczynski score. Results become tags (haplogroup=…, macro haplogroup=…, and haplogroup clade=…\nfor every major group it descends from) that tag filters can use. Calls without an AF (genotype-only data) always count.\nHaplogroups set by hand are kept. Every sample also gets a mixture check: its low-AF calls are\nclassified separately, and a second, distant haplogroup suggests contamination or a mix-up.")
 	box.add_child(note)
 	var row := HBoxContainer.new()
 	row.add_child(_plain("Use calls with AF at least"))

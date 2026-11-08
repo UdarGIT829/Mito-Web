@@ -25,6 +25,7 @@ func run(runner) -> void:
 	test_manual_and_lineages()
 	test_compare()
 	test_table_import()
+	await test_mixture()
 
 
 func check(condition: bool, label: String) -> void:
@@ -142,3 +143,59 @@ func test_table_import() -> void:
 	check(r["haplogroups"].size() == 2 and r["haplogroups"][1][1] == "A2u", "haplogroup column returned for setting by hand")
 	check(PatientCompare.matches(1.0, {"op": "=", "value": "yes"}) and PatientCompare.matches("Yes", {"op": "=", "value": "yes"}) and not PatientCompare.matches("no", {"op": "=", "value": "yes"}), "yes/1 conditions")
 	check(PatientCompare.parse_condition(">= 6") == {"op": ">=", "value": 6.0} and PatientCompare.parse_condition("F") == {"op": "=", "value": "F"}, "conditions parse")
+
+
+## Synthetic VCF: every SNV of the major haplogroup's profile at AF 1, plus
+## the minor haplogroup's own SNVs at AF 0.1.
+static func _mix_vcf(major: String, minor: String, minor_af: float) -> String:
+	var ref := ReferenceSequence.get_build(ReferenceSequence.RCRS)
+	var lines := ["##fileformat=VCFv4.2", "##contig=<ID=chrM,length=16569>", "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS"]
+	var major_set := {}
+	for v in HaplogroupClassifier.profile(HaplogroupClassifier.node_index(major)):
+		major_set[v] = true
+	var records := {}
+	for pair in [[major_set.keys(), 1.0], [Array(HaplogroupClassifier.profile(HaplogroupClassifier.node_index(minor))).filter(func(v): return not major_set.has(v)), minor_af]]:
+		for v in pair[0]:
+			var digits := ""
+			for ch in v:
+				if ch >= "0" and ch <= "9":
+					digits += ch
+				else:
+					break
+			var alt: String = v.substr(digits.length())
+			if alt.length() != 1 or not alt in ["A", "C", "G", "T"]:
+				continue
+			var pos := int(digits)
+			var base := ref.supplied_bases(pos, 1)
+			if base == alt or records.has(pos):
+				continue
+			records[pos] = "chrM\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:AF\t0/1:%s" % [pos, base, alt, pair[1]]
+	var keys := records.keys()
+	keys.sort()
+	for k in keys:
+		lines.append(records[k])
+	return "\n".join(lines) + "\n"
+
+
+func test_mixture() -> void:
+	check(HaplogroupClassifier.tree_distance(HaplogroupClassifier.node_index("H1"), HaplogroupClassifier.node_index("H1")) == 0
+		and HaplogroupClassifier.tree_distance(HaplogroupClassifier.node_index("H1"), HaplogroupClassifier.node_index("H")) == 1, "tree distance")
+	var store := VariantStore.new()
+	var id := 1
+	for case in [["U5b1b1", "J1c5a1", 0.1], ["A2", "A2", 0.1]]:
+		var raw: PackedByteArray = _mix_vcf(case[0], case[1], case[2]).to_utf8_buffer()
+		var inspected := VcfImporter.inspect("m%d.vcf" % id, raw)
+		await VcfImporter.new().import_source({"id": id, "name": "m%d.vcf" % id, "raw": raw, "plan": inspected["plan"]}, store)
+		id += 1
+	var ids := SampleQuery.select(store)
+	var checks := HaplogroupClassifier.mixture_check(store, ids)
+	var mixed: Dictionary = checks[ids[0]]
+	check(mixed["flag"] and mixed["minor"].begins_with("J1c5") and mixed["major"].begins_with("U5b1b1"), "a low-AF J1c5a1 component in a U5b1b1 sample is flagged (got %s in %s)" % [mixed["minor"], mixed["major"]])
+	check(not checks[ids[1]]["flag"], "a clean sample is not flagged")
+	var exact_big := GroupTests.fisher_exact([[5, 20], [0, 64], [33, 250], [646, 1510]])
+	check(exact_big["method"] == "exact" and exact_big["p"] < 0.001, "a cohort-vs-1000G sized table is still exact")
+	var big := GroupTests.fisher_exact([[30, 10, 5], [20, 20, 20], [300, 320, 280], [400, 410, 390]])
+	check(big["method"] == "Monte Carlo" and big["p"] < 0.01 and big["p"] > 0.0, "very large tables use a seeded Monte Carlo (p %s)" % big["p"])
+	var even := GroupTests.fisher_exact([[100, 100, 100], [100, 100, 100], [100, 100, 100]])
+	check(even["method"] == "Monte Carlo" and even["p"] > 0.5, "Monte Carlo p is high when nothing differs (p %s)" % even["p"])
+	check(GroupTests.fisher_exact([[3, 1], [1, 3]])["method"] == "exact", "small tables stay exact")

@@ -232,6 +232,29 @@ SLEDAI, SDI, LN_II, LN_III_IV, LN_V, CKD_ESRD. On the 25 patients of the
 paper's Table 1 it reproduces every value that does not depend on the 13th
 Amerindian patient missing from that table.
 
+### Lupus expansions and quality checks
+
+- **Computed values** for Compare Patients: per-patient mutation counts from
+  the group's own mutations (all; somatic AF < 0.50; somatic with a 5% floor
+  that drops amplicon noise; indeterminate; germline), and the patient's
+  haplogroup, major haplogroup and lineage, all usable like imported values.
+- **Lupus: mutations and outcomes** workflow: mutation counts by lineage,
+  their Spearman correlation with SLEDAI-2K and SDI, and the somatic
+  mutations found only in Amerindian or only in African patients, annotated.
+- **Cohort vs 1000 Genomes** workflow: lineage shares in the cohort against
+  1000 Genomes MXL (Mexican Ancestry, Los Angeles), the other admixed
+  American populations and the rest, in non-overlapping groups.
+- **Mixture check** (with Assign haplogroups, for every sample): a major
+  profile (homoplasmic + AF >= 0.5) and a minor profile (homoplasmic + AF <
+  0.5) are classified separately, in the spirit of haplocheck. A minor
+  haplogroup at least 2 nodes away, supported by 3+ low-AF variants it
+  expects and the major one does not, is flagged as possible contamination
+  or a mix-up. A haplogroup set by hand whose major haplogroup differs from
+  the file's own calls is flagged too ("file looks like ..."), which catches
+  swapped files. Shown on the Samples and Patients tabs.
+- Fisher's exact test switches to a seeded Monte Carlo (20,000 tables) when
+  exact enumeration would exceed 3 million tables.
+
 ## Statistics (density windows)
 
 A Statistics node takes any number of groups (each connected input) and a

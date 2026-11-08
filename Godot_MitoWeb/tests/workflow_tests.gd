@@ -45,7 +45,7 @@ func _labels(f: MutationFrame) -> Array:
 
 func test_builtins() -> void:
 	var ids: Array = Workflows.builtin().map(func(w): return w["id"])
-	check(ids == ["treated_vs_untreated", "haplogroup_markers", "lupus_lineages"], "built-in workflows")
+	check(ids == ["treated_vs_untreated", "haplogroup_markers", "lupus_lineages", "lupus_mutations", "cohort_vs_population"], "built-in workflows")
 	var wf := Workflows.find_builtin("treated_vs_untreated")
 	check(Workflows.resolve_params(wf, {}) == {"tag_a": "Treated", "tag_b": "Untreated"}, "defaults fill missing settings")
 	var g := Workflows.build(wf, {"tag_a": "EV", "tag_b": "Cell"})
