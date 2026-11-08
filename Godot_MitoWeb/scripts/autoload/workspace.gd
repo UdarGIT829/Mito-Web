@@ -76,7 +76,20 @@ func add_files(files: Array) -> String:
 	if added + unreadable > 0 or manifest["applied"] > 0:
 		model.touch()
 		_mark_changed()
-	var parts: Array = ["Added %d file(s)." % added]
+	var table_notes: Array = []
+	for t in expanded["tables"]:
+		var roles := TagImport.default_roles(t["table"])
+		var r := import_table(t["table"], roles["match"], roles["tags"], false, -1, roles["values"], roles["haplogroup"])
+		var bits: Array = []
+		if roles["values"]:
+			bits.append("%d value column(s)" % roles["values"].size())
+		if roles["tags"]:
+			bits.append("%d tag column(s)" % roles["tags"].size())
+		if roles["haplogroup"] >= 0:
+			bits.append("haplogroups set by hand")
+		table_notes.append("%s: %s for %d imported and %d pending sample(s)%s." % [t["name"], ", ".join(bits), r["matched"], r["planned"],
+			"; no sample matched %d row(s)" % r["unmatched"].size() if r["unmatched"] and r["matched"] + r["planned"] == 0 else ""])
+	var parts: Array = ["Added %d file(s)." % added] if expanded["files"] or not expanded["tables"] else []
 	if duplicates:
 		parts.append("%d skipped: already in the project (same content)." % duplicates)
 	var flagged := model.duplicate_report().size()
@@ -92,6 +105,7 @@ func add_files(files: Array) -> String:
 		parts.append(e)
 	if expanded["skipped"]:
 		parts.append("Skipped %d other file(s) in the zip." % expanded["skipped"].size())
+	parts.append_array(table_notes)
 	return " ".join(parts)
 
 
@@ -134,8 +148,12 @@ func import_table(table: Dictionary, match_column: int, tag_columns: Array, pref
 	var result := TagImport.apply(model.store.samples, table, match_column, tag_columns, prefix, subject_column, attribute_columns, haplogroup_column)
 	var planned: Array = []
 	for source in model.sources():
-		planned.append_array(source["plan"].get("samples", []))
-	TagImport.apply(planned, table, match_column, tag_columns, prefix, subject_column, attribute_columns)
+		if source.get("status") == WorkspaceModel.STATUS_PENDING:
+			planned.append_array(source["plan"].get("samples", []))
+	var planned_result := TagImport.apply(planned, table, match_column, tag_columns, prefix, subject_column, attribute_columns, haplogroup_column)
+	for pair in planned_result["haplogroups"]:
+		pair[0]["haplogroup_manual"] = pair[1]  # set by hand once the file is imported
+	result["planned"] = planned_result["matched"]
 	var set_count := 0
 	var errors: Array = []
 	for pair in result["haplogroups"]:
@@ -199,6 +217,22 @@ func set_lineage_rules(rules: Array) -> String:
 	if counts.get("", 0):
 		parts.append("no rule %d" % counts[""])
 	return "Lineages: " + ", ".join(parts) + "."
+
+
+## Haplogroups set by hand from a table before their file was imported.
+func _apply_pending_haplogroups(source_id: int) -> void:
+	var any := false
+	for sample in model.store.samples_for_source(source_id):
+		var text: String = sample.get("haplogroup_manual", "")
+		if text.is_empty():
+			continue
+		sample.erase("haplogroup_manual")
+		var manual := HaplogroupClassifier.manual_result(text)
+		if not manual.has("error"):
+			HaplogroupClassifier.apply_to_sample(sample, manual, NAN)
+			any = true
+	if any:
+		_apply_lineages()
 
 
 func _apply_lineages() -> Dictionary:
@@ -324,6 +358,7 @@ func import_sources(source_ids: Array, skip_duplicates: bool = false) -> void:
 			break
 		if result["ok"]:
 			model.mark_imported(source["id"], result)
+			_apply_pending_haplogroups(source["id"])
 			imported += 1
 			calls += result["calls"]
 		else:

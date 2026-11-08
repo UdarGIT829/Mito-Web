@@ -27,21 +27,31 @@ static func is_vcf_name(name: String) -> bool:
 	return lower.ends_with(".vcf") or lower.ends_with(".vcf.gz") or lower.ends_with(".vcf.bgz") or lower.ends_with(".bgz")
 
 
+## A table of per-sample values (clinical data, haplogroups): CSV/TSV that
+## is not a manifest.
+static func is_table_name(name: String) -> bool:
+	var lower := name.get_file().to_lower()
+	return (lower.ends_with(".csv") or lower.ends_with(".tsv")) and not is_manifest_name(name)
+
+
 static func is_manifest_name(name: String) -> bool:
 	var lower := name.get_file().to_lower()
 	return "manifest" in lower and (lower.ends_with(".csv") or lower.ends_with(".tsv") or lower.ends_with(".txt"))
 
 
 ## Expands uploads. Returns {"files": [{name, bytes}], "manifests": [table],
+## "tables": [{name, table}] (values tables, see is_table_name),
 ## "errors": [String], "skipped": [String]}.
 static func expand(uploads: Array) -> Dictionary:
-	var out := {"files": [], "manifests": [], "errors": [], "skipped": []}
+	var out := {"files": [], "manifests": [], "tables": [], "errors": [], "skipped": []}
 	for upload in uploads:
 		var name: String = upload["name"]
 		if name.to_lower().ends_with(".zip"):
 			_expand_zip(upload, out)
 		elif is_manifest_name(name):
 			_add_manifest(name, upload["bytes"], out)
+		elif is_table_name(name):
+			_add_table(name, upload["bytes"], out)
 		else:
 			out["files"].append(upload)
 	return out
@@ -66,10 +76,20 @@ static func _expand_zip(upload: Dictionary, out: Dictionary) -> void:
 			out["files"].append({"name": path.get_file(), "bytes": zip.read_file(path)})
 		elif is_manifest_name(path):
 			_add_manifest(path.get_file(), zip.read_file(path), out)
+		elif is_table_name(path):
+			_add_table(path.get_file(), zip.read_file(path), out)
 		else:
 			out["skipped"].append(path)
 	zip.close()
 	DirAccess.remove_absolute(TEMP_ZIP)
+
+
+static func _add_table(name: String, bytes: PackedByteArray, out: Dictionary) -> void:
+	var table := TagImport.parse(bytes.get_string_from_utf8())
+	if not table["ok"]:
+		out["errors"].append("%s: %s" % [name, table["error"]])
+		return
+	out["tables"].append({"name": name, "table": table})
 
 
 static func _add_manifest(name: String, bytes: PackedByteArray, out: Dictionary) -> void:

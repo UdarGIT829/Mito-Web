@@ -153,9 +153,10 @@ func _fill_roster() -> void:
 				value = s.get("attributes", {}).get(attributes[k], value)
 			if value != null:
 				item.set_text(5 + k, PatientCompare._num(value) if typeof(value) == TYPE_FLOAT else str(value))
-	_roster_info.text = ("%d patients, %d with values imported%s." % [subjects.size(),
+	_roster_info.text = ("%d patients, %d with values imported%s.%s" % [subjects.size(),
 		subjects.filter(func(s): return by_subject[s].any(func(x): return not x.get("attributes", {}).is_empty())).size(),
-		"; %d with disagreeing samples (highlighted)" % conflicts if conflicts else ""]) if subjects else \
+		"; %d with disagreeing samples (highlighted)" % conflicts if conflicts else "",
+		"" if attributes else " To add clinical values, upload the table (CSV) on the Files tab or use Samples > Import from a table."]) if subjects else \
 		"No samples yet. Import VCFs on the Files tab, then values per patient with Samples > Import from a table."
 
 
@@ -217,6 +218,7 @@ func _show_result() -> void:
 	if _result["warnings"]:
 		notes.append("Check: " + " ".join(_result["warnings"].slice(0, 4)) + (" (+%d more)" % (_result["warnings"].size() - 4) if _result["warnings"].size() > 4 else ""))
 	_info.text = "\n".join(notes)
+	_info.add_theme_color_override("font_color", Color(1, 0.8, 0.4) if _result.get("missing_attributes", []) else Color(0.85, 0.87, 0.9))
 
 
 func _export() -> void:

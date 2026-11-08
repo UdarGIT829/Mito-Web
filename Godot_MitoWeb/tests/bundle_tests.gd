@@ -47,6 +47,25 @@ func run(runner) -> void:
 	check(m2.sources()[0]["plan"]["build"] == "hg19_plus58", "build alias hg19+58")
 	var unknown := UploadBundle.apply_manifests(m2.sources(), UploadBundle.expand([{"name": "manifest.csv", "bytes": "file,build\na.vcf,mm10\n".to_utf8_buffer()}])["manifests"])
 	check(unknown["errors"].size() == 1, "unknown builds are reported")
+	# Values tables (not manifests) in a zip or uploaded alone.
+	var with_table := UploadBundle.expand([{"name": "b.zip", "bytes": _make_zip({"b/one.vcf": NO_CONTIG, "b/clinical.csv": "Subject,Haplogroup,SLEDAI,Sex\nline1,A2o,8,F\n"})},
+		{"name": "more.tsv", "bytes": "Subject\tGroup\nline1\tcase\n".to_utf8_buffer()}])
+	check(with_table["tables"].size() == 2 and with_table["files"].size() == 1, "values tables are recognised in zips and on their own")
+	var roles := TagImport.default_roles(with_table["tables"][0]["table"])
+	check(roles == {"match": 0, "values": [2, 3], "tags": [], "haplogroup": 1}, "default roles: haplogroup column, numbers make the rest values (got %s)" % roles)
+	check(TagImport.default_roles(with_table["tables"][1]["table"])["tags"] == [1], "text-only tables become tags")
+	# Values and hand-set haplogroups reach samples imported later.
+	var m3 := WorkspaceModel.new()
+	m3.add_source("one.vcf", NO_CONTIG.to_utf8_buffer())
+	var src: Dictionary = m3.sources()[0]
+	src["plan"]["build"] = "rcrs"
+	src["plan"]["samples"][0]["subject"] = "line1"
+	var pending := TagImport.apply(src["plan"]["samples"], with_table["tables"][0]["table"], 0, [], false, -1, [2, 3], 1)
+	for pair in pending["haplogroups"]:
+		pair[0]["haplogroup_manual"] = pair[1]
+	await VcfImporter.new().import_source(src, m3.store)
+	var imported: Dictionary = m3.store.samples[0]
+	check(imported["attributes"] == {"SLEDAI": 8.0, "Sex": "F"} and imported.get("haplogroup_manual") == "A2o", "pending samples carry values and the hand-set haplogroup into the import")
 
 
 func check(condition: bool, label: String) -> void:

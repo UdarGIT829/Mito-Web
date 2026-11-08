@@ -203,6 +203,8 @@ func import_source(source: Dictionary, store: VariantStore) -> Dictionary:
 		}
 		if planned.get("attributes"):
 			sample["attributes"] = planned["attributes"].duplicate()
+		if planned.get("haplogroup_manual", ""):
+			sample["haplogroup_manual"] = planned["haplogroup_manual"]  # applied by Workspace after import
 		new_samples.append(sample)
 		targets.append([ci.get(planned["column"], -1) if planned["column"] else -1, sample["id"]])
 	if targets.is_empty():

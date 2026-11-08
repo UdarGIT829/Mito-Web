@@ -192,6 +192,10 @@ all of a patient's samples). Other columns can become:
   haplogroup (`C1c*4` -> C1c).
 
 Tables with numeric columns default to values, text-only tables to tags.
+A table (CSV/TSV that is not a manifest) uploaded on the Files tab, or
+inside a zip, is applied the same way automatically, including to files not
+imported yet: their values and hand-set haplogroups are attached on import.
+The lupus bundle carries its clinical table, so one upload sets everything.
 Values and tags are also written into the files' import settings, so they
 survive Undo import and re-import. "Set haplogroup…" sets or clears a
 haplogroup by hand for the selected samples (or a patient's row);

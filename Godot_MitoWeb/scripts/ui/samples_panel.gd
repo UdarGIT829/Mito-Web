@@ -236,40 +236,18 @@ func _on_files_picked(purpose: String, files: Array) -> void:
 	_tag_subject.add_item("(keep subjects)")
 	for name in header:
 		_tag_subject.add_item(name)
+	var roles := TagImport.default_roles(parsed)
 	_tag_haplogroup.clear()
 	_tag_haplogroup.add_item("(none)")
-	var hg_guess := 0
 	for i in header.size():
 		_tag_haplogroup.add_item(header[i])
-		if hg_guess == 0 and i > 0 and "haplogroup" in str(header[i]).to_lower():
-			hg_guess = i + 1
-	_tag_haplogroup.select(hg_guess)
-	var rest: Array = header.slice(1).filter(func(h): return hg_guess == 0 or h != header[hg_guess - 1])
-	var numeric := rest.filter(func(h): return _numeric_column(parsed, header.find(h)))
+	_tag_haplogroup.select(roles["haplogroup"] + 1)
 	_tag_columns.set_items(header.slice(1))
 	_tag_values.set_items(header.slice(1))
-	# Tables with numbers are usually values (clinical data); text-only tables are usually tags.
-	if numeric.is_empty():
-		_tag_columns.set_selected(rest)
-		_tag_values.set_selected([])
-	else:
-		_tag_columns.set_selected([])
-		_tag_values.set_selected(rest)
+	_tag_columns.set_selected(roles["tags"].map(func(i): return header[i]))
+	_tag_values.set_selected(roles["values"].map(func(i): return header[i]))
 	_tag_preview.text = "%d rows. First row: %s" % [parsed["rows"].size(), ", ".join(parsed["rows"][0])]
 	_tag_dialog.popup_centered()
-
-
-## Whether every non-empty cell of a column is a number.
-static func _numeric_column(table: Dictionary, col: int) -> bool:
-	var seen := false
-	for row in table["rows"]:
-		var v: String = row[col].strip_edges()
-		if v.is_empty():
-			continue
-		if not (v.is_valid_float() or v.is_valid_int()):
-			return false
-		seen = true
-	return seen
 
 
 func _selected_sample_ids() -> Array:
