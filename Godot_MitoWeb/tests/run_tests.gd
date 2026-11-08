@@ -28,7 +28,14 @@ MT	310	.	T	C,TC	100	PASS	.	GT	2	0	1
 """
 
 
+## A test that fails to compile or never finishes must not hang CI.
+const WATCHDOG_SECONDS := 300.0
+
+
 func _init() -> void:
+	create_timer(WATCHDOG_SECONDS).timeout.connect(func() -> void:
+		printerr("FAIL: tests did not finish within %d s (a test file may have failed to compile)" % WATCHDOG_SECONDS)
+		quit(1))
 	_run.call_deferred()
 
 
@@ -53,6 +60,7 @@ func _run() -> void:
 	await preload("res://tests/analysis_tests.gd").new().run(self)
 	await preload("res://tests/haplogroup_tests.gd").new().run(self)
 	await preload("res://tests/workflow_tests.gd").new().run(self)
+	await preload("res://tests/bundle_tests.gd").new().run(self)
 	print("%d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures else 0)
 

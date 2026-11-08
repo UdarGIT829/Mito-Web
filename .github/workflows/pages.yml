@@ -24,6 +24,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -52,6 +53,7 @@ jobs:
         run: ~/godot --headless --path Godot_MitoWeb --import
 
       - name: Run tests
+        timeout-minutes: 10
         run: ~/godot --headless --path Godot_MitoWeb --script res://tests/run_tests.gd
 
       - name: Export web build

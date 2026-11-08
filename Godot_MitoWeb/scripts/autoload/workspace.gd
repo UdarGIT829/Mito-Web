@@ -57,20 +57,39 @@ func rename(value: String) -> void:
 	_mark_changed()
 
 
-## Adds uploaded files. Returns [added, duplicates, unreadable].
-func add_files(files: Array) -> Array:
-	var counts := [0, 0, 0]
-	for file in files:
-		var added := model.add_source(file["name"], file["bytes"])
-		if not added[1]:
-			counts[1] += 1
-		elif added[0]["status"] == WorkspaceModel.STATUS_ERROR:
-			counts[2] += 1
+## Adds uploaded files: VCFs, zips of VCFs, and manifests (see
+## UploadBundle). Returns a summary message.
+func add_files(files: Array) -> String:
+	var expanded := UploadBundle.expand(files)
+	var added := 0
+	var duplicates := 0
+	var unreadable := 0
+	for file in expanded["files"]:
+		var result := model.add_source(file["name"], file["bytes"])
+		if not result[1]:
+			duplicates += 1
+		elif result[0]["status"] == WorkspaceModel.STATUS_ERROR:
+			unreadable += 1
 		else:
-			counts[0] += 1
-	if counts[0] + counts[2] > 0:
+			added += 1
+	var manifest := UploadBundle.apply_manifests(model.sources(), expanded["manifests"])
+	if added + unreadable > 0 or manifest["applied"] > 0:
+		model.touch()
 		_mark_changed()
-	return counts
+	var parts: Array = ["Added %d file(s)." % added]
+	if duplicates:
+		parts.append("%d already in the project." % duplicates)
+	if unreadable:
+		parts.append("%d could not be read as VCF (see the Files list)." % unreadable)
+	if expanded["manifests"]:
+		parts.append("Manifest settings applied to %d row(s)." % manifest["applied"])
+	if manifest["unmatched"]:
+		parts.append("Manifest names %d file(s) not uploaded: %s." % [manifest["unmatched"].size(), ", ".join(manifest["unmatched"].slice(0, 3))])
+	for e in expanded["errors"] + manifest["errors"]:
+		parts.append(e)
+	if expanded["skipped"]:
+		parts.append("Skipped %d other file(s) in the zip." % expanded["skipped"].size())
+	return " ".join(parts)
 
 
 func remove_sources(source_ids: Array) -> void:

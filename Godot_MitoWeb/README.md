@@ -18,7 +18,7 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/autoload/web_files.gd` | Browser upload/download bridge; desktop file-dialog fallback |
 | `scripts/io/` | gzip/BGZF decompression, VCF reading |
 | `scripts/genome/` | Bundled references, rCRS mapper (port of `mito_viewer/mapping`), repeat profiles |
-| `scripts/data/` | Columnar `VariantStore` and the VCF importer |
+| `scripts/data/` | Columnar `VariantStore`, VCF importer, zip/manifest uploads, tag and window imports |
 | `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci |
 | `scripts/graph/` | Analysis graph data (`GraphModel`), cached evaluation (`GraphEvaluator`), workflows (`Workflows`) |
 | `scripts/table/` | `TableViewModel`: columns, column filters, sorting, paging, export |
@@ -27,6 +27,24 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `annotations/` | Public annotation bundle (`tools/build_annotations.py`) and haplogroup tree (`tools/build_phylotree.py`) |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
 | `tests/` | Headless tests; `fixtures/mapper_cases.json` is generated from the Python mapper |
+
+## Uploading: zips and manifests
+
+Upload VCFs, or a `.zip` of them. A CSV/TSV whose name contains `manifest`
+(inside the zip, or uploaded next to the VCFs) sets each file's import
+settings, so files arrive ready to import:
+
+```csv
+# lines starting with # are comments
+file,sample,subject,build,tags
+AP4_EV_PCR.vcf,,AP4,rcrs,EV;PCR
+PL20-19-A_S16.vcf,,PL-20-19,hg19_plus58,lupusN;A
+ALL.chrMT.phase3.vcf.gz,HG00096,HG00096,rcrs,1000G;EUR;GBR
+```
+
+`sample` selects a column of a multi-sample VCF (blank = all samples);
+`build` accepts rcrs/hg38/GRCh37, hg19, hg19_plus58 (hg19+58); `tags` are
+separated by `;`.
 
 ## Import model
 

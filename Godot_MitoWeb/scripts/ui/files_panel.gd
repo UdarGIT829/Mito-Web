@@ -6,7 +6,7 @@ extends HSplitContainer
 
 signal status_message(text: String)
 
-const SOURCE_ACCEPT := ".vcf,.gz,.bgz"
+const SOURCE_ACCEPT := ".vcf,.gz,.bgz,.zip,.csv,.tsv"
 const STATUS_LABELS := {"pending": "Ready", "imported": "Imported", "error": "Unreadable"}
 const NO_BUILD := "Choose reference build…"
 
@@ -36,7 +36,7 @@ func _build_left() -> void:
 
 	var toolbar := HBoxContainer.new()
 	left.add_child(toolbar)
-	_add_button(toolbar, "Upload VCF files…", func() -> void:
+	_add_button(toolbar, "Upload files…", func() -> void:
 		WebFiles.pick_files("sources", SOURCE_ACCEPT, true))
 	_import_button = _add_button(toolbar, "Import selected", func() -> void:
 		Workspace.import_sources(_selected_ids()))
@@ -153,7 +153,7 @@ func refresh() -> void:
 			item.select(0)
 	if Workspace.model.sources().is_empty():
 		var hint := _files.create_item(root)
-		hint.set_text(0, "Upload VCF files (.vcf or .vcf.gz). They stay in this browser.")
+		hint.set_text(0, "Upload VCF files (.vcf, .vcf.gz) or a .zip of them, optionally with a manifest.csv. They stay in this browser.")
 		for i in 4:
 			hint.set_selectable(i, false)
 	var busy := Workspace.importing

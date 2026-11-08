@@ -144,13 +144,7 @@ func _on_files_picked(purpose: String, files: Array) -> void:
 		return
 	match purpose:
 		"sources":
-			var counts := Workspace.add_files(files)
-			var parts: Array = ["Added %d file(s)." % counts[0]]
-			if counts[1]:
-				parts.append("%d already in the project." % counts[1])
-			if counts[2]:
-				parts.append("%d could not be read as VCF (see the Files list)." % counts[2])
-			_set_status(" ".join(parts))
+			_set_status(Workspace.add_files(files))
 			_tabs.current_tab = 0
 			WebFiles.estimate_storage(true)
 		"workspace":
