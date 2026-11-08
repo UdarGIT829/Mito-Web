@@ -6,12 +6,13 @@ extends VBoxContainer
 
 signal status_message(text: String)
 signal open_table(node_id: String)
+signal open_stats(node_id: String)
 
 const FRAME_COLOR := Color(0.45, 0.8, 1.0)
 const EXCLUDE_COLOR := Color(1.0, 0.45, 0.4)
 const ERROR_COLOR := Color(1, 0.5, 0.45)
 const OK_COLOR := Color(0.7, 0.95, 0.75)
-const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "germline_somatic", "enrich", "annotation_filter", "table"]
+const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "germline_somatic", "enrich", "annotation_filter", "table", "statistics"]
 
 var _graph_edit: GraphEdit
 var _add_menu: MenuButton
@@ -149,6 +150,7 @@ func _insert_example() -> void:
 	for e in example["edges"]:
 		GraphModel.connect_nodes(g, renamed[e["from"]], e["from_port"], renamed[e["to"]], e["to_port"])
 	_commit(true)
+	_fit_view.call_deferred()
 	status_message.emit("Inserted the example. It uses the tags Treated and Untreated; add them to your samples on the Files tab.")
 
 
@@ -188,6 +190,23 @@ func _on_end_node_move() -> void:
 	for node_id in _views:
 		GraphModel.node(Workspace.model.graph(), node_id)["position"] = _views[node_id]["node"].position_offset
 	Workspace.graph_edited()
+
+
+## Zooms and scrolls so every node is visible.
+func _fit_view() -> void:
+	if _views.is_empty():
+		return
+	var bounds := Rect2()
+	var first := true
+	for view in _views.values():
+		var gn: GraphNode = view["node"]
+		var rect := Rect2(gn.position_offset, gn.size)
+		bounds = rect if first else bounds.merge(rect)
+		first = false
+	bounds = bounds.grow(40)
+	var fit := minf(_graph_edit.size.x / bounds.size.x, _graph_edit.size.y / bounds.size.y)
+	_graph_edit.zoom = clampf(fit, _graph_edit.zoom_min, 1.0)
+	_graph_edit.scroll_offset = bounds.position * _graph_edit.zoom
 
 
 ## Canvas position at the middle of the visible area, nudged so repeated
@@ -368,14 +387,17 @@ func _create_view(n: Dictionary) -> void:
 				_commit())
 			rows = [summary, edit, mode, flag_name]
 		"enrich":
-			var labels := {"gnomad": "gnomAD v3.1 mtDNA (frequency, haplogroups, VEP)",
-				"clinvar": "ClinVar classifications", "ensembl": "Ensembl VEP lookups (Tables tab)"}
+			var labels := {"gnomad": "gnomAD v3.1 mtDNA", "clinvar": "ClinVar", "ensembl": "Ensembl lookups"}
+			var tips := {"gnomad": "Frequencies in 56,434 genomes, haplogroup markers, consequences, tRNA predictions.",
+				"clinvar": "Clinical classifications, review status and conditions.",
+				"ensembl": "Consequences for mutations gnomAD lacks, fetched with the button on the Tables tab."}
 			var info := AnnotationDb.source_info()
 			if info.has("clinvar"):
-				labels["clinvar"] += " (%s)" % info["clinvar"].get("release", "")
+				labels["clinvar"] += " %s" % info["clinvar"].get("release", "")
 			for source in AnnotationDb.SOURCES:
 				var box := CheckBox.new()
 				box.text = labels[source]
+				box.tooltip_text = tips[source]
 				box.button_pressed = source in config.get("sources", AnnotationDb.SOURCES)
 				box.toggled.connect(func(on: bool) -> void:
 					var chosen: Array = config.get("sources", AnnotationDb.SOURCES.duplicate()).duplicate()
@@ -386,6 +408,47 @@ func _create_view(n: Dictionary) -> void:
 					config["sources"] = chosen
 					_commit())
 				rows.append(box)
+		"statistics":
+			var window_spec: Dictionary = config.get("window", {}).duplicate()
+			config["window"] = window_spec
+			var stats_name := LineEdit.new()
+			stats_name.placeholder_text = "Name (optional)"
+			stats_name.text = config.get("name", "")
+			stats_name.text_changed.connect(func(text: String) -> void:
+				config["name"] = text
+				Workspace.graph_edited())
+			var mode := _option(["Sliding windows", "Genes and regions"], 1 if window_spec.get("mode") == "regions" else 0)
+			var size := _number_edit(int(window_spec.get("size", 500)))
+			var step := _number_edit(int(window_spec.get("step", 500)))
+			var lo := _number_edit(int(window_spec.get("range_start", 1)))
+			var hi := _number_edit(int(window_spec.get("range_end", WindowStats.LENGTH)))
+			var wrap := CheckBox.new()
+			wrap.text = "Wrap past 16,569 to 1"
+			wrap.tooltip_text = "The genome is circular; lets windows near the end continue at position 1 (whole-genome range only)."
+			wrap.button_pressed = window_spec.get("wrap", false)
+			var sliding_rows: Array = []
+			var apply_spec := func(_x = null) -> void:
+				window_spec["mode"] = "regions" if mode.selected == 1 else "sliding"
+				for pair in [[size, "size"], [step, "step"], [lo, "range_start"], [hi, "range_end"]]:
+					if pair[0].text.strip_edges().is_valid_int():
+						window_spec[pair[1]] = pair[0].text.to_int()
+				window_spec["wrap"] = wrap.button_pressed
+				for r in sliding_rows:
+					r.visible = mode.selected == 0
+				_commit()
+			mode.item_selected.connect(apply_spec)
+			for edit in [size, step, lo, hi]:
+				edit.text_changed.connect(apply_spec)
+			wrap.toggled.connect(apply_spec)
+			var view_button := Button.new()
+			view_button.text = "View statistics"
+			view_button.pressed.connect(func() -> void: open_stats.emit(n["id"]))
+			var size_row := _labeled("Size / step (bp)", _pair_box(size, step))
+			var range_row := _labeled("Range", _pair_box(lo, hi))
+			sliding_rows.append_array([size_row, range_row, wrap])  # in place: the lambda above holds this array
+			for r in sliding_rows:
+				r.visible = window_spec.get("mode") != "regions"
+			rows = [stats_name, mode, size_row, range_row, wrap, view_button]
 		"table":
 			var table_name := LineEdit.new()
 			table_name.placeholder_text = "Table name"
@@ -452,6 +515,13 @@ func _evaluate() -> void:
 	var elapsed := Time.get_ticks_msec() - started
 	if elapsed > 500:
 		status_message.emit("Graph updated in %.1f s." % (elapsed / 1000.0))
+
+
+static func _pair_box(a: Control, b: Control) -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.add_child(a)
+	box.add_child(b)
+	return box
 
 
 static func _number_edit(value) -> LineEdit:

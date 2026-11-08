@@ -78,6 +78,7 @@ carries a `MutationFrame`.
 | Annotation Filter | Keeps or removes mutations by ClinVar category/review, gnomAD frequency, haplogroup marker, consequence, tRNA prediction |
 | Enrich with Annotations | Adds gnomAD, ClinVar and live Ensembl annotation columns to the tables after it |
 | Table | Names a point in the graph to view on the Tables tab |
+| Statistics | Mutation density along the genome per connected group; view on the Statistics tab |
 
 Results are cached per node; an edit recomputes only that node and what is
 downstream of it. "Insert example" builds the treated-vs-untreated design.
@@ -118,6 +119,24 @@ Samples tab, "Import tags from a table": a CSV/TSV with a header row. One
 column names the sample (matched to sample name, then subject); chosen
 columns become tags, optionally as `column=value`. Tags are also written into
 the files' import settings, so they survive Undo import and re-import.
+
+## Statistics (density windows)
+
+A Statistics node takes any number of groups (each connected input) and a
+window set:
+
+- **Sliding windows**: size and step in bp (step < size overlaps), limited to
+  a range (e.g. one gene), optionally wrapping past 16,569 to 1.
+- **Genes and regions**: the 37 genes, the control region (16024–576, across
+  the origin) and the intergenic stretches.
+
+Window sets are plain interval lists, so imported or learned windows can be
+added later. Per window and group the Statistics tab shows distinct
+mutations, carrier calls, or AF-weighted calls (heteroplasmy load), optionally
+per kb and per sample (divided by the group's own sample count; use "keep
+only these samples" on tag filters so each group's count is its own). Chart
+and table, with CSV export. Short regions (tRNAs ~70 bp) give noisy per-kb
+values.
 
 ## Annotations
 
