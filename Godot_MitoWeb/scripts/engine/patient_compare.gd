@@ -110,9 +110,19 @@ static func run(groups: Array, store: VariantStore, measures: Array) -> Dictiona
 		subjects.sort_custom(func(a, b): return str(a).naturalnocasecmp_to(str(b)) < 0)
 		out_groups.append({"label": groups[i]["label"], "n": subjects.size(), "subjects": subjects})
 	var rows: Array = []
+	var missing_attributes: Array = []
 	for m in measures:
-		rows.append(_measure_row(m, group_subjects, contexts, out_groups, warnings))
-	return {"groups": out_groups, "rows": rows, "warnings": warnings}
+		var row := _measure_row(m, group_subjects, contexts, out_groups, warnings)
+		rows.append(row)
+		var with_values: int = row["cells"].reduce(func(s, c): return s + c["n"], 0)
+		for key in ["attribute", "with"]:
+			var a: String = m.get(key, "")
+			if a and not is_computed(a) and with_values == 0 and not a in missing_attributes:
+				missing_attributes.append(a)
+	if missing_attributes:
+		warnings.push_front("No patient in these groups has %s. Upload the clinical table (CSV) on the Files tab, or use Samples > Import from a table, then the values appear here." % (
+			"a value for " + ", ".join(missing_attributes) if missing_attributes.size() <= 4 else "values for %d of the columns used (%s, …)" % [missing_attributes.size(), ", ".join(missing_attributes.slice(0, 3))]))
+	return {"groups": out_groups, "rows": rows, "warnings": warnings, "missing_attributes": missing_attributes}
 
 
 ## A subject's value for an attribute (first sample that has it), noting

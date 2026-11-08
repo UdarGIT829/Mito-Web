@@ -89,6 +89,35 @@ static func apply(samples: Array, table: Dictionary, match_column: int, tag_colu
 	return {"matched": matched, "tags_added": added, "attributes_set": attributes_set, "haplogroups": haplogroups, "unmatched": unmatched}
 
 
+## Suggested use of each column: the first names the sample; a column whose
+## name contains "haplogroup" sets haplogroups by hand; tables with numbers
+## make every other column a value (clinical data), text-only tables make
+## them tags. Returns {"match", "values": [cols], "tags": [cols], "haplogroup"}.
+static func default_roles(table: Dictionary) -> Dictionary:
+	var header: Array = table["header"]
+	var hg := -1
+	for i in range(1, header.size()):
+		if "haplogroup" in str(header[i]).to_lower():
+			hg = i
+			break
+	var rest: Array = range(1, header.size()).filter(func(i): return i != hg)
+	var numeric: bool = rest.any(func(i): return numeric_column(table, i))
+	return {"match": 0, "values": rest if numeric else [], "tags": [] if numeric else rest, "haplogroup": hg}
+
+
+## Whether every non-empty cell of a column is a number.
+static func numeric_column(table: Dictionary, col: int) -> bool:
+	var seen := false
+	for row in table["rows"]:
+		var v: String = row[col].strip_edges()
+		if v.is_empty():
+			continue
+		if not (v.is_valid_float() or v.is_valid_int()):
+			return false
+		seen = true
+	return seen
+
+
 ## A table cell as a value: a number when it reads as one, else trimmed text.
 static func parse_value(raw: String) -> Variant:
 	var text := raw.strip_edges()

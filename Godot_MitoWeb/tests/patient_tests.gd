@@ -127,6 +127,8 @@ func test_compare() -> void:
 	var corr: Dictionary = by_name["Duration and activity"]["patients"]["rows"][0]
 	check(near(corr["p"], 0.031, 0.001) and "rho -0.43" in corr["note"], "overall Spearman duration vs SLEDAI (%s)" % corr["note"])
 	check(by_name["Table 5: Lupus nephritis"]["patients"]["rows"][0]["missing"] == 25, "missing values are counted, not guessed")
+	var t5: Dictionary = by_name["Table 5: Lupus nephritis"]["patients"]
+	check(t5["missing_attributes"] == ["LN_II", "LN_III_IV", "LN_V", "CKD_ESRD"] and "No patient in these groups has a value for LN_II" in t5["warnings"][0], "missing value columns are named in a warning")
 	var csv := PatientCompare.to_csv(p)
 	check(csv.begins_with("Measure,African (n = 5)") and "African vs Caucasian" in csv, "results export as CSV")
 	# Disagreeing samples are reported.
