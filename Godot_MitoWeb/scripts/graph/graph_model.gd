@@ -194,7 +194,8 @@ static func validate(graph) -> String:
 
 ## The worked example from the project design: treated vs untreated
 ## exclusive mutations (annotated), and those in both, each with a table,
-## plus density statistics comparing the two exclusive sets.
+## plus density statistics for the two exclusive sets and for all somatic
+## calls (the group to test Treated vs Untreated in, by subject).
 static func example_graph() -> Dictionary:
 	var g := new_graph()
 	var source := add_node(g, "data_provider", Vector2(0, 160))
@@ -223,7 +224,11 @@ static func example_graph() -> Dictionary:
 	connect_nodes(g, both["id"], 0, t2["id"], 0)
 	connect_nodes(g, untreated_only["id"], 0, e3["id"], 0)
 	connect_nodes(g, e3["id"], 0, t3["id"], 0)
-	var stats := add_node(g, "statistics", Vector2(1420, 200), {"name": "Exclusive mutations"})
+	var somatic := add_node(g, "germline_somatic", Vector2(340, 640))
+	somatic["title"] = "Somatic calls"
+	connect_nodes(g, source["id"], 0, somatic["id"], 0)
+	var stats := add_node(g, "statistics", Vector2(1420, 200), {"name": "Mutation density"})
 	connect_nodes(g, treated_only["id"], 0, stats["id"], 0)
 	connect_nodes(g, untreated_only["id"], 0, stats["id"], 0)
+	connect_nodes(g, somatic["id"], 0, stats["id"], 0)
 	return g

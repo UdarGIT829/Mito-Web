@@ -32,7 +32,10 @@ static func parse(text: String) -> Dictionary:
 ## and "tags", e.g. imported samples or import-plan samples). Returns
 ## {"matched": int, "tags_added": int, "unmatched": [names]}. Tags already
 ## present are not duplicated.
-static func apply(samples: Array, table: Dictionary, match_column: int, tag_columns: Array, prefix: bool) -> Dictionary:
+## subject_column >= 0 also sets each matched sample's subject from that
+## column (e.g. a cell line or donor), so analyses can treat a subject's
+## samples as one unit.
+static func apply(samples: Array, table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1) -> Dictionary:
 	var by_name := {}
 	var by_subject := {}
 	var by_lower := {}
@@ -53,6 +56,8 @@ static func apply(samples: Array, table: Dictionary, match_column: int, tag_colu
 			continue
 		matched += targets.size()
 		for sample in targets:
+			if subject_column >= 0 and row[subject_column] != "":
+				sample["subject"] = row[subject_column]
 			var tags := PackedStringArray(sample["tags"])
 			for col in tag_columns:
 				var value: String = row[col]

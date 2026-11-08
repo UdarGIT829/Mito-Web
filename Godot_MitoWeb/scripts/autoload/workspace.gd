@@ -10,6 +10,8 @@ signal changed
 signal error(message: String)
 signal import_progress(fraction: float, message: String)
 signal import_finished(summary: String)
+## Asks the graph editor to rebuild its node views after an outside edit.
+signal graph_rebuild_requested
 
 const AUTOSAVE_PATH := "user://workspace.mitoweb"
 const LEGACY_AUTOSAVE_PATH := "user://workspace.json"
@@ -88,12 +90,12 @@ func undo_imports(source_ids: Array) -> void:
 ## node, so calling this often is cheap.
 ## Adds tags from a parsed table to imported samples, and to the import
 ## settings of their files so a re-import keeps them.
-func import_tags(table: Dictionary, match_column: int, tag_columns: Array, prefix: bool) -> Dictionary:
-	var result := TagImport.apply(model.store.samples, table, match_column, tag_columns, prefix)
+func import_tags(table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1) -> Dictionary:
+	var result := TagImport.apply(model.store.samples, table, match_column, tag_columns, prefix, subject_column)
 	var planned: Array = []
 	for source in model.sources():
 		planned.append_array(source["plan"].get("samples", []))
-	TagImport.apply(planned, table, match_column, tag_columns, prefix)
+	TagImport.apply(planned, table, match_column, tag_columns, prefix, subject_column)
 	data_revision += 1
 	model.touch()
 	_mark_changed()

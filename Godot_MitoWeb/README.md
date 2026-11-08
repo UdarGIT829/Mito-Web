@@ -130,13 +130,33 @@ window set:
 - **Genes and regions**: the 37 genes, the control region (16024–576, across
   the origin) and the intergenic stretches.
 
-Window sets are plain interval lists, so imported or learned windows can be
-added later. Per window and group the Statistics tab shows distinct
+- **Imported list**: a CSV/TSV with start and end columns (1-based; start >
+  end wraps the origin) or a BED file, or windows kept from a scan. Per window and group the Statistics tab shows distinct
 mutations, carrier calls, or AF-weighted calls (heteroplasmy load), optionally
 per kb and per sample (divided by the group's own sample count; use "keep
 only these samples" on tag filters so each group's count is its own). Chart
 and table, with CSV export. Short regions (tRNAs ~70 bp) give noisy per-kb
 values.
+
+## Feature matrix and permutation tests
+
+"Download matrix" writes one row per sample (all groups) with subject, group,
+every tag as a 0/1 column (labels for models) and the chosen count per
+window: the input for models built outside this tool.
+
+"Compare within" tests one group's samples split by two tags (A vs B), per
+window: difference in mean (A minus B), permutation p, and family-wise
+adjusted p (single-step max-T). Comparing sets that were built from the same
+tags (e.g. Treated-exclusive vs Untreated-exclusive) would be circular, so the
+test always splits one group. Units are subjects (samples of a subject
+averaged; set subjects with "Set subject from column" when importing tags) or
+samples. When all labellings fit in the permutation budget they are
+enumerated exactly, and the smallest possible p is reported: with 3 vs 1
+cell lines it is 0.25. The seed is recorded for reproducibility.
+
+"Scan for windows" tests 100/200/500/1000/2000 bp windows at quarter-size
+steps around the genome, adjusting for the whole scan, and can keep the best
+non-overlapping windows as the node's window list.
 
 ## Annotations
 
