@@ -11,8 +11,8 @@ const PREFIX := "lineage="
 
 ## Built-in rule sets. Rules are [clade, group].
 const PRESETS := {
-	"psle_2026": {
-		"title": "pSLE 2026 (Udar et al., J Clin Med 15:86)",
+	"four_lineages": {
+		"title": "Four maternal lineages: African, Amerindian, Caucasian, Asian",
 		"description": "African = L lineages. Amerindian = the Native American founder clades of A, B, C and D (A2, B2, C1b, C1c, C1d, C4c, D1, D4h3a) and X2a. Caucasian = H, HV, J, T, V, U, K, W, X, I. Asian = everything else in M and N (e.g. B4, D4, D5).",
 		"rules": [
 			["L0", "African"], ["L1", "African"], ["L2", "African"], ["L3", "African"], ["L4", "African"], ["L5", "African"], ["L6", "African"],

@@ -1,0 +1,17 @@
+name: Public data guard
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: No lab data or lab names in the repository
+        run: python3 Godot_MitoWeb/tools/check_public.py

@@ -164,7 +164,7 @@ func _show_result() -> void:
 	_results.clear()
 	_result = {}
 	if _node_id.is_empty():
-		_info.text = "Add a Compare Patients node on the Analysis tab (or insert the Lupus lineages workflow) and connect groups to it."
+		_info.text = "Add a Compare Patients node on the Analysis tab (or insert the Cohort vs 1000 Genomes workflow) and connect groups to it."
 		return
 	var result: Dictionary = Workspace.graph_results().get(_node_id, {})
 	if result.get("error"):

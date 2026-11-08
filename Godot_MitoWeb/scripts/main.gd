@@ -12,6 +12,18 @@ var _progress: ProgressBar
 var _cancel: Button
 var _confirm: ConfirmationDialog
 var _header_buttons: Array = []
+var _about: AcceptDialog
+
+const REPOSITORY := "https://github.com/UdarGIT829/Mito-Web"
+const ABOUT_TEXT := """[b]Mito Web[/b] analyses mitochondrial DNA variants (VCF files) in your browser: import onto rCRS, haplogroups, an analysis graph, tables, statistics and patient comparisons.
+
+[b]Your data stays on this computer.[/b] Files you upload are read and kept only in this browser's storage; there is no server. Export workspace saves a project to a file; New project clears it. The only network requests are loading this page and, when you press "Look up missing consequences" on the Tables tab, the positions of the listed variants, sent to the Ensembl VEP service.
+
+[b]Example data:[/b] the 1000 Genomes Project phase 3 mitochondrial genotypes (The 1000 Genomes Project Consortium, Nature 2015;526:68-74), public data from IGSR.
+
+[b]Built with:[/b] PhyloTree Build 17 (van Oven 2015) via genepi/phylotree-rcrs-17 (MIT) and the HaploGrep 3 method (Schönherr et al. 2023); gnomAD v3.1 mtDNA (CC0; Laricchia et al. 2022); ClinVar (public domain, NCBI); Ensembl VEP; the Godot Engine (MIT).
+
+Mito Web is open source under the MIT License."""
 
 
 func _ready() -> void:
@@ -60,6 +72,8 @@ func _build_ui() -> void:
 			func() -> void: WebFiles.pick_files("workspace", WORKSPACE_ACCEPT, false)))
 	_add_header_button(header, "New project", func() -> void:
 		_confirm_then("Start a new, empty project? The open project will be discarded.", Workspace.new_project))
+	_add_header_button(header, "About", func() -> void: _about.popup_centered())
+	_build_about()
 
 	_tabs = TabContainer.new()
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -120,6 +134,26 @@ func _build_ui() -> void:
 
 	_confirm = ConfirmationDialog.new()
 	add_child(_confirm)
+
+
+func _build_about() -> void:
+	_about = AcceptDialog.new()
+	_about.title = "About Mito Web"
+	_about.ok_button_text = "Close"
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	_about.add_child(box)
+	var text := RichTextLabel.new()
+	text.bbcode_enabled = true
+	text.fit_content = true
+	text.custom_minimum_size = Vector2(620, 0)
+	text.text = ABOUT_TEXT
+	box.add_child(text)
+	var link := LinkButton.new()
+	link.text = "Source code: " + REPOSITORY
+	link.uri = REPOSITORY
+	box.add_child(link)
+	add_child(_about)
 
 
 func _add_header_button(parent: Control, text: String, action: Callable) -> void:

@@ -28,6 +28,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Public data guard
+        run: python3 Godot_MitoWeb/tools/check_public.py
+
       - name: Cache Godot and web export templates
         id: godot-cache
         uses: actions/cache@v6

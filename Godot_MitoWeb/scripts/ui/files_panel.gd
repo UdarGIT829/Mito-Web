@@ -33,15 +33,35 @@ func _ready() -> void:
 	refresh()
 
 
+const EXAMPLE_PATH := "res://examples/1000_genomes_chrMT.zip"
+
+
+func _load_example() -> void:
+	var bytes := FileAccess.get_file_as_bytes(EXAMPLE_PATH)
+	if bytes.is_empty():
+		status_message.emit("The example data is missing from this build.")
+		return
+	var before: Array = Workspace.model.sources().map(func(s): return s["id"])
+	var message := Workspace.add_files([{"name": EXAMPLE_PATH.get_file(), "bytes": bytes}])
+	var added: Array = Workspace.model.sources().map(func(s): return s["id"]).filter(func(id): return not id in before)
+	if added.is_empty():
+		status_message.emit("The example data is already in this project.")
+		return
+	status_message.emit(message + " Importing the example data…")
+	Workspace.import_sources(added, true)
+
+
 func _build_left() -> void:
 	var left := VBoxContainer.new()
 	left.custom_minimum_size.x = 380
 	add_child(left)
 
-	var toolbar := HBoxContainer.new()
+	var toolbar := HFlowContainer.new()
 	left.add_child(toolbar)
 	_add_button(toolbar, "Upload files…", func() -> void:
 		WebFiles.pick_files("sources", SOURCE_ACCEPT, true))
+	var example := _add_button(toolbar, "Load example data", _load_example)
+	example.tooltip_text = "Loads and imports the 1000 Genomes Project phase 3 mitochondrial genotypes (2,534 people, public data)\nwith population tags, so you can try haplogroups, workflows and statistics without your own files."
 	_import_button = _add_button(toolbar, "Import selected", func() -> void:
 		Workspace.import_sources(_selected_ids()))
 	_add_button(toolbar, "Import all ready", func() -> void:

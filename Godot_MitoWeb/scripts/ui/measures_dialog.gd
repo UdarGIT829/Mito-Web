@@ -70,7 +70,7 @@ func _add_row(m: Dictionary) -> void:
 	var box := HBoxContainer.new()
 	var label := LineEdit.new()
 	label.custom_minimum_size.x = 170
-	label.placeholder_text = "e.g. SLEDAI-2K"
+	label.placeholder_text = "e.g. Disease activity score"
 	label.text = m.get("label", "")
 	box.add_child(label)
 	var attribute := _attribute_option(m.get("attribute", ""))

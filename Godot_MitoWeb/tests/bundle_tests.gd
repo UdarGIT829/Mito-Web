@@ -48,7 +48,7 @@ func run(runner) -> void:
 	var unknown := UploadBundle.apply_manifests(m2.sources(), UploadBundle.expand([{"name": "manifest.csv", "bytes": "file,build\na.vcf,mm10\n".to_utf8_buffer()}])["manifests"])
 	check(unknown["errors"].size() == 1, "unknown builds are reported")
 	# Values tables (not manifests) in a zip or uploaded alone.
-	var with_table := UploadBundle.expand([{"name": "b.zip", "bytes": _make_zip({"b/one.vcf": NO_CONTIG, "b/clinical.csv": "Subject,Haplogroup,SLEDAI,Sex\nline1,A2o,8,F\n"})},
+	var with_table := UploadBundle.expand([{"name": "b.zip", "bytes": _make_zip({"b/one.vcf": NO_CONTIG, "b/clinical.csv": "Subject,Haplogroup,Score,Sex\nline1,A2o,8,F\n"})},
 		{"name": "more.tsv", "bytes": "Subject\tGroup\nline1\tcase\n".to_utf8_buffer()}])
 	check(with_table["tables"].size() == 2 and with_table["files"].size() == 1, "values tables are recognised in zips and on their own")
 	var roles := TagImport.default_roles(with_table["tables"][0]["table"])
@@ -65,7 +65,7 @@ func run(runner) -> void:
 		pair[0]["haplogroup_manual"] = pair[1]
 	await VcfImporter.new().import_source(src, m3.store)
 	var imported: Dictionary = m3.store.samples[0]
-	check(imported["attributes"] == {"SLEDAI": 8.0, "Sex": "F"} and imported.get("haplogroup_manual") == "A2o", "pending samples carry values and the hand-set haplogroup into the import")
+	check(imported["attributes"] == {"Score": 8.0, "Sex": "F"} and imported.get("haplogroup_manual") == "A2o", "pending samples carry values and the hand-set haplogroup into the import")
 
 
 func check(condition: bool, label: String) -> void:
