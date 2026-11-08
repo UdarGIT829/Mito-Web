@@ -19,6 +19,7 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/io/` | gzip/BGZF decompression, VCF reading |
 | `scripts/genome/` | Bundled references, rCRS mapper (port of `mito_viewer/mapping`), repeat profiles |
 | `scripts/data/` | Columnar `VariantStore` and the VCF importer |
+| `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci |
 | `scripts/ui/` | Files and Samples tabs |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
 | `tests/` | Headless tests; `fixtures/mapper_cases.json` is generated from the Python mapper |
@@ -37,6 +38,26 @@ The reference build comes from the `##contig` length (16569 rCRS, 16571
 hg19, 16629 hg19 + 58). When a file does not state it, the user must choose;
 REF agreement is shown as evidence only. In multi-sample VCFs a sample has a
 call only when its genotype contains that ALT.
+
+## Analysis engine
+
+A `MutationFrame` is the table that flows between analysis steps: one row per
+rCRS mutation carried by a sample in its universe, with the call each carrier
+contributes. It is built with `MutationFrame.from_samples()` from samples
+chosen by `SampleQuery` (tags all/any/none, `<NONE>`, subjects, files).
+
+- `MutationFilters`: position, genes, rCRS reference base, ALT, slippage
+  metadata, presence percentage, and AF ranges with a carrier percentage.
+  Ported from the Python Table pipeline; percentages compare counts, not
+  rounded values. `apply(..., "flag")` keeps rows and adds a pass/fail column.
+- `Comparison`: Python's common/partial/unique statuses and per-sample
+  present / not_in / unique rules.
+- Set operations: `intersect`, `subtract`, `union`.
+- `MutationTable.build()`: display rows with genes, region, slippage
+  footprint, per-sample AF, sorting and paging.
+
+One intentional difference from the Python Table: the `polymorphism`
+metadata filter is applied (the Python Table accepted it but ignored it).
 
 ## Commands
 

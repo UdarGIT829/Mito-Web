@@ -17,7 +17,7 @@ const CALL_COLUMNS := {
 	"sample": TYPE_PACKED_INT32_ARRAY,  # sample id
 	"allele": TYPE_PACKED_INT32_ARRAY,  # index into allele_* or NO_ALLELE
 	"status": TYPE_PACKED_BYTE_ARRAY,  # CallStatus
-	"af": TYPE_PACKED_FLOAT32_ARRAY,  # allele fraction; NAN when absent
+	"af": TYPE_PACKED_FLOAT64_ARRAY,  # allele fraction; NAN when absent
 	"multi_alt": TYPE_PACKED_BYTE_ARRAY,  # VCF row had more than one ALT
 	"filter": TYPE_PACKED_INT32_ARRAY,  # string id
 	"vcf_pos": TYPE_PACKED_INT32_ARRAY,
@@ -37,6 +37,7 @@ var calls := {}
 
 var _string_index := {}
 var _allele_index := {}
+var _sample_index := {}  ## sample id -> sample dictionary
 
 
 func _init() -> void:
@@ -63,6 +64,11 @@ func intern(text: String) -> int:
 	return id
 
 
+## Id of an already-interned string, or -1.
+func string_id(text: String) -> int:
+	return _string_index.get(text, -1)
+
+
 func intern_allele(position: int, ref: String, alt: String) -> int:
 	var key := "%d:%s:%s" % [position, ref, alt]
 	var id = _allele_index.get(key)
@@ -83,15 +89,21 @@ func new_sample_id() -> int:
 ## Adds samples and a batch of calls (same columns as `calls`) in one step.
 func append(new_samples: Array, batch: Dictionary) -> void:
 	samples.append_array(new_samples)
+	_reindex_samples()
 	for name in CALL_COLUMNS:
 		calls[name].append_array(batch[name])
 
 
 func sample_by_id(sample_id: int) -> Dictionary:
+	if _sample_index.size() != samples.size():
+		_reindex_samples()
+	return _sample_index.get(sample_id, {})
+
+
+func _reindex_samples() -> void:
+	_sample_index.clear()
 	for sample in samples:
-		if sample["id"] == sample_id:
-			return sample
-	return {}
+		_sample_index[sample["id"]] = sample
 
 
 func samples_for_source(source_id: int) -> Array:
@@ -106,6 +118,7 @@ func remove_source(source_id: int) -> void:
 	if removed.is_empty():
 		return
 	samples = samples.filter(func(s: Dictionary) -> bool: return not removed.has(s["id"]))
+	_reindex_samples()
 	var kept := new_call_columns()
 	var sample_col: PackedInt32Array = calls["sample"]
 	for i in sample_col.size():
@@ -160,6 +173,8 @@ static func from_dict(data: Dictionary) -> Dictionary:
 		if typeof(data.get(key)) != expected[key]:
 			return {"ok": false, "error": "The variant store is missing or has a malformed \"%s\"." % key}
 	var call_data: Dictionary = data["calls"]
+	if typeof(call_data.get("af")) == TYPE_PACKED_FLOAT32_ARRAY:
+		call_data["af"] = _af_from_float32(call_data["af"])
 	var rows := -1
 	for name in CALL_COLUMNS:
 		if typeof(call_data.get(name)) != CALL_COLUMNS[name]:
@@ -179,3 +194,20 @@ static func from_dict(data: Dictionary) -> Dictionary:
 	for i in store.allele_pos.size():
 		store._allele_index["%d:%s:%s" % [store.allele_pos[i], store.allele_ref[i], store.allele_alt[i]]] = i
 	return {"ok": true, "store": store}
+
+
+## Early format-2 files stored AF as 32-bit floats (0.8 became 0.800000012).
+## Rounding to the 7 significant digits a float32 carries restores the
+## decimal values VCFs write, so AF boundary comparisons stay exact.
+static func _af_from_float32(values: PackedFloat32Array) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	out.resize(values.size())
+	for i in values.size():
+		var x: float = values[i]
+		if is_nan(x) or x == 0.0:
+			out[i] = x
+			continue
+		var digits := 6 - int(floor(log(absf(x)) / log(10.0)))
+		var scale := pow(10.0, digits)
+		out[i] = roundf(x * scale) / scale
+	return out
