@@ -98,3 +98,6 @@ func test_from_calls() -> void:
 	for name in expect:
 		var got := Array(HaplogroupClassifier.clades(HaplogroupClassifier.node_index(name)))
 		check(got == expect[name], "clades of %s (got %s)" % [name, got])
+	var l0_def := Array(HaplogroupClassifier.defining_variants(HaplogroupClassifier.node_index("L0")))
+	check("3516A" in l0_def and "9042T" in l0_def, "L0 is defined by its edge to the root (got %s)" % [l0_def])
+	check(Array(HaplogroupClassifier.defining_variants(HaplogroupClassifier.node_index("H"))).has("2706G"), "H is defined by the edge it shares with HV (2706, 7028)")
