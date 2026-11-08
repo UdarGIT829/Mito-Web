@@ -97,6 +97,13 @@ func add_source(file_name: String, bytes: PackedByteArray) -> Array:
 	var existing := find_source_by_sha256(sha)
 	if not existing.is_empty():
 		return [existing, false]
+	# The same text in another form (gzipped, CRLF) is also a duplicate.
+	var unzipped := GzipReader.decompress(bytes)
+	if unzipped["ok"]:
+		var content := VcfImporter.content_fingerprint(unzipped["bytes"])
+		for other in sources():
+			if content_sha256(other) == content:
+				return [other, false]
 	var source := {
 		"id": int(data["next_id"]),
 		"name": file_name,
@@ -115,6 +122,108 @@ func add_source(file_name: String, bytes: PackedByteArray) -> Array:
 	sources().append(source)
 	touch()
 	return [source, true]
+
+
+## Fingerprint of a source's decompressed text (computed for older files).
+func content_sha256(source: Dictionary) -> String:
+	var info: Dictionary = source.get("info", {})
+	if not info.has("content_sha256"):
+		var unzipped := GzipReader.decompress(source["raw"])
+		info["content_sha256"] = VcfImporter.content_fingerprint(unzipped["bytes"]) if unzipped["ok"] else source["sha256"]
+		source["info"] = info
+	return info["content_sha256"]
+
+
+func _record_keys(source: Dictionary) -> PackedStringArray:
+	var info: Dictionary = source.get("info", {})
+	if not info.has("record_keys"):
+		var unzipped := GzipReader.decompress(source["raw"])
+		var reader := VcfReader.parse(unzipped["bytes"].get_string_from_utf8()) if unzipped["ok"] else null
+		info["record_keys"] = VcfImporter.record_keys(reader) if reader and reader.ok else PackedStringArray()
+		source["info"] = info
+	return info["record_keys"]
+
+
+## Files that repeat data already in the project. Imported files count as
+## the originals; otherwise the earlier file does. Returns
+## {source_id: {"of": id, "of_name": String, "reason": String}}.
+##   same content: identical once decompressed (e.g. a .vcf and its .vcf.gz)
+##   same sample: a single-sample file whose sample column matches another
+##     file's, e.g. a strict and a filtered call set of one sample; generic
+##     column names (e.g. "16") also need half of the calls to be shared
+##   same samples: a multi-sample file sharing most sample columns
+func duplicate_report() -> Dictionary:
+	var order: Array = sources().filter(func(s): return s["status"] == STATUS_IMPORTED)
+	order.append_array(sources().filter(func(s): return s["status"] == STATUS_PENDING))
+	var by_content := {}
+	var by_column := {}
+	var out := {}
+	for source in order:
+		var content := content_sha256(source)
+		if by_content.has(content):
+			var other: Dictionary = by_content[content]
+			out[source["id"]] = {"of": other["id"], "of_name": other["name"], "reason": "same content as %s" % other["name"]}
+			continue
+		var columns: Array = Array(source.get("info", {}).get("sample_columns", [])).map(func(c): return _sample_key(c)).filter(func(c): return c != "")
+		var duplicate := {}
+		if columns.size() == 1 and by_column.has(columns[0]):
+			var other: Dictionary = by_column[columns[0]]
+			var shared := _containment(_record_keys(source), _record_keys(other))
+			if _specific(columns[0]) or shared >= 0.5:
+				duplicate = {"of": other["id"], "of_name": other["name"],
+					"reason": "same sample (%s) as %s; %d%% of calls shared" % [columns[0], other["name"], roundi(shared * 100)]}
+		elif columns.size() > 1:
+			var counts := {}
+			for c in columns:
+				if by_column.has(c):
+					var other_id: int = by_column[c]["id"]
+					counts[other_id] = counts.get(other_id, 0) + 1
+			for other_id in counts:
+				if counts[other_id] * 2 >= columns.size():
+					var other := source_by_id(other_id)
+					duplicate = {"of": other_id, "of_name": other["name"],
+						"reason": "%d of %d samples also in %s" % [counts[other_id], columns.size(), other["name"]]}
+					break
+		if duplicate:
+			out[source["id"]] = duplicate
+			continue
+		by_content[content] = source
+		for c in columns:
+			if not by_column.has(c):
+				by_column[c] = source
+	return out
+
+
+## Removes every file the duplicate report flags (and its imported samples).
+func remove_duplicates() -> int:
+	var report := duplicate_report()
+	for source_id in report:
+		remove_source(source_id)
+	return report.size()
+
+
+static func _sample_key(column: String) -> String:
+	var key := column.strip_edges().to_lower()
+	for suffix in [".bam", ".cram", ".sam"]:
+		key = key.trim_suffix(suffix)
+	return key
+
+
+## A column name specific enough to identify a sample by itself.
+static func _specific(key: String) -> bool:
+	return key.length() >= 4 and not key.is_valid_int() and not key in ["sample", "sample1", "tumor", "normal", "unknown", "none"]
+
+
+static func _containment(a: PackedStringArray, b: PackedStringArray) -> float:
+	if a.is_empty() or b.is_empty():
+		return 0.0
+	var small := a if a.size() <= b.size() else b
+	var large := b if small == a else a
+	var shared := 0
+	for key in small:
+		if large.bsearch(key) < large.size() and large[large.bsearch(key)] == key:
+			shared += 1
+	return float(shared) / small.size()
 
 
 func remove_source(source_id: int) -> bool:

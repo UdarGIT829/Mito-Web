@@ -78,7 +78,10 @@ func add_files(files: Array) -> String:
 		_mark_changed()
 	var parts: Array = ["Added %d file(s)." % added]
 	if duplicates:
-		parts.append("%d already in the project." % duplicates)
+		parts.append("%d skipped: already in the project (same content)." % duplicates)
+	var flagged := model.duplicate_report().size()
+	if flagged:
+		parts.append("%d file(s) look like samples already in the project and are marked Duplicate." % flagged)
 	if unreadable:
 		parts.append("%d could not be read as VCF (see the Files list)." % unreadable)
 	if expanded["manifests"]:
@@ -90,6 +93,15 @@ func add_files(files: Array) -> String:
 	if expanded["skipped"]:
 		parts.append("Skipped %d other file(s) in the zip." % expanded["skipped"].size())
 	return " ".join(parts)
+
+
+## Removes files that repeat data already in the project. Returns how many.
+func remove_duplicates() -> int:
+	var removed := model.remove_duplicates()
+	if removed:
+		data_revision += 1
+		_mark_changed()
+	return removed
 
 
 func remove_sources(source_ids: Array) -> void:
@@ -182,14 +194,21 @@ func plan_edited() -> void:
 
 
 ## Imports the given pending sources one after another.
-func import_sources(source_ids: Array) -> void:
+## Imports the given pending sources. With skip_duplicates, files the
+## duplicate report flags are left out ("Import all ready").
+func import_sources(source_ids: Array, skip_duplicates: bool = false) -> void:
 	if importing:
 		return
 	var queue: Array = []
 	var missing_build: Array = []
+	var duplicates: Array = []
+	var report := model.duplicate_report() if skip_duplicates else {}
 	for source_id in source_ids:
 		var source := model.source_by_id(source_id)
 		if source.get("status") != WorkspaceModel.STATUS_PENDING:
+			continue
+		if report.has(source_id):
+			duplicates.append(source["name"])
 			continue
 		if source["plan"].get("build", "").is_empty():
 			missing_build.append(source["name"])
@@ -198,7 +217,8 @@ func import_sources(source_ids: Array) -> void:
 	if queue.is_empty():
 		import_finished.emit(
 			"Choose a reference build for: %s." % ", ".join(missing_build) if missing_build
-			else "Nothing to import: select pending files.")
+			else ("Nothing to import: %d duplicate file(s) skipped (use Remove duplicates, or select them and Import selected)." % duplicates.size()
+				if duplicates else "Nothing to import: select pending files."))
 		return
 	importing = true
 	changed.emit()
@@ -230,6 +250,8 @@ func import_sources(source_ids: Array) -> void:
 		parts.append("Cancelled; the file in progress was not imported.")
 	if missing_build:
 		parts.append("Skipped (no reference build chosen): %s." % ", ".join(missing_build))
+	if duplicates:
+		parts.append("Skipped %d duplicate file(s)." % duplicates.size())
 	if failures:
 		parts.append("Failed: %s" % "; ".join(failures))
 	import_finished.emit(" ".join(parts))
