@@ -19,5 +19,12 @@ LupusN_Data/
 .obsidian/
 docs/
 file.txt
-tests/
+/tests/
 pyproject.toml
+
+# Local web export output
+/build/
+# Lab-derived diagnostic output (never publish)
+api_testing_results/
+*.sqlite-shm
+*.sqlite-wal
