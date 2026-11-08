@@ -17,6 +17,9 @@ var _bulk_regex: LineEdit
 var _import_button: Button
 var _undo_button: Button
 var _remove_button: Button
+var _dedupe_button: Button
+var _confirm_dedupe: ConfirmationDialog
+var _duplicates := {}
 var _details: VBoxContainer
 var _focused_id := -1
 
@@ -25,6 +28,7 @@ func _ready() -> void:
 	split_offset = 520
 	_build_left()
 	_build_right()
+	_build_dedupe_dialog()
 	Workspace.changed.connect(refresh)
 	refresh()
 
@@ -41,7 +45,7 @@ func _build_left() -> void:
 	_import_button = _add_button(toolbar, "Import selected", func() -> void:
 		Workspace.import_sources(_selected_ids()))
 	_add_button(toolbar, "Import all ready", func() -> void:
-		Workspace.import_sources(Workspace.model.sources().map(func(s): return s["id"])))
+		Workspace.import_sources(Workspace.model.sources().map(func(s): return s["id"]), true))
 
 	_files = Tree.new()
 	_files.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -109,11 +113,29 @@ func _build_left() -> void:
 	_undo_button = _add_button(actions, "Undo import", func() -> void:
 		Workspace.undo_imports(_selected_ids())
 		status_message.emit("Returned the selected files to ‘Ready to import’."))
+	_dedupe_button = _add_button(actions, "Remove duplicates", func() -> void:
+		var count := Workspace.model.duplicate_report().size()
+		if count == 0:
+			status_message.emit("No duplicate files found.")
+			return
+		_confirm_dedupe.dialog_text = "Remove %d duplicate file(s) and any samples imported from them? The first copy of each is kept (an imported copy is kept over a pending one)." % count
+		_confirm_dedupe.popup_centered())
+	_dedupe_button.tooltip_text = "Files with the same content as another file, or the same sample (matching sample name and shared calls)."
 	_remove_button = _add_button(actions, "Remove from project", func() -> void:
 		var ids := _selected_ids()
 		if ids:
 			Workspace.remove_sources(ids)
 			status_message.emit("Removed %d file(s) and their samples." % ids.size()))
+
+
+func _build_dedupe_dialog() -> void:
+	_confirm_dedupe = ConfirmationDialog.new()
+	_confirm_dedupe.title = "Remove duplicates"
+	_confirm_dedupe.ok_button_text = "Remove"
+	_confirm_dedupe.confirmed.connect(func() -> void:
+		var removed := Workspace.remove_duplicates()
+		status_message.emit("Removed %d duplicate file(s) and their samples." % removed))
+	add_child(_confirm_dedupe)
 
 
 func _build_right() -> void:
@@ -131,6 +153,7 @@ func _build_right() -> void:
 
 func refresh() -> void:
 	var selected := _selected_ids()
+	_duplicates = Workspace.model.duplicate_report()
 	_files.clear()
 	var root := _files.create_item()
 	for source in Workspace.model.sources():
@@ -142,6 +165,10 @@ func refresh() -> void:
 		if source["status"] == WorkspaceModel.STATUS_ERROR:
 			item.set_custom_color(1, Color(1, 0.5, 0.45))
 			item.set_tooltip_text(1, source["error"])
+		elif _duplicates.has(source["id"]):
+			item.set_text(1, "Duplicate" + (" (imported)" if source["status"] == WorkspaceModel.STATUS_IMPORTED else ""))
+			item.set_custom_color(1, Color(1, 0.65, 0.35))
+			item.set_tooltip_text(1, "Duplicate: " + _duplicates[source["id"]]["reason"])
 		elif source["status"] == WorkspaceModel.STATUS_PENDING and source["plan"]["build"].is_empty():
 			item.set_text(1, "Needs build")
 			item.set_custom_color(1, Color(1, 0.8, 0.4))
@@ -157,7 +184,7 @@ func refresh() -> void:
 		for i in 4:
 			hint.set_selectable(i, false)
 	var busy := Workspace.importing
-	for button in [_import_button, _undo_button, _remove_button]:
+	for button in [_import_button, _undo_button, _remove_button, _dedupe_button]:
 		button.disabled = busy
 	_show_details()
 
@@ -186,6 +213,8 @@ func _show_details() -> void:
 		_details.add_child(_warning("This file could not be read: %s" % source["error"]))
 		return
 	_details.add_child(_facts(source))
+	if _duplicates.has(source["id"]):
+		_details.add_child(_warning("Duplicate: %s. “Import all ready” skips it; “Remove duplicates” removes it. To keep both, select it and use “Import selected”." % _duplicates[source["id"]]["reason"]))
 	for warning in _warnings(source):
 		_details.add_child(_warning(warning))
 

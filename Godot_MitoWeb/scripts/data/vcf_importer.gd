@@ -32,6 +32,8 @@ static func inspect(file_name: String, raw: PackedByteArray) -> Dictionary:
 	for build in ReferenceSequence.build_keys():
 		agreement[build] = ref_agreement(reader, build)
 	var info := {
+		"content_sha256": content_fingerprint(unzipped["bytes"]),
+		"record_keys": record_keys(reader),
 		"contig_id": reader.contig_id,
 		"contig_length": reader.contig_length,
 		"reference_line": reader.reference_line,
@@ -51,6 +53,32 @@ static func inspect(file_name: String, raw: PackedByteArray) -> Dictionary:
 	for column in reader.sample_columns:
 		samples.append(_plan_sample(column, stem if single else column))
 	return {"ok": true, "error": "", "info": info, "plan": {"build": detected, "samples": samples}}
+
+
+## SHA-256 of the decompressed text with line endings normalized, so a file
+## and its gzipped copy (or a CRLF copy) are recognized as the same content.
+static func content_fingerprint(text_bytes: PackedByteArray) -> String:
+	var text := text_bytes.get_string_from_utf8().replace("\r\n", "\n").strip_edges()
+	return WorkspaceModel.sha256_hex(text.to_utf8_buffer())
+
+
+## The file's variant records as "POS:REF:ALT", sorted and unique; used to
+## tell whether two files describe the same sample's calls.
+static func record_keys(reader: VcfReader) -> PackedStringArray:
+	var pos_col: int = reader.column_index["POS"]
+	var ref_col: int = reader.column_index["REF"]
+	var alt_col: int = reader.column_index["ALT"]
+	var seen := {}
+	for i in range(reader.first_record_line, reader.lines.size()):
+		var line := reader.lines[i]
+		if line.is_empty() or line.begins_with("#") or line == "\r":
+			continue
+		var cells := line.trim_suffix("\r").split("\t")
+		if cells.size() > alt_col:
+			seen["%s:%s:%s" % [cells[pos_col], cells[ref_col].to_upper(), cells[alt_col].to_upper()]] = true
+	var keys := PackedStringArray(seen.keys())
+	keys.sort()
+	return keys
 
 
 ## File name without .vcf/.vcf.gz and without an Illumina "_S<n>" suffix,

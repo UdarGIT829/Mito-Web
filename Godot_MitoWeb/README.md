@@ -46,6 +46,19 @@ ALL.chrMT.phase3.vcf.gz,HG00096,HG00096,rcrs,1000G;EUR;GBR
 `build` accepts rcrs/hg38/GRCh37, hg19, hg19_plus58 (hg19+58); `tags` are
 separated by `;`.
 
+## Duplicates
+
+- Same content: a file identical to one in the project once decompressed
+  (e.g. `.vcf` vs `.vcf.gz`, CRLF line endings) is not added again.
+- Same sample: a single-sample file whose VCF sample column matches another
+  file's (e.g. a strict and a filtered call set of one sample) is marked
+  Duplicate, with the share of calls in common. Generic column names (e.g.
+  `16`) also need half of the calls shared. Multi-sample files are flagged
+  when most sample columns match.
+- Imported files count as the originals. "Import all ready" skips
+  duplicates ("Import selected" imports them deliberately), and "Remove
+  duplicates" removes the later copies with their imported samples.
+
 ## Import model
 
 Every ALT allele of every sample becomes one call. Calls keep their original
