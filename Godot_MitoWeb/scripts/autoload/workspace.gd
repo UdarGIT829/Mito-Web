@@ -1,5 +1,6 @@
 extends Node
-## Autoload "Workspace": owns the open WorkspaceModel and persists it.
+## Autoload "Workspace": owns the open WorkspaceModel, runs imports, and
+## persists it.
 ##
 ## user:// is backed by the browser's IndexedDB in web exports, so the
 ## autosave survives reloads. Browser storage can still be cleared or evicted,
@@ -7,11 +8,16 @@ extends Node
 
 signal changed
 signal error(message: String)
+signal import_progress(fraction: float, message: String)
+signal import_finished(summary: String)
 
-const AUTOSAVE_PATH := "user://workspace.json"
+const AUTOSAVE_PATH := "user://workspace.mitoweb"
+const LEGACY_AUTOSAVE_PATH := "user://workspace.json"
 const AUTOSAVE_DELAY_SECONDS := 1.0
 
 var model: WorkspaceModel
+var importing := false
+var _importer: VcfImporter
 var _autosave_timer: Timer
 
 
@@ -39,34 +45,115 @@ func rename(value: String) -> void:
 	_mark_changed()
 
 
-func add_source(file_name: String, bytes: PackedByteArray) -> Dictionary:
-	var before := model.sources().size()
-	var source := model.add_source(file_name, bytes)
-	if model.sources().size() != before:
+## Adds uploaded files. Returns [added, duplicates, unreadable].
+func add_files(files: Array) -> Array:
+	var counts := [0, 0, 0]
+	for file in files:
+		var added := model.add_source(file["name"], file["bytes"])
+		if not added[1]:
+			counts[1] += 1
+		elif added[0]["status"] == WorkspaceModel.STATUS_ERROR:
+			counts[2] += 1
+		else:
+			counts[0] += 1
+	if counts[0] + counts[2] > 0:
 		_mark_changed()
-	return source
+	return counts
 
 
-func remove_source(source_id: int) -> void:
-	if model.remove_source(source_id):
-		_mark_changed()
+func remove_sources(source_ids: Array) -> void:
+	for source_id in source_ids:
+		model.remove_source(source_id)
+	_mark_changed()
+
+
+func undo_imports(source_ids: Array) -> void:
+	for source_id in source_ids:
+		model.undo_import(source_id)
+	_mark_changed()
+
+
+## Call after editing a source's plan in place.
+func plan_edited() -> void:
+	model.touch()
+	_mark_changed()
+
+
+## Imports the given pending sources one after another.
+func import_sources(source_ids: Array) -> void:
+	if importing:
+		return
+	var queue: Array = []
+	var missing_build: Array = []
+	for source_id in source_ids:
+		var source := model.source_by_id(source_id)
+		if source.get("status") != WorkspaceModel.STATUS_PENDING:
+			continue
+		if source["plan"].get("build", "").is_empty():
+			missing_build.append(source["name"])
+		else:
+			queue.append(source)
+	if queue.is_empty():
+		import_finished.emit(
+			"Choose a reference build for: %s." % ", ".join(missing_build) if missing_build
+			else "Nothing to import: select pending files.")
+		return
+	importing = true
+	changed.emit()
+	var imported := 0
+	var calls := 0
+	var failures: Array = []
+	var cancelled := false
+	for k in queue.size():
+		var source: Dictionary = queue[k]
+		_importer = VcfImporter.new()
+		_importer.progress.connect(func(fraction: float, message: String) -> void:
+			import_progress.emit((k + fraction) / queue.size(), message))
+		var result: Dictionary = await _importer.import_source(source, model.store)
+		if result.get("cancelled"):
+			cancelled = true
+			break
+		if result["ok"]:
+			model.mark_imported(source["id"], result)
+			imported += 1
+			calls += result["calls"]
+		else:
+			failures.append("%s: %s" % [source["name"], result["error"]])
+	_importer = null
+	importing = false
+	_mark_changed()
+	var parts: Array = ["Imported %d file(s), %d calls." % [imported, calls]]
+	if cancelled:
+		parts.append("Cancelled; the file in progress was not imported.")
+	if missing_build:
+		parts.append("Skipped (no reference build chosen): %s." % ", ".join(missing_build))
+	if failures:
+		parts.append("Failed: %s" % "; ".join(failures))
+	import_finished.emit(" ".join(parts))
+
+
+func cancel_import() -> void:
+	if _importer:
+		_importer.cancelled = true
 
 
 func export_bytes() -> PackedByteArray:
-	return model.to_json().to_utf8_buffer()
+	return model.to_bytes()
 
 
 func export_file_name() -> String:
 	var safe := model.get_name().strip_edges().validate_filename().replace(" ", "_")
 	if safe.is_empty():
 		safe = "workspace"
-	return "%s.mitoweb.json" % safe
+	return "%s.%s" % [safe, WorkspaceModel.FILE_EXTENSION]
 
 
 ## Replaces the open workspace with an imported one. Returns an error message,
 ## or "" on success.
 func import_bytes(bytes: PackedByteArray) -> String:
-	var result := WorkspaceModel.from_json(bytes.get_string_from_utf8())
+	if importing:
+		return "Wait for the current import to finish."
+	var result := WorkspaceModel.from_bytes(bytes)
 	if not result["ok"]:
 		return result["error"]
 	model = result["model"]
@@ -79,21 +166,23 @@ func save_autosave() -> void:
 	if file == null:
 		error.emit("Autosave failed: %s" % error_string(FileAccess.get_open_error()))
 		return
-	file.store_string(model.to_json())
+	file.store_buffer(model.to_bytes())
 	file.close()
 
 
 func _load_autosave() -> bool:
-	if not FileAccess.file_exists(AUTOSAVE_PATH):
-		return false
-	var result := WorkspaceModel.from_json(FileAccess.get_file_as_string(AUTOSAVE_PATH))
-	if not result["ok"]:
-		push_warning("Ignoring unreadable autosave: %s" % result["error"])
-		return false
-	model = result["model"]
-	return true
+	for path in [AUTOSAVE_PATH, LEGACY_AUTOSAVE_PATH]:
+		if not FileAccess.file_exists(path):
+			continue
+		var result := WorkspaceModel.from_bytes(FileAccess.get_file_as_bytes(path))
+		if result["ok"]:
+			model = result["model"]
+			return true
+		push_warning("Ignoring unreadable autosave %s: %s" % [path, result["error"]])
+	return false
 
 
 func _mark_changed() -> void:
 	changed.emit()
-	_autosave_timer.start()
+	if not importing:
+		_autosave_timer.start()
