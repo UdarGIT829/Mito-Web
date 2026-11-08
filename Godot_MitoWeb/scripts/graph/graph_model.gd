@@ -55,6 +55,16 @@ const TYPES := {
 		"outputs": 1,
 		"config": {"sources": ["gnomad", "clinvar", "ensembl"]},
 	},
+	"statistics": {
+		"title": "Statistics",
+		"help": "Mutation density along the genome for each connected group: sliding windows (size, step, range, wrap) or genes and regions. View it on the Statistics tab.",
+		"inputs": [{"name": "Groups", "multi": true}],
+		"outputs": 0,
+		"config": {
+			"window": {"mode": "sliding", "size": 500, "step": 500, "range_start": 1, "range_end": 16569, "wrap": false},
+			"measure": "calls", "per_kb": true, "per_sample": true, "name": "",
+		},
+	},
 	"table": {
 		"title": "Table",
 		"help": "Shows the mutations arriving at this point.",
@@ -183,13 +193,16 @@ static func validate(graph) -> String:
 
 
 ## The worked example from the project design: treated vs untreated
-## exclusive mutations (annotated), and those in both, each with a table.
+## exclusive mutations (annotated), and those in both, each with a table,
+## plus density statistics comparing the two exclusive sets.
 static func example_graph() -> Dictionary:
 	var g := new_graph()
 	var source := add_node(g, "data_provider", Vector2(0, 160))
-	var treated := add_node(g, "tag_filter", Vector2(340, 0), {"tags": ["Treated"]})
+	# "Keep only these samples" makes each group's sample count its own
+	# samples, so per-sample statistics divide by the right number.
+	var treated := add_node(g, "tag_filter", Vector2(340, 0), {"tags": ["Treated"], "restrict_samples": true})
 	var both := add_node(g, "tag_filter", Vector2(340, 200), {"tags": ["Treated", "Untreated"], "match": "all"})
-	var untreated := add_node(g, "tag_filter", Vector2(340, 400), {"tags": ["Untreated"]})
+	var untreated := add_node(g, "tag_filter", Vector2(340, 400), {"tags": ["Untreated"], "restrict_samples": true})
 	var treated_only := add_node(g, "comparison", Vector2(700, 40))
 	treated_only["title"] = "Treated-exclusive"
 	var untreated_only := add_node(g, "comparison", Vector2(700, 380))
@@ -198,7 +211,7 @@ static func example_graph() -> Dictionary:
 	var e3 := add_node(g, "enrich", Vector2(1040, 400))
 	var t1 := add_node(g, "table", Vector2(1420, 0), {"name": "Treated-exclusive"})
 	var t2 := add_node(g, "table", Vector2(1040, 230), {"name": "In both"})
-	var t3 := add_node(g, "table", Vector2(1420, 420), {"name": "Untreated-exclusive"})
+	var t3 := add_node(g, "table", Vector2(1420, 560), {"name": "Untreated-exclusive"})
 	for f in [treated, both, untreated]:
 		connect_nodes(g, source["id"], 0, f["id"], 0)
 	connect_nodes(g, treated["id"], 0, treated_only["id"], 0)
@@ -210,4 +223,7 @@ static func example_graph() -> Dictionary:
 	connect_nodes(g, both["id"], 0, t2["id"], 0)
 	connect_nodes(g, untreated_only["id"], 0, e3["id"], 0)
 	connect_nodes(g, e3["id"], 0, t3["id"], 0)
+	var stats := add_node(g, "statistics", Vector2(1420, 200), {"name": "Exclusive mutations"})
+	connect_nodes(g, treated_only["id"], 0, stats["id"], 0)
+	connect_nodes(g, untreated_only["id"], 0, stats["id"], 0)
 	return g

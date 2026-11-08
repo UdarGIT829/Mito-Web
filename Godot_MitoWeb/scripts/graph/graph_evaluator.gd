@@ -120,7 +120,45 @@ func _evaluate_node(graph: Dictionary, node: Dictionary, store: VariantStore, re
 			if inputs[0].is_empty():
 				return _error("Connect an input.")
 			return _ok(inputs[0][0])
+		"statistics":
+			if inputs[0].is_empty():
+				return _error("Connect one or more groups.")
+			var spec: Dictionary = config.get("window", {})
+			var problem := WindowStats.validate(spec)
+			if problem:
+				return _error(problem)
+			var window_list := WindowStats.windows(spec)
+			var groups: Array = []
+			var sources := GraphModel.inputs_of(graph, node["id"], 0)
+			for i in inputs[0].size():
+				var source := GraphModel.node(graph, sources[i])
+				var label := group_label(source)
+				var base := label
+				var n := 2
+				while groups.any(func(g): return g["label"] == label):
+					label = "%s (%d)" % [base, n]
+					n += 1
+				var counted := WindowStats.count(inputs[0][i], window_list)
+				counted["label"] = label
+				counted["node_id"] = sources[i]
+				groups.append(counted)
+			return {"frame": null, "error": "", "stats": {"windows": window_list, "groups": groups},
+				"summary": "%d windows · %d group%s" % [window_list.size(), groups.size(), "" if groups.size() == 1 else "s"]}
 	return _error("Unknown node type.")
+
+
+## A readable name for a group arriving from `source`.
+static func group_label(source: Dictionary) -> String:
+	var config: Dictionary = source.get("config", {})
+	match source.get("type"):
+		"tag_filter":
+			if config.get("tags"):
+				return "Tags: " + ", ".join(config["tags"])
+		"data_provider":
+			var criteria: Dictionary = config.get("criteria", {})
+			var tags: Array = criteria.get("tags_any", criteria.get("tags_all", []))
+			return "Samples: " + (", ".join(tags) if tags else "all")
+	return source.get("title", "Group")
 
 
 ## Keeps mutations whose carriers include samples with the tags.
