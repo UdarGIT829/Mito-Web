@@ -172,11 +172,12 @@ Tree data: github.com/genepi/phylotree-rcrs-17 (MIT), from van Oven M.
 (2015) PhyloTree Build 17, Forensic Sci Int Genet Suppl 5; method from
 Schönherr S et al. (2023) Haplogrep 3, Nucleic Acids Res 51:W263-W268.
 
-Checked against HaploGrep's 5,426 canonical PhyloTree 17 profiles
-(Finetuning_TableS2): 99.8% classify as their own haplogroup; the rest land
-on an adjacent parent or child. On 1000 Genomes the major haplogroups follow
-the expected continental pattern (AFR L, EUR H/U/T/J/K, EAS M/D/F/B, AMR
-A/B/C/D).
+Checked against HaploGrep 3.3.2 itself (same tree, phylotree-rcrs@17.3) on
+all 2,534 1000 Genomes samples: identical haplogroup for every sample, score
+within 0.0005 for 99.4%. Native rCRS calls are read from the VCF the way
+HaploGrep reads them (positions as given; a shorter ALT deletes the tail of
+REF); calls mapped from hg19 are shifted to PhyloTree's indel positions.
+Also: 99.8% of HaploGrep's 5,426 canonical profiles classify as themselves.
 
 ## Annotations
 

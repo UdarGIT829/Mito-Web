@@ -8,7 +8,9 @@ orientation, with HaploGrep's variant weights, hotspots and alignment rules.
 
 The XML tree is rooted at H2a2a1 (the rCRS sequence). Each edge lists the
 variants, relative to rCRS, gained on the way to a haplogroup; a trailing "!"
-is a back mutation (an even number of "!" re-applies the variant). Here every
+is a back mutation (an even number of "!" re-applies the variant); profiles
+are variant sets, as in HaploGrep (two alleles at one site can both be
+expected). Here every
 haplogroup's full expected profile is resolved and stored as additions and
 removals relative to its parent, so the app can score a sample against all
 haplogroups in one pass down the tree.
@@ -90,12 +92,13 @@ def main() -> None:
                     continue
                 bangs = len(raw) - len(raw.rstrip("!"))
                 poly = raw.rstrip("!")
-                key = position_key(poly)
+                # As in HaploGrep, the profile is a set of variants: a later
+                # different allele at the same site (16266A, then 16266T) is
+                # added alongside; only a back mutation removes a variant.
                 if bangs % 2 == 1:
-                    if current.get(key) == poly:
-                        del current[key]
+                    current.pop(poly, None)
                 else:
-                    current[key] = poly
+                    current[poly] = poly
             index = len(names)
             names.append(h.get("name"))
             parents.append(parent_index)

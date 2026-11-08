@@ -74,19 +74,35 @@ static func haplogroup_count() -> int:
 	return _names.size()
 
 
-## PhyloTree-style notation for one rCRS-normalized allele: 73G, 523d,
+## PhyloTree-style notation for one rCRS-normalized allele: 73G, 59D,
 ## 309.1C. Multi-base substitutions become one entry per changed base.
+## Imported alleles are left-normalized (the VCF convention), but PhyloTree
+## places an indel at the last equivalent position in a repeat (309.1C, not
+## 302.1C; 59d 60d, not 57d 58d), so indels are shifted right first.
 static func notation(position: int, ref: String, alt: String) -> PackedStringArray:
 	var out := PackedStringArray()
+	var rcrs := ReferenceSequence.get_build(ReferenceSequence.RCRS).sequence
+	var length := rcrs.length()
 	if ref.length() == alt.length():
 		for i in ref.length():
 			if ref[i] != alt[i]:
 				out.append("%d%s" % [position + i, alt[i]])
 	elif ref.length() > alt.length() and ref.begins_with(alt):
-		for i in range(alt.length(), ref.length()):
-			out.append("%dD" % (position + i))
+		var k := ref.length() - alt.length()
+		var first := position + alt.length()  # first deleted position
+		# Deleting first..first+k-1 equals deleting one base later when the
+		# base just after the deletion repeats its first base.
+		while first + k <= length and rcrs[first + k - 1] == rcrs[first - 1]:
+			first += 1
+		for i in k:
+			out.append("%dD" % (first + i))
 	elif alt.length() > ref.length() and alt.begins_with(ref):
-		out.append("%d.1%s" % [position + ref.length() - 1, alt.substr(ref.length())])
+		var after := position + ref.length() - 1  # inserted after this position
+		var inserted := alt.substr(ref.length())
+		while after < length and rcrs[after] == inserted[0]:
+			inserted = inserted.substr(1) + inserted[0]
+			after += 1
+		out.append("%d.1%s" % [after, inserted])
 	return out
 
 
@@ -103,11 +119,12 @@ static func all_sample_variants(store: VariantStore, sample_ids: PackedInt32Arra
 	var found := {}
 	for id in sample_ids:
 		found[id] = {}
-	var notations := {}  # allele id -> notation, computed once
+	var notations := {}  # cache: allele id (mapped calls) or VCF allele text (native calls)
 	var c := store.calls
 	var sample_col: PackedInt32Array = c["sample"]
 	var allele_col: PackedInt32Array = c["allele"]
 	var af_col: PackedFloat64Array = c["af"]
+	var status_col: PackedByteArray = c["status"]
 	for i in sample_col.size():
 		var set: Dictionary = found.get(sample_col[i], {})
 		var a := allele_col[i]
@@ -116,13 +133,43 @@ static func all_sample_variants(store: VariantStore, sample_ids: PackedInt32Arra
 		var af := af_col[i]
 		if not is_nan(af) and af < af_min:
 			continue
-		if not notations.has(a):
-			notations[a] = notation(store.allele_pos[a], store.allele_ref[a], store.allele_alt[a])
-		for v in notations[a]:
+		# Native rCRS calls: the VCF's own allele, read like HaploGrep does.
+		# Calls mapped from another build: the rCRS allele, shifted to
+		# PhyloTree's indel positions (their VCF positions are not rCRS).
+		var key
+		if status_col[i] == VariantStore.CallStatus.NATIVE:
+			key = "%d:%s:%s" % [c["vcf_pos"][i], store.strings[c["vcf_ref"][i]], store.strings[c["vcf_alt"][i]]]
+			if not notations.has(key):
+				notations[key] = literal_notation(c["vcf_pos"][i], store.strings[c["vcf_ref"][i]], store.strings[c["vcf_alt"][i]])
+		else:
+			key = a
+			if not notations.has(key):
+				notations[key] = notation(store.allele_pos[a], store.allele_ref[a], store.allele_alt[a])
+		for v in notations[key]:
 			set[v] = true
 	var out := {}
 	for id in sample_ids:
 		out[id] = _finish(found[id])
+	return out
+
+
+## Notation for an allele exactly as written in an rCRS VCF, the way
+## HaploGrep reads VCFs: equal lengths are per-base substitutions; otherwise
+## the tail of the longer allele is the indel (308 CCTCCCC>CTCCCC is 314d,
+## 3106 CN>C is 3107d), with positions kept as given.
+static func literal_notation(position: int, ref: String, alt: String) -> PackedStringArray:
+	ref = ref.to_upper()
+	alt = alt.to_upper()
+	var out := PackedStringArray()
+	if ref.length() == alt.length():
+		for i in ref.length():
+			if ref[i] != alt[i]:
+				out.append("%d%s" % [position + i, alt[i]])
+	elif ref.length() > alt.length():
+		for p in range(position + alt.length(), position + ref.length()):
+			out.append("%dD" % p)
+	else:
+		out.append("%d.1%s" % [position + ref.length() - 1, alt.substr(ref.length())])
 	return out
 
 
