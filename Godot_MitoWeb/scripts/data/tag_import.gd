@@ -35,7 +35,13 @@ static func parse(text: String) -> Dictionary:
 ## subject_column >= 0 also sets each matched sample's subject from that
 ## column (e.g. a cell line or donor), so analyses can treat a subject's
 ## samples as one unit.
-static func apply(samples: Array, table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1) -> Dictionary:
+##
+## attribute_columns become per-sample values (sample["attributes"][column
+## name]): numbers stay numbers (SLEDAI 8), other text stays text (sex F).
+## haplogroup_column: the result lists [sample, text] pairs in
+## "haplogroups" for the caller to apply (see Workspace.import_table).
+static func apply(samples: Array, table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1,
+		attribute_columns: Array = [], haplogroup_column: int = -1) -> Dictionary:
 	var by_name := {}
 	var by_subject := {}
 	var by_lower := {}
@@ -45,6 +51,8 @@ static func apply(samples: Array, table: Dictionary, match_column: int, tag_colu
 		by_subject.get_or_add(sample["subject"], []).append(sample)
 	var matched := 0
 	var added := 0
+	var attributes_set := 0
+	var haplogroups: Array = []
 	var unmatched: Array = []
 	for row in table["rows"]:
 		var id: String = row[match_column]
@@ -68,7 +76,25 @@ static func apply(samples: Array, table: Dictionary, match_column: int, tag_colu
 					tags.append(tag)
 					added += 1
 			sample["tags"] = tags
-	return {"matched": matched, "tags_added": added, "unmatched": unmatched}
+			for col in attribute_columns:
+				var raw: String = row[col]
+				if raw.is_empty():
+					continue
+				if not sample.has("attributes"):
+					sample["attributes"] = {}
+				sample["attributes"][table["header"][col]] = parse_value(raw)
+				attributes_set += 1
+			if haplogroup_column >= 0 and row[haplogroup_column] != "":
+				haplogroups.append([sample, row[haplogroup_column]])
+	return {"matched": matched, "tags_added": added, "attributes_set": attributes_set, "haplogroups": haplogroups, "unmatched": unmatched}
+
+
+## A table cell as a value: a number when it reads as one, else trimmed text.
+static func parse_value(raw: String) -> Variant:
+	var text := raw.strip_edges()
+	if text.is_valid_float() or text.is_valid_int():
+		return text.to_float()
+	return text
 
 
 static func _split(line: String, tab: bool) -> Array:

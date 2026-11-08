@@ -221,12 +221,15 @@ func _emit_insert(replace: bool) -> void:
 		await _assign_haplogroups()  # without tags every haplogroup group would be empty
 		if Workflows.haplogroups_in(Workspace.model.store).is_empty():
 			return
+	if w.get("lineage_preset") and Workspace.model.lineage_rules().is_empty():
+		var preset: Dictionary = Lineages.PRESETS[w["lineage_preset"]]
+		status_message.emit(Workspace.set_lineage_rules(preset["rules"]) + " (rules: %s; change them with Samples > Lineages…)" % preset["title"])
 	insert_requested.emit(Workflows.build(w, _values()), replace, w["title"])
 	hide()
 
 
 static func _needs_haplogroups(w: Dictionary) -> bool:
-	return w.get("params", []).any(func(p): return p["type"] == "haplogroup")
+	return w.get("needs_haplogroups", false) or w.get("params", []).any(func(p): return p["type"] == "haplogroup")
 
 
 func _untagged_samples() -> int:

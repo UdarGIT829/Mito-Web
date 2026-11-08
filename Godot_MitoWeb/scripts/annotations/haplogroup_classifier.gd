@@ -374,6 +374,11 @@ static func apply_to_sample(sample: Dictionary, result: Dictionary, af_min: floa
 		"missing": Array(result["missing"]), "extra": Array(result["extra"]),
 		"af_min": af_min, "tree": tree_name,
 	}
+	if result.get("manual", false):
+		sample["haplogroup"]["manual"] = true
+		sample["haplogroup"]["given"] = result["given"]
+		if result.has("note"):
+			sample["haplogroup"]["note"] = result["note"]
 	var tags := PackedStringArray()
 	for tag in sample.get("tags", PackedStringArray()):
 		if not TAG_PREFIXES.any(func(p): return tag.begins_with(p)):
@@ -385,11 +390,61 @@ static func apply_to_sample(sample: Dictionary, result: Dictionary, af_min: floa
 	sample["tags"] = tags
 
 
-## Classifies samples (synchronously). Returns the number classified.
-static func assign(store: VariantStore, sample_ids: PackedInt32Array, af_min: float) -> int:
+## Classifies samples (synchronously). Samples whose haplogroup was set by
+## hand keep it unless keep_manual is false. Returns the number classified.
+static func assign(store: VariantStore, sample_ids: PackedInt32Array, af_min: float, keep_manual: bool = true) -> int:
 	if ensure_loaded():
 		return 0
-	var variants := all_sample_variants(store, sample_ids, af_min)
-	for id in sample_ids:
+	var ids := sample_ids
+	if keep_manual:
+		ids = PackedInt32Array(Array(sample_ids).filter(func(id): return not is_manual(store.sample_by_id(id))))
+	var variants := all_sample_variants(store, ids, af_min)
+	for id in ids:
 		apply_to_sample(store.sample_by_id(id), classify(variants[id]), af_min)
-	return sample_ids.size()
+	return ids.size()
+
+
+static func is_manual(sample: Dictionary) -> bool:
+	return sample.get("haplogroup", {}).get("manual", false)
+
+
+## The tree node for a haplogroup name as people write it: exact, then
+## ignoring case, then the longest leading part that is a node (so "C1c*4"
+## or "H1aq1 (low coverage)" resolve to C1c and H1aq1). -1 if none.
+static func resolve_name(text: String) -> int:
+	if ensure_loaded():
+		return -1
+	var name := text.strip_edges()
+	if name.is_empty():
+		return -1
+	var exact := _names.find(name)
+	if exact >= 0:
+		return exact
+	var lower := name.to_lower()
+	for i in _names.size():
+		if _names[i].to_lower() == lower:
+			return i
+	var cut := name.length() - 1
+	while cut > 0:
+		var head := name.left(cut).strip_edges()
+		var i := _names.find(head)
+		if i >= 0:
+			return i
+		cut -= 1
+	return -1
+
+
+## A classification result for a haplogroup set by hand (see resolve_name).
+## {"error": message} when the name is not a PhyloTree 17 haplogroup.
+static func manual_result(text: String) -> Dictionary:
+	var node := resolve_name(text)
+	if node < 0:
+		return {"error": "\"%s\" is not a PhyloTree 17 haplogroup." % text.strip_edges()}
+	var result := {
+		"haplogroup": _names[node], "score": 1.0, "macro": macro(node), "top": [[_names[node], 1.0]],
+		"found": PackedStringArray(), "missing": PackedStringArray(), "extra": PackedStringArray(),
+		"manual": true, "given": text.strip_edges(),
+	}
+	if _names[node] != text.strip_edges():
+		result["note"] = "written as %s" % text.strip_edges()
+	return result

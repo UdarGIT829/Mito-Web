@@ -65,6 +65,13 @@ const TYPES := {
 			"measure": "calls", "per_kb": true, "per_sample": true, "name": "",
 		},
 	},
+	"patient_compare": {
+		"title": "Compare Patients",
+		"help": "Compares the connected groups patient by patient (a subject's samples count once) on values imported per sample, such as clinical scores: medians with Kruskal-Wallis and Wilcoxon, means with ANOVA, percentages with Fisher's exact test, or Spearman correlations. View it on the Patients tab.",
+		"inputs": [{"name": "Groups", "multi": true}],
+		"outputs": 0,
+		"config": {"name": "", "measures": []},
+	},
 	"table": {
 		"title": "Table",
 		"help": "Shows the mutations arriving at this point.",

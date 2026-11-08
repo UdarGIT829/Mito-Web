@@ -19,10 +19,10 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/io/` | gzip/BGZF decompression, VCF reading |
 | `scripts/genome/` | Bundled references, rCRS mapper (port of `mito_viewer/mapping`), repeat profiles |
 | `scripts/data/` | Columnar `VariantStore`, VCF importer, zip/manifest uploads, tag and window imports |
-| `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci |
+| `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci, patient tests (`GroupTests`, `PatientCompare`) |
 | `scripts/graph/` | Analysis graph data (`GraphModel`), cached evaluation (`GraphEvaluator`), workflows (`Workflows`) |
 | `scripts/table/` | `TableViewModel`: columns, column filters, sorting, paging, export |
-| `scripts/ui/` | Files, Samples, Analysis (GraphEdit) and Tables tabs; filter dialog |
+| `scripts/ui/` | Files, Samples, Analysis (GraphEdit), Tables, Statistics and Patients tabs; dialogs |
 | `scripts/annotations/` | Annotation bundle lookup (`AnnotationDb`) and live Ensembl VEP client |
 | `annotations/` | Public annotation bundle (`tools/build_annotations.py`) and haplogroup tree (`tools/build_phylotree.py`) |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
@@ -110,6 +110,7 @@ carries a `MutationFrame`.
 | Enrich with Annotations | Adds gnomAD, ClinVar and live Ensembl annotation columns to the tables after it |
 | Table | Names a point in the graph to view on the Tables tab |
 | Statistics | Mutation density along the genome per connected group; view on the Statistics tab |
+| Compare Patients | Per-patient values (clinical scores) compared across groups; view on the Patients tab |
 
 Results are cached per node; an edit recomputes only that node and what is
 downstream of it.
@@ -177,12 +178,59 @@ benign, uncertain, conflicting (conflicting or mixed), other (risk factor,
 affects, association, ...) and absent (no record; never treated as benign).
 Review status maps to ClinVar's stars (0-4).
 
-## Tags from a table
+## Tags, values and haplogroups from a table
 
-Samples tab, "Import tags from a table": a CSV/TSV with a header row. One
-column names the sample (matched to sample name, then subject); chosen
-columns become tags, optionally as `column=value`. Tags are also written into
-the files' import settings, so they survive Undo import and re-import.
+Samples tab, "Import from a table": a CSV/TSV with a header row. One column
+names the sample (matched to sample name, then subject, so one row can cover
+all of a patient's samples). Other columns can become:
+
+- **values**: per-sample attributes such as clinical scores (SLEDAI 8, SDI 2,
+  Sex F). Numbers stay numbers. Used by Compare Patients nodes.
+- **tags**: labels for grouping (optionally `column=value`).
+- **a haplogroup set by hand** (one column): overrides the classifier, e.g.
+  after resolving mixed-up samples. Names resolve to the nearest PhyloTree 17
+  haplogroup (`C1c*4` -> C1c).
+
+Tables with numeric columns default to values, text-only tables to tags.
+Values and tags are also written into the files' import settings, so they
+survive Undo import and re-import. "Set haplogroup…" sets or clears a
+haplogroup by hand for the selected samples (or a patient's row);
+"Assign haplogroups" leaves hand-set ones alone.
+
+## Lineages
+
+Samples tab, "Lineages…": rules `clade = lineage`, one per line. The most
+specific rule on a sample's path to the root wins, so `N = Asian` with
+`A2 = Amerindian` puts A2 in Amerindian and other N in Asian. Samples get
+`lineage=` tags (re-applied whenever haplogroups change). The built-in preset
+is the pSLE 2026 paper's: African = L; Amerindian = A2, B2, C1b, C1c, C1d,
+C4c, D1, D4h3a, X2a; Caucasian = H, HV, J, T, V, U, K, W, X, I; Asian = the
+rest of M and N.
+
+## Compare Patients and the Patients tab
+
+The Compare Patients node compares connected groups patient by patient (a
+subject's samples count once) on imported values. Each measure is one row:
+
+| Summary | Cell | Omnibus test | Pairwise |
+|---|---|---|---|
+| Median | median [25th, 75th] | Kruskal-Wallis (tie-corrected) | Wilcoxon rank-sum |
+| Mean | mean (SD) | one-way ANOVA | Wilcoxon rank-sum |
+| Percent where (e.g. `>= 6`, `= F`, `= yes`) | n (%) | Fisher's exact (r x c) | Fisher's exact |
+| Correlation with another value | Spearman rho per group | overall Spearman | |
+
+Tests follow Stata 18's defaults (Wilcoxon uses the normal approximation with
+tie correction, as `ranksum`; percentiles as `summarize, detail`), and are
+checked against the paper and scipy in `tests/patient_tests.gd`. The Patients
+tab lists every patient's haplogroup, lineage and values (disagreeing samples
+highlighted) and shows each node's results table, exportable as CSV.
+
+The **Lupus lineages (pSLE 2026)** workflow recreates Udar et al., J Clin Med
+2026;15:86, Tables 2-5 plus duration-vs-activity correlations, from
+haplogroups and a clinical table with columns Sex, Age, Age_at_Dx, Duration,
+SLEDAI, SDI, LN_II, LN_III_IV, LN_V, CKD_ESRD. On the 25 patients of the
+paper's Table 1 it reproduces every value that does not depend on the 13th
+Amerindian patient missing from that table.
 
 ## Statistics (density windows)
 

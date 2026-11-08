@@ -146,6 +146,20 @@ func _evaluate_node(graph: Dictionary, node: Dictionary, store: VariantStore, re
 				groups.append(counted)
 			return {"frame": null, "error": "", "stats": {"windows": window_list, "groups": groups},
 				"summary": "%d windows · %d group%s" % [window_list.size(), groups.size(), "" if groups.size() == 1 else "s"]}
+		"patient_compare":
+			if inputs[0].is_empty():
+				return _error("Connect one or more groups.")
+			if config.get("measures", []).is_empty():
+				return _error("Add measures (Edit measures…).")
+			var sources := GraphModel.inputs_of(graph, node["id"], 0)
+			var groups: Array = []
+			for i in inputs[0].size():
+				groups.append({"label": group_label(GraphModel.node(graph, sources[i])), "frame": inputs[0][i]})
+			var compared := PatientCompare.run(groups, store, config["measures"])
+			var sizes: Array = compared["groups"].map(func(g): return "%s %d" % [g["label"], g["n"]])
+			return {"frame": null, "error": "", "patients": compared,
+				"summary": "%d measure%s · %s%s" % [config["measures"].size(), "" if config["measures"].size() == 1 else "s", ", ".join(sizes),
+					" · %d warning%s" % [compared["warnings"].size(), "" if compared["warnings"].size() == 1 else "s"] if compared["warnings"] else ""]}
 	return _error("Unknown node type.")
 
 

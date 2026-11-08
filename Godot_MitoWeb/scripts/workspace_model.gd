@@ -69,6 +69,13 @@ func live_annotations() -> Dictionary:
 	return data["live_annotations"]
 
 
+## Lineage rules ([clade, group] pairs, see Lineages); empty until set.
+func lineage_rules() -> Array:
+	if not data.has("lineage_rules"):
+		data["lineage_rules"] = []
+	return data["lineage_rules"]
+
+
 ## The analysis graph (see GraphModel). Created on first use for older files.
 func graph() -> Dictionary:
 	if not data.has("graph"):

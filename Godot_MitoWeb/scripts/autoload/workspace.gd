@@ -123,15 +123,86 @@ func undo_imports(source_ids: Array) -> void:
 ## Adds tags from a parsed table to imported samples, and to the import
 ## settings of their files so a re-import keeps them.
 func import_tags(table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1) -> Dictionary:
-	var result := TagImport.apply(model.store.samples, table, match_column, tag_columns, prefix, subject_column)
+	return import_table(table, match_column, tag_columns, prefix, subject_column)
+
+
+## import_tags plus attribute columns (per-sample values such as clinical
+## scores) and a haplogroup column that sets haplogroups by hand.
+## The result adds "haplogroups_set" and "haplogroup_errors".
+func import_table(table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1,
+		attribute_columns: Array = [], haplogroup_column: int = -1) -> Dictionary:
+	var result := TagImport.apply(model.store.samples, table, match_column, tag_columns, prefix, subject_column, attribute_columns, haplogroup_column)
 	var planned: Array = []
 	for source in model.sources():
 		planned.append_array(source["plan"].get("samples", []))
-	TagImport.apply(planned, table, match_column, tag_columns, prefix, subject_column)
+	TagImport.apply(planned, table, match_column, tag_columns, prefix, subject_column, attribute_columns)
+	var set_count := 0
+	var errors: Array = []
+	for pair in result["haplogroups"]:
+		var manual := HaplogroupClassifier.manual_result(pair[1])
+		if manual.has("error"):
+			if not manual["error"] in errors:
+				errors.append(manual["error"])
+			continue
+		HaplogroupClassifier.apply_to_sample(pair[0], manual, NAN)
+		set_count += 1
+	result["haplogroups_set"] = set_count
+	result["haplogroup_errors"] = errors
+	if set_count:
+		_apply_lineages()
 	data_revision += 1
 	model.touch()
 	_mark_changed()
 	return result
+
+
+## Sets the haplogroup of samples by hand (overrides the classifier until
+## cleared). An empty name clears the override. Returns a message.
+func set_haplogroups(sample_ids: Array, text: String) -> String:
+	var samples: Array = sample_ids.map(func(id): return model.store.sample_by_id(id)).filter(func(s): return not s.is_empty())
+	if samples.is_empty():
+		return "Select one or more samples first."
+	if text.strip_edges().is_empty():
+		for sample in samples:
+			if HaplogroupClassifier.is_manual(sample):
+				sample.erase("haplogroup")
+				sample["tags"] = PackedStringArray(Array(sample["tags"]).filter(func(t): return not HaplogroupClassifier.TAG_PREFIXES.any(func(p): return t.begins_with(p)) and not t.begins_with(Lineages.PREFIX)))
+		data_revision += 1
+		model.touch()
+		_mark_changed()
+		return "Cleared the haplogroup set by hand on %d sample(s). Assign haplogroups to classify them again." % samples.size()
+	var manual := HaplogroupClassifier.manual_result(text)
+	if manual.has("error"):
+		return manual["error"]
+	for sample in samples:
+		HaplogroupClassifier.apply_to_sample(sample, manual, NAN)
+	_apply_lineages()
+	data_revision += 1
+	model.touch()
+	_mark_changed()
+	return "Set %d sample(s) to %s%s." % [samples.size(), manual["haplogroup"], " (from %s)" % manual["given"] if manual.has("note") else ""]
+
+
+## Saves lineage rules and tags every sample with its lineage.
+## Returns a summary message.
+func set_lineage_rules(rules: Array) -> String:
+	var stored := model.lineage_rules()
+	stored.clear()
+	stored.append_array(rules)
+	var counts := _apply_lineages()
+	data_revision += 1
+	model.touch()
+	_mark_changed()
+	if rules.is_empty():
+		return "Lineage rules cleared."
+	var parts: Array = Lineages.groups(rules).map(func(g): return "%s %d" % [g, counts.get(g, 0)])
+	if counts.get("", 0):
+		parts.append("no rule %d" % counts[""])
+	return "Lineages: " + ", ".join(parts) + "."
+
+
+func _apply_lineages() -> Dictionary:
+	return Lineages.apply(model.store.samples, model.lineage_rules())
 
 
 ## Assigns every imported sample a PhyloTree 17 haplogroup from its calls
@@ -145,6 +216,8 @@ func assign_haplogroups(af_min: float) -> String:
 	var ids := SampleQuery.select(store)
 	if ids.is_empty():
 		return "Import samples first."
+	var manual := Array(ids).filter(func(id): return HaplogroupClassifier.is_manual(store.sample_by_id(id))).size()
+	ids = PackedInt32Array(Array(ids).filter(func(id): return not HaplogroupClassifier.is_manual(store.sample_by_id(id))))
 	var variants := HaplogroupClassifier.all_sample_variants(store, ids, af_min)
 	var last := Time.get_ticks_msec()
 	var counts := {}
@@ -156,13 +229,15 @@ func assign_haplogroups(af_min: float) -> String:
 			haplogroup_progress.emit(k + 1, ids.size())
 			await get_tree().process_frame
 			last = Time.get_ticks_msec()
+	_apply_lineages()
 	data_revision += 1
 	model.touch()
 	_mark_changed()
 	var macros := counts.keys()
 	macros.sort_custom(func(a, b): return counts[a] > counts[b])
-	return "Assigned haplogroups to %d samples (%s). Tags: haplogroup=…, macro haplogroup=…, haplogroup clade=…" % [ids.size(),
-		", ".join(macros.slice(0, 6).map(func(m): return "%s %d" % [m, counts[m]]))]
+	return "Assigned haplogroups to %d samples (%s)%s. Tags: haplogroup=…, macro haplogroup=…, haplogroup clade=…" % [ids.size(),
+		", ".join(macros.slice(0, 6).map(func(m): return "%s %d" % [m, counts[m]])),
+		"; kept %d set by hand" % manual if manual else ""]
 
 
 ## Stores live Ensembl results in the workspace.
