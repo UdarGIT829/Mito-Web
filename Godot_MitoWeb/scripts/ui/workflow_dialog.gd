@@ -11,6 +11,7 @@ var _list: ItemList
 var _title: Label
 var _description: Label
 var _needs: Label
+var _assign: Button
 var _form: GridContainer
 var _insert: Button
 var _replace: Button
@@ -48,6 +49,10 @@ func _init() -> void:
 	_needs = _wrapped()
 	_needs.add_theme_color_override("font_color", Color(1, 0.8, 0.4))
 	detail.add_child(_needs)
+	_assign = _button("Assign haplogroups now", _assign_haplogroups)
+	_assign.tooltip_text = "Classifies every sample against PhyloTree 17 using calls with AF >= 0.75 (as on the Samples tab) and adds haplogroup= / macro haplogroup= tags."
+	_assign.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	detail.add_child(_assign)
 	_form = GridContainer.new()
 	_form.columns = 2
 	detail.add_child(_form)
@@ -127,6 +132,10 @@ func _show_selected() -> void:
 	_delete.visible = not w.is_empty() and not builtin
 	_insert.disabled = w.is_empty()
 	_replace.disabled = w.is_empty()
+	var untagged := _untagged_samples() if _needs_haplogroups(w) else 0
+	_assign.visible = untagged > 0
+	_assign.disabled = false
+	_assign.text = "Assign haplogroups now (%d of %d samples have none)" % [untagged, Workspace.model.store.samples.size()]
 	for p in w.get("params", []):
 		var label := Label.new()
 		label.text = p["label"]
@@ -186,8 +195,34 @@ func _emit_insert(replace: bool) -> void:
 	var w := _selected()
 	if w.is_empty():
 		return
+	if _needs_haplogroups(w) and Workflows.haplogroups_in(Workspace.model.store).is_empty() and not Workspace.model.store.samples.is_empty():
+		await _assign_haplogroups()  # without tags every haplogroup group would be empty
+		if Workflows.haplogroups_in(Workspace.model.store).is_empty():
+			return
 	insert_requested.emit(Workflows.build(w, _values()), replace, w["title"])
 	hide()
+
+
+static func _needs_haplogroups(w: Dictionary) -> bool:
+	return w.get("params", []).any(func(p): return p["type"] == "haplogroup")
+
+
+func _untagged_samples() -> int:
+	var n := 0
+	for sample in Workspace.model.store.samples:
+		if not Array(sample["tags"]).any(func(t): return str(t).begins_with("macro haplogroup=")):
+			n += 1
+	return n
+
+
+func _assign_haplogroups() -> void:
+	_assign.disabled = true
+	_insert.disabled = true
+	_replace.disabled = true
+	_assign.text = "Assigning haplogroups…"
+	var message: String = await Workspace.assign_haplogroups(0.75)
+	status_message.emit(message)
+	_show_selected()  # refresh the haplogroup list and counts
 
 
 func _export_selected() -> void:
