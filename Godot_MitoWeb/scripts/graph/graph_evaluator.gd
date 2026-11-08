@@ -157,6 +157,8 @@ static func group_label(source: Dictionary) -> String:
 				return "Tags: " + ", ".join(config["tags"])
 		"data_provider":
 			var criteria: Dictionary = config.get("criteria", {})
+			if criteria.has("tags_none"):
+				return "Samples without " + ", ".join(criteria["tags_none"])
 			var tags: Array = criteria.get("tags_any", criteria.get("tags_all", []))
 			return "Samples: " + (", ".join(tags) if tags else "all")
 	return source.get("title", "Group")
