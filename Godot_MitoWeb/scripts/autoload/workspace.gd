@@ -12,6 +12,7 @@ signal import_progress(fraction: float, message: String)
 signal import_finished(summary: String)
 ## Asks the graph editor to rebuild its node views after an outside edit.
 signal graph_rebuild_requested
+signal haplogroup_progress(done: int, total: int)
 
 const AUTOSAVE_PATH := "user://workspace.mitoweb"
 const LEGACY_AUTOSAVE_PATH := "user://workspace.json"
@@ -100,6 +101,37 @@ func import_tags(table: Dictionary, match_column: int, tag_columns: Array, prefi
 	model.touch()
 	_mark_changed()
 	return result
+
+
+## Assigns every imported sample a PhyloTree 17 haplogroup from its calls
+## with AF >= af_min (or no AF), in chunks so the page stays responsive.
+## Returns a summary message.
+func assign_haplogroups(af_min: float) -> String:
+	var problem := HaplogroupClassifier.ensure_loaded()
+	if problem:
+		return problem
+	var store := model.store
+	var ids := SampleQuery.select(store)
+	if ids.is_empty():
+		return "Import samples first."
+	var variants := HaplogroupClassifier.all_sample_variants(store, ids, af_min)
+	var last := Time.get_ticks_msec()
+	var counts := {}
+	for k in ids.size():
+		var result := HaplogroupClassifier.classify(variants[ids[k]])
+		HaplogroupClassifier.apply_to_sample(store.sample_by_id(ids[k]), result, af_min)
+		counts[result["macro"]] = counts.get(result["macro"], 0) + 1
+		if Time.get_ticks_msec() - last > 25:
+			haplogroup_progress.emit(k + 1, ids.size())
+			await get_tree().process_frame
+			last = Time.get_ticks_msec()
+	data_revision += 1
+	model.touch()
+	_mark_changed()
+	var macros := counts.keys()
+	macros.sort_custom(func(a, b): return counts[a] > counts[b])
+	return "Assigned haplogroups to %d samples (%s). Tags: haplogroup=…, macro haplogroup=…" % [ids.size(),
+		", ".join(macros.slice(0, 6).map(func(m): return "%s %d" % [m, counts[m]]))]
 
 
 ## Stores live Ensembl results in the workspace.

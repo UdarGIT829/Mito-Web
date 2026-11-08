@@ -24,7 +24,7 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/table/` | `TableViewModel`: columns, column filters, sorting, paging, export |
 | `scripts/ui/` | Files, Samples, Analysis (GraphEdit) and Tables tabs; filter dialog |
 | `scripts/annotations/` | Annotation bundle lookup (`AnnotationDb`) and live Ensembl VEP client |
-| `annotations/` | Public annotation bundle (built by `tools/build_annotations.py`) |
+| `annotations/` | Public annotation bundle (`tools/build_annotations.py`) and haplogroup tree (`tools/build_phylotree.py`) |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
 | `tests/` | Headless tests; `fixtures/mapper_cases.json` is generated from the Python mapper |
 
@@ -157,6 +157,26 @@ cell lines it is 0.25. The seed is recorded for reproducibility.
 "Scan for windows" tests 100/200/500/1000/2000 bp windows at quarter-size
 steps around the genome, adjusting for the whole scan, and can keep the best
 non-overlapping windows as the node's window list.
+
+## Haplogroups
+
+Samples tab, "Assign haplogroups": every sample is matched against PhyloTree
+Build 17 (5,435 haplogroups, rCRS orientation) with HaploGrep's weighted
+Kulczynski score, using its variant weights, hotspots (309.1C, 315.1C,
+16182C, ...) and indel alignment rules. Calls count when AF >= the chosen
+cut-off (default 0.75, the germline cut-off) or when there is no AF. Results
+are stored on the sample (score, runner-up, missing and extra variants) and as
+tags `haplogroup=J1c2` and `macro haplogroup=J`, usable in tag filters.
+
+Tree data: github.com/genepi/phylotree-rcrs-17 (MIT), from van Oven M.
+(2015) PhyloTree Build 17, Forensic Sci Int Genet Suppl 5; method from
+Schönherr S et al. (2023) Haplogrep 3, Nucleic Acids Res 51:W263-W268.
+
+Checked against HaploGrep's 5,426 canonical PhyloTree 17 profiles
+(Finetuning_TableS2): 99.8% classify as their own haplogroup; the rest land
+on an adjacent parent or child. On 1000 Genomes the major haplogroups follow
+the expected continental pattern (AFR L, EUR H/U/T/J/K, EAS M/D/F/B, AMR
+A/B/C/D).
 
 ## Annotations
 

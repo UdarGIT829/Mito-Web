@@ -8,6 +8,8 @@ var _summary: Label
 
 
 var _tag_dialog: ConfirmationDialog
+var _hg_dialog: ConfirmationDialog
+var _hg_af: LineEdit
 var _tag_table := {}
 var _tag_match: OptionButton
 var _tag_columns: CheckListButton
@@ -21,7 +23,14 @@ func _ready() -> void:
 	add_child(bar)
 	_summary = Label.new()
 	_summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS  # long messages must not widen the page
+	_summary.mouse_filter = Control.MOUSE_FILTER_PASS
 	bar.add_child(_summary)
+	var assign := Button.new()
+	assign.text = "Assign haplogroups…"
+	assign.tooltip_text = "Classifies each sample against PhyloTree 17 (HaploGrep's method) and adds haplogroup tags."
+	assign.pressed.connect(func() -> void: _hg_dialog.popup_centered())
+	bar.add_child(assign)
 	var import_tags := Button.new()
 	import_tags.text = "Import tags from a table…"
 	import_tags.tooltip_text = "CSV or TSV with a header row: one column naming the sample (or subject), other columns become tags."
@@ -29,16 +38,19 @@ func _ready() -> void:
 	bar.add_child(import_tags)
 	WebFiles.files_picked.connect(_on_files_picked)
 	_build_tag_dialog()
+	_build_haplogroup_dialog()
+	Workspace.haplogroup_progress.connect(func(done: int, total: int) -> void:
+		_summary.text = "Assigning haplogroups… %d of %d" % [done, total])
 	_tree = Tree.new()
 	_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_tree.columns = 6
+	_tree.columns = 7
 	_tree.column_titles_visible = true
 	_tree.hide_root = true
-	var titles := ["Subject / sample", "Tags", "Build", "Calls", "On rCRS", "Source file"]
-	var widths := [0, 180, 100, 70, 80, 0]
-	for i in 6:
+	var titles := ["Subject / sample", "Tags", "Haplogroup (score)", "Build", "Calls", "On rCRS", "Source file"]
+	var widths := [0, 180, 160, 100, 70, 80, 0]
+	for i in 7:
 		_tree.set_column_title(i, titles[i])
-		_tree.set_column_expand(i, i == 0 or i == 5)
+		_tree.set_column_expand(i, i == 0 or i == 6)
 		_tree.set_column_custom_minimum_width(i, widths[i])
 	add_child(_tree)
 	Workspace.changed.connect(refresh)
@@ -79,17 +91,27 @@ func _add_sample_row(parent: TreeItem, sample: Dictionary, summary: Dictionary, 
 		label = "%s  (subject %s)" % [sample["name"], sample["subject"]]
 	item.set_text(0, label)
 	item.set_tooltip_text(0, "Sample %s\nSubject %s" % [sample["name"], sample["subject"]])
-	item.set_text(1, ", ".join(sample["tags"]))
-	item.set_text(2, FilesPanel._short_build(sample["build"]))
-	item.set_text(3, str(summary["calls"]))
-	item.set_text(4, str(summary["placed"]))
+	item.set_text(1, ", ".join(Array(sample["tags"]).filter(func(t): return not HaplogroupClassifier.TAG_PREFIXES.any(func(p): return t.begins_with(p)))))
+	var hg: Dictionary = sample.get("haplogroup", {})
+	if hg:
+		item.set_text(2, "%s (%s)" % [hg["name"], String.num(hg["score"], 2)])
+		item.set_tooltip_text(2, "%s, macro %s, score %.3f\nRunner-up: %s\nExpected variants found: %d\nMissing: %s\nExtra (in the tree, not expected): %s\nCalls used: AF >= %s or no AF\n%s" % [
+			hg["name"], hg["macro"], hg["score"],
+			", ".join(hg["top"].slice(1).map(func(x): return "%s %.3f" % [x[0], x[1]])),
+			hg["found"], ", ".join(hg["missing"]) if hg["missing"] else "none",
+			", ".join(hg["extra"]) if hg["extra"] else "none", hg["af_min"], hg["tree"]])
+		if hg["score"] < 0.9:
+			item.set_custom_color(2, Color(1, 0.8, 0.4))
+	item.set_text(3, FilesPanel._short_build(sample["build"]))
+	item.set_text(4, str(summary["calls"]))
+	item.set_text(5, str(summary["placed"]))
 	var lines: Array = []
 	for status_name in summary["status"]:
 		lines.append("%s: %d" % [status_name.capitalize(), summary["status"][status_name]])
-	item.set_tooltip_text(4, "\n".join(lines))
+	item.set_tooltip_text(5, "\n".join(lines))
 	if summary["placed"] < summary["calls"]:
-		item.set_custom_color(4, Color(1, 0.8, 0.4))
-	item.set_text(5, Workspace.model.source_by_id(sample["source_id"]).get("name", ""))
+		item.set_custom_color(5, Color(1, 0.8, 0.4))
+	item.set_text(6, Workspace.model.source_by_id(sample["source_id"]).get("name", ""))
 
 
 func _build_tag_dialog() -> void:
@@ -157,3 +179,27 @@ static func _plain(text: String) -> Label:
 	var l := Label.new()
 	l.text = text
 	return l
+
+
+func _build_haplogroup_dialog() -> void:
+	_hg_dialog = ConfirmationDialog.new()
+	_hg_dialog.title = "Assign haplogroups"
+	_hg_dialog.ok_button_text = "Assign"
+	var box := VBoxContainer.new()
+	_hg_dialog.add_child(box)
+	var note := _plain("Each sample is matched against PhyloTree Build 17 with HaploGrep's weighted\nKulczynski score. Results become tags (haplogroup=…, macro haplogroup=…)\nthat tag filters can use. Calls without an AF (genotype-only data) always count.")
+	box.add_child(note)
+	var row := HBoxContainer.new()
+	row.add_child(_plain("Use calls with AF at least"))
+	_hg_af = LineEdit.new()
+	_hg_af.text = "0.75"
+	_hg_af.custom_minimum_size.x = 80
+	_hg_af.tooltip_text = "0.75 = the germline cut-off. Lower values let heteroplasmic calls in; a second lineage at low AF can then show up (e.g. contamination)."
+	row.add_child(_hg_af)
+	box.add_child(row)
+	_hg_dialog.confirmed.connect(func() -> void:
+		var af := _hg_af.text.to_float() if _hg_af.text.is_valid_float() else 0.75
+		_summary.text = "Assigning haplogroups…"
+		_summary.text = await Workspace.assign_haplogroups(clampf(af, 0.0, 1.0))
+		_summary.tooltip_text = _summary.text)
+	add_child(_hg_dialog)
