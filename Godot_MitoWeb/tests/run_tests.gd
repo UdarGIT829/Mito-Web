@@ -45,6 +45,7 @@ func _run() -> void:
 	await test_import_multi_sample()
 	await test_remove_and_undo()
 	await preload("res://tests/engine_tests.gd").new().run(self)
+	await preload("res://tests/graph_tests.gd").new().run(self)
 	print("%d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures else 0)
 

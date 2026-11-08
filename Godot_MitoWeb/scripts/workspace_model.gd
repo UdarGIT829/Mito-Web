@@ -38,6 +38,7 @@ static func new_workspace_data(name: String = "Untitled project") -> Dictionary:
 		"modified": now,
 		"next_id": 1,
 		"sources": [],
+		"graph": GraphModel.new_graph(),
 	}
 
 
@@ -52,6 +53,13 @@ func set_name(value: String) -> void:
 
 func sources() -> Array:
 	return data["sources"]
+
+
+## The analysis graph (see GraphModel). Created on first use for older files.
+func graph() -> Dictionary:
+	if not data.has("graph"):
+		data["graph"] = GraphModel.new_graph()
+	return data["graph"]
 
 
 func source_by_id(source_id: int) -> Dictionary:
@@ -177,6 +185,10 @@ static func _from_binary(bytes: PackedByteArray, offset: int) -> Dictionary:
 		var problem := _validate_source(source)
 		if problem:
 			return _failure(problem)
+	if parsed.has("graph"):
+		var graph_problem := GraphModel.validate(parsed["graph"])
+		if graph_problem:
+			return _failure(graph_problem)
 	var restored := VariantStore.from_dict(parsed["store"])
 	if not restored["ok"]:
 		return _failure(restored["error"])

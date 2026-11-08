@@ -17,6 +17,9 @@ const AUTOSAVE_DELAY_SECONDS := 1.0
 
 var model: WorkspaceModel
 var importing := false
+## Increases whenever imported samples or calls change, so cached analysis
+## results know to recompute. Not saved.
+var data_revision := 0
 var _importer: VcfImporter
 var _autosave_timer: Timer
 
@@ -37,6 +40,7 @@ func is_storage_persistent() -> bool:
 
 func new_project() -> void:
 	model = WorkspaceModel.new()
+	data_revision += 1
 	_mark_changed()
 
 
@@ -64,12 +68,20 @@ func add_files(files: Array) -> Array:
 func remove_sources(source_ids: Array) -> void:
 	for source_id in source_ids:
 		model.remove_source(source_id)
+	data_revision += 1
 	_mark_changed()
 
 
 func undo_imports(source_ids: Array) -> void:
 	for source_id in source_ids:
 		model.undo_import(source_id)
+	data_revision += 1
+	_mark_changed()
+
+
+## Call after editing the analysis graph in place.
+func graph_edited() -> void:
+	model.touch()
 	_mark_changed()
 
 
@@ -121,6 +133,7 @@ func import_sources(source_ids: Array) -> void:
 			failures.append("%s: %s" % [source["name"], result["error"]])
 	_importer = null
 	importing = false
+	data_revision += 1
 	_mark_changed()
 	var parts: Array = ["Imported %d file(s), %d calls." % [imported, calls]]
 	if cancelled:
@@ -157,6 +170,7 @@ func import_bytes(bytes: PackedByteArray) -> String:
 	if not result["ok"]:
 		return result["error"]
 	model = result["model"]
+	data_revision += 1
 	_mark_changed()
 	return ""
 
