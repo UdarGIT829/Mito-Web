@@ -20,7 +20,7 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/genome/` | Bundled references, rCRS mapper (port of `mito_viewer/mapping`), repeat profiles |
 | `scripts/data/` | Columnar `VariantStore` and the VCF importer |
 | `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci |
-| `scripts/graph/` | Analysis graph data (`GraphModel`) and cached evaluation (`GraphEvaluator`) |
+| `scripts/graph/` | Analysis graph data (`GraphModel`), cached evaluation (`GraphEvaluator`), workflows (`Workflows`) |
 | `scripts/table/` | `TableViewModel`: columns, column filters, sorting, paging, export |
 | `scripts/ui/` | Files, Samples, Analysis (GraphEdit) and Tables tabs; filter dialog |
 | `scripts/annotations/` | Annotation bundle lookup (`AnnotationDb`) and live Ensembl VEP client |
@@ -81,7 +81,26 @@ carries a `MutationFrame`.
 | Statistics | Mutation density along the genome per connected group; view on the Statistics tab |
 
 Results are cached per node; an edit recomputes only that node and what is
-downstream of it. "Insert example" builds the treated-vs-untreated design.
+downstream of it.
+
+## Workflows
+
+Preset analyses, from "Workflows…" on the Analysis tab. A workflow asks for
+its settings, then inserts its graph (or replaces the current one).
+
+- **Treated vs untreated** (group tags A and B): exclusive and shared
+  mutations, annotated, with density statistics including all somatic calls.
+- **Recreate haplogroup markers** (major haplogroup, common %, rare %):
+  *gained* = carried by >= common% of the haplogroup and < rare% of everyone
+  else; *absent* = the reverse (how H, the rCRS haplogroup, is defined: it
+  lacks 2706G and 7028T). Both sets are flagged against PhyloTree markers.
+  On 1000 Genomes it recovers J (295T, 12612G, 13708A, 16069T + JT markers),
+  U (11467G, 12308G, 12372A) and H (absent 2706G, 7028T), every one a
+  PhyloTree marker. Recurrent markers (e.g. 10398G) are excluded, and
+  paraphyletic groups such as L3 find little.
+
+"Save current graph as workflow…" keeps the graph in the project;
+saved workflows can be exported as `.mitoflow.json` and imported elsewhere.
 
 ## Tables tab
 

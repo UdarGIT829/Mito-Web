@@ -55,6 +55,13 @@ func sources() -> Array:
 	return data["sources"]
 
 
+## Workflows saved from graphs in this workspace (see Workflows).
+func saved_workflows() -> Array:
+	if not data.has("workflows"):
+		data["workflows"] = []
+	return data["workflows"]
+
+
 ## Live Ensembl results fetched in this workspace: {allele key: {"ensembl": {...}}}.
 func live_annotations() -> Dictionary:
 	if not data.has("live_annotations"):
@@ -196,6 +203,9 @@ static func _from_binary(bytes: PackedByteArray, offset: int) -> Dictionary:
 		var graph_problem := GraphModel.validate(parsed["graph"])
 		if graph_problem:
 			return _failure(graph_problem)
+	for w in parsed.get("workflows", []):
+		if typeof(w) != TYPE_DICTIONARY or GraphModel.validate(w.get("graph")) != "":
+			return _failure("A saved workflow in this file is malformed.")
 	var restored := VariantStore.from_dict(parsed["store"])
 	if not restored["ok"]:
 		return _failure(restored["error"])

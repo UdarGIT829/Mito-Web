@@ -176,6 +176,22 @@ static func _visit(graph: Dictionary, node_id: String, visited: Dictionary, orde
 	order.append(node_id)
 
 
+## Copies every node and edge of `source` into `target` (new ids), placed
+## below whatever `target` already holds. Returns the new node ids.
+static func merge(target: Dictionary, source: Dictionary) -> Array:
+	var offset := Vector2.ZERO
+	for n in target["nodes"]:
+		offset.y = maxf(offset.y, n["position"].y + 320)
+	var renamed := {}
+	for n in source["nodes"]:
+		var copy := add_node(target, n["type"], n["position"] + offset, n["config"])
+		copy["title"] = n["title"]
+		renamed[n["id"]] = copy["id"]
+	for e in source["edges"]:
+		connect_nodes(target, renamed[e["from"]], e["from_port"], renamed[e["to"]], e["to_port"])
+	return renamed.values()
+
+
 ## Validates graph data loaded from a file. Returns "" or a message.
 static func validate(graph) -> String:
 	if typeof(graph) != TYPE_DICTIONARY or typeof(graph.get("nodes")) != TYPE_ARRAY or typeof(graph.get("edges")) != TYPE_ARRAY:
@@ -196,23 +212,23 @@ static func validate(graph) -> String:
 ## exclusive mutations (annotated), and those in both, each with a table,
 ## plus density statistics for the two exclusive sets and for all somatic
 ## calls (the group to test Treated vs Untreated in, by subject).
-static func example_graph() -> Dictionary:
+static func example_graph(tag_a: String = "Treated", tag_b: String = "Untreated") -> Dictionary:
 	var g := new_graph()
 	var source := add_node(g, "data_provider", Vector2(0, 160))
 	# "Keep only these samples" makes each group's sample count its own
 	# samples, so per-sample statistics divide by the right number.
-	var treated := add_node(g, "tag_filter", Vector2(340, 0), {"tags": ["Treated"], "restrict_samples": true})
-	var both := add_node(g, "tag_filter", Vector2(340, 200), {"tags": ["Treated", "Untreated"], "match": "all"})
-	var untreated := add_node(g, "tag_filter", Vector2(340, 400), {"tags": ["Untreated"], "restrict_samples": true})
+	var treated := add_node(g, "tag_filter", Vector2(340, 0), {"tags": [tag_a], "restrict_samples": true})
+	var both := add_node(g, "tag_filter", Vector2(340, 200), {"tags": [tag_a, tag_b], "match": "all"})
+	var untreated := add_node(g, "tag_filter", Vector2(340, 400), {"tags": [tag_b], "restrict_samples": true})
 	var treated_only := add_node(g, "comparison", Vector2(700, 40))
-	treated_only["title"] = "Treated-exclusive"
+	treated_only["title"] = "%s-exclusive" % tag_a
 	var untreated_only := add_node(g, "comparison", Vector2(700, 380))
-	untreated_only["title"] = "Untreated-exclusive"
+	untreated_only["title"] = "%s-exclusive" % tag_b
 	var e1 := add_node(g, "enrich", Vector2(1040, 0))
 	var e3 := add_node(g, "enrich", Vector2(1040, 400))
-	var t1 := add_node(g, "table", Vector2(1420, 0), {"name": "Treated-exclusive"})
+	var t1 := add_node(g, "table", Vector2(1420, 0), {"name": "%s-exclusive" % tag_a})
 	var t2 := add_node(g, "table", Vector2(1040, 230), {"name": "In both"})
-	var t3 := add_node(g, "table", Vector2(1420, 560), {"name": "Untreated-exclusive"})
+	var t3 := add_node(g, "table", Vector2(1420, 560), {"name": "%s-exclusive" % tag_b})
 	for f in [treated, both, untreated]:
 		connect_nodes(g, source["id"], 0, f["id"], 0)
 	connect_nodes(g, treated["id"], 0, treated_only["id"], 0)

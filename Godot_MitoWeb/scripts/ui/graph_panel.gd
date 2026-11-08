@@ -21,6 +21,7 @@ var _context_position := Vector2.ZERO
 var _filter_dialog: FilterDialog
 var _annotation_dialog: AnnotationFilterDialog
 var _confirm: ConfirmationDialog
+var _workflow_dialog: WorkflowDialog
 var _results := {}
 var _graph_ref: Dictionary = {}
 var _views := {}  # node id -> {"node": GraphNode, "status": Label, ...}
@@ -40,11 +41,11 @@ func _ready() -> void:
 	_add_menu.get_popup().id_pressed.connect(func(id: int) -> void:
 		_add_node(ADD_ORDER[id], _visible_center()))
 	bar.add_child(_add_menu)
-	var example := Button.new()
-	example.text = "Insert example"
-	example.tooltip_text = "Treated vs untreated: exclusive mutations and those in both, using the tags Treated and Untreated."
-	example.pressed.connect(_insert_example)
-	bar.add_child(example)
+	var workflows := Button.new()
+	workflows.text = "Workflows…"
+	workflows.tooltip_text = "Preset analyses (treated vs untreated, recreate haplogroup markers) and workflows you saved."
+	workflows.pressed.connect(func() -> void: _workflow_dialog.open())
+	bar.add_child(workflows)
 	var clear := Button.new()
 	clear.text = "Clear graph"
 	clear.pressed.connect(func() -> void:
@@ -52,7 +53,7 @@ func _ready() -> void:
 		_confirm.popup_centered())
 	bar.add_child(clear)
 	var hint := Label.new()
-	hint.text = "Drag from an output (right) to an input (left). Right-click the canvas to add nodes; select a node and press Delete to remove it."
+	hint.text = "Start from a workflow, or add nodes (also by right-clicking the canvas). Drag from an output (right) to an input (left); select a node and press Delete to remove it."
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
@@ -78,6 +79,10 @@ func _ready() -> void:
 	add_child(_filter_dialog)
 	_annotation_dialog = AnnotationFilterDialog.new()
 	add_child(_annotation_dialog)
+	_workflow_dialog = WorkflowDialog.new()
+	_workflow_dialog.insert_requested.connect(insert_graph)
+	_workflow_dialog.status_message.connect(func(text: String) -> void: status_message.emit(text))
+	add_child(_workflow_dialog)
 	_confirm = ConfirmationDialog.new()
 	_confirm.confirmed.connect(func() -> void:
 		var g := Workspace.model.graph()
@@ -157,22 +162,16 @@ func _add_node(type: String, position: Vector2) -> void:
 	_commit()
 
 
-func _insert_example() -> void:
+## Adds a workflow's graph to the canvas (or replaces the canvas with it).
+func insert_graph(source: Dictionary, replace: bool, title: String) -> void:
 	var g := Workspace.model.graph()
-	var example := GraphModel.example_graph()
-	var offset := Vector2(0, 0)
-	for n in g["nodes"]:
-		offset.y = maxf(offset.y, n["position"].y + 320)
-	var renamed := {}
-	for n in example["nodes"]:
-		var copy := GraphModel.add_node(g, n["type"], n["position"] + offset, n["config"])
-		copy["title"] = n["title"]
-		renamed[n["id"]] = copy["id"]
-	for e in example["edges"]:
-		GraphModel.connect_nodes(g, renamed[e["from"]], e["from_port"], renamed[e["to"]], e["to_port"])
+	if replace:
+		g["nodes"].clear()
+		g["edges"].clear()
+	GraphModel.merge(g, source)
 	_commit(true)
 	_fit_view.call_deferred()
-	status_message.emit("Inserted the example. It uses the tags Treated and Untreated; add them to your samples on the Files tab.")
+	status_message.emit("Inserted the workflow \"%s\". Open its tables on the Tables tab." % title)
 
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
@@ -275,12 +274,14 @@ func _create_view(n: Dictionary) -> void:
 
 	match n["type"]:
 		"data_provider":
+			var criteria: Dictionary = config["criteria"]
 			var tags := CheckListButton.new("All samples")
-			tags.set_selected(config["criteria"].get("tags_any", config["criteria"].get("tags_all", [])))
-			var match_mode := _option(["with any of these tags", "with all of these tags"], 1 if config["criteria"].has("tags_all") else 0)
+			tags.set_selected(criteria.get("tags_any", criteria.get("tags_all", criteria.get("tags_none", []))))
+			var match_mode := _option(["with any of these tags", "with all of these tags", "with none of these tags"],
+				2 if criteria.has("tags_none") else (1 if criteria.has("tags_all") else 0))
 			var apply_criteria := func() -> void:
 				var chosen := tags.get_selected()
-				config["criteria"] = {} if chosen.is_empty() else ({"tags_all": chosen} if match_mode.selected == 1 else {"tags_any": chosen})
+				config["criteria"] = {} if chosen.is_empty() else {["tags_any", "tags_all", "tags_none"][match_mode.selected]: chosen}
 				_commit()
 			tags.selection_changed.connect(func(_s) -> void: apply_criteria.call())
 			match_mode.item_selected.connect(func(_i) -> void: apply_criteria.call())
