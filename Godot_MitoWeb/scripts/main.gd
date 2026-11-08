@@ -1,21 +1,25 @@
 extends Control
-## Phase 1 shell: project header, uploaded-source list, workspace
-## export/import, and a status bar showing browser storage.
+## Main screen: project header, Files and Samples tabs, and a status bar with
+## import progress and browser storage use.
 
-const SOURCE_ACCEPT := ".vcf,.csv,.tsv,.txt"
-const WORKSPACE_ACCEPT := ".json"
+const WORKSPACE_ACCEPT := ".mitoweb,.json"
 
 var _name_edit: LineEdit
-var _source_tree: Tree
+var _tabs: TabContainer
 var _status: Label
 var _storage: Label
+var _progress: ProgressBar
+var _cancel: Button
 var _confirm: ConfirmationDialog
+var _header_buttons: Array = []
 
 
 func _ready() -> void:
 	_build_ui()
 	Workspace.changed.connect(_refresh)
 	Workspace.error.connect(_set_status)
+	Workspace.import_progress.connect(_on_import_progress)
+	Workspace.import_finished.connect(_on_import_finished)
 	WebFiles.files_picked.connect(_on_files_picked)
 	WebFiles.storage_estimated.connect(_on_storage_estimated)
 	_refresh()
@@ -25,15 +29,13 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var root := VBoxContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 8)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 12)
 	add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
 	margin.add_child(root)
 
 	var header := HBoxContainer.new()
@@ -52,31 +54,38 @@ func _build_ui() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
-	_add_button(header, "Upload files…", func() -> void:
-		WebFiles.pick_files("sources", SOURCE_ACCEPT, true))
-	_add_button(header, "Export workspace", _export_workspace)
-	_add_button(header, "Import workspace…", func() -> void:
+	_add_header_button(header, "Export workspace", _export_workspace)
+	_add_header_button(header, "Import workspace…", func() -> void:
 		_confirm_then("Importing replaces the open project. Export it first if you want to keep it.",
 			func() -> void: WebFiles.pick_files("workspace", WORKSPACE_ACCEPT, false)))
-	_add_button(header, "New project", func() -> void:
+	_add_header_button(header, "New project", func() -> void:
 		_confirm_then("Start a new, empty project? The open project will be discarded.", Workspace.new_project))
 
-	_source_tree = Tree.new()
-	_source_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_source_tree.columns = 4
-	_source_tree.column_titles_visible = true
-	_source_tree.hide_root = true
-	_source_tree.select_mode = Tree.SELECT_SINGLE
-	var widths := [0, 90, 190, 90]
-	for i in 4:
-		_source_tree.set_column_title(i, ["Source file", "Size", "Added (UTC)", ""][i])
-		_source_tree.set_column_expand(i, i == 0)
-		_source_tree.set_column_custom_minimum_width(i, widths[i])
-	_source_tree.cell_selected.connect(_on_cell_selected)
-	root.add_child(_source_tree)
+	_tabs = TabContainer.new()
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_tabs)
+	var files := FilesPanel.new()
+	files.name = "Files"
+	files.status_message.connect(_set_status)
+	_tabs.add_child(files)
+	var samples := SamplesPanel.new()
+	samples.name = "Samples"
+	_tabs.add_child(samples)
 
 	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 8)
 	root.add_child(footer)
+	_progress = ProgressBar.new()
+	_progress.custom_minimum_size = Vector2(200, 0)
+	_progress.max_value = 1.0
+	_progress.step = 0.001
+	_progress.visible = false
+	footer.add_child(_progress)
+	_cancel = Button.new()
+	_cancel.text = "Cancel"
+	_cancel.visible = false
+	_cancel.pressed.connect(Workspace.cancel_import)
+	footer.add_child(_cancel)
 	_status = Label.new()
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -88,33 +97,22 @@ func _build_ui() -> void:
 	add_child(_confirm)
 
 
-func _add_button(parent: Control, text: String, action: Callable) -> void:
+func _add_header_button(parent: Control, text: String, action: Callable) -> void:
 	var button := Button.new()
 	button.text = text
 	button.pressed.connect(action)
 	parent.add_child(button)
+	_header_buttons.append(button)
 
 
 func _refresh() -> void:
 	if not _name_edit.has_focus():
 		_name_edit.text = Workspace.model.get_name()
-	_source_tree.clear()
-	var tree_root := _source_tree.create_item()
-	for source in Workspace.model.sources():
-		var item := _source_tree.create_item(tree_root)
-		item.set_text(0, source["name"])
-		item.set_tooltip_text(0, "SHA-256 %s" % source["sha256"])
-		item.set_text(1, String.humanize_size(int(source["size"])))
-		item.set_text(2, str(source.get("added", "")).replace("T", " ").trim_suffix("Z"))
-		item.set_metadata(0, source["id"])
-		item.set_text(3, "Remove")
-		item.set_custom_color(3, Color(1.0, 0.55, 0.5))
-		item.set_tooltip_text(3, "Remove this file from the project")
-	if Workspace.model.sources().is_empty():
-		var hint := _source_tree.create_item(tree_root)
-		hint.set_text(0, "No files yet. Use “Upload files…” to add VCF or table files; they stay in this browser.")
-		for i in 4:
-			hint.set_selectable(i, false)
+	var busy := Workspace.importing
+	_progress.visible = busy
+	_cancel.visible = busy
+	for button in _header_buttons:
+		button.disabled = busy
 
 
 func _commit_name() -> void:
@@ -123,44 +121,39 @@ func _commit_name() -> void:
 		Workspace.rename(value)
 
 
-func _on_cell_selected() -> void:
-	var item := _source_tree.get_selected()
-	if item == null or _source_tree.get_selected_column() != 3:
-		return
-	var source_id = item.get_metadata(0)
-	if source_id != null:
-		# Rebuilding the Tree inside its own selection signal is ignored, so
-		# apply the removal on the next frame.
-		_remove_source.call_deferred(int(source_id), item.get_text(0))
-
-
-func _remove_source(source_id: int, file_name: String) -> void:
-	Workspace.remove_source(source_id)
-	_set_status("Removed %s." % file_name)
-
-
 func _on_files_picked(purpose: String, files: Array) -> void:
 	if files.is_empty():
 		return
 	match purpose:
 		"sources":
-			var added := 0
-			for file in files:
-				var before := Workspace.model.sources().size()
-				Workspace.add_source(file["name"], file["bytes"])
-				added += Workspace.model.sources().size() - before
-			var skipped := files.size() - added
-			_set_status("Added %d file(s)%s." % [added, " (%d already present)" % skipped if skipped else ""])
+			var counts := Workspace.add_files(files)
+			var parts: Array = ["Added %d file(s)." % counts[0]]
+			if counts[1]:
+				parts.append("%d already in the project." % counts[1])
+			if counts[2]:
+				parts.append("%d could not be read as VCF (see the Files list)." % counts[2])
+			_set_status(" ".join(parts))
+			_tabs.current_tab = 0
 			WebFiles.estimate_storage(true)
 		"workspace":
 			var message := Workspace.import_bytes(files[0]["bytes"])
-			_set_status(message if message else "Imported %s." % files[0]["name"])
+			_set_status(message if message else "Opened %s." % files[0]["name"])
 			WebFiles.estimate_storage()
+
+
+func _on_import_progress(fraction: float, message: String) -> void:
+	_progress.value = fraction
+	_set_status(message)
+
+
+func _on_import_finished(summary: String) -> void:
+	_set_status(summary)
+	WebFiles.estimate_storage()
 
 
 func _export_workspace() -> void:
 	_commit_name()
-	WebFiles.save_file(Workspace.export_file_name(), Workspace.export_bytes())
+	WebFiles.save_file(Workspace.export_file_name(), Workspace.export_bytes(), "application/octet-stream")
 	_set_status("Exported %s." % Workspace.export_file_name())
 
 

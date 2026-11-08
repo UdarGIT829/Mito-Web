@@ -1,0 +1,4462 @@
+[
+{
+"build": "rcrs",
+"position": 10612,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+10612,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 12938,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+12938,
+"T",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 1583,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+1583,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 3085,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+3085,
+"A",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 1901,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+1901,
+"C",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 7036,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+7036,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 2817,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+2817,
+"G",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 13703,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13703,
+"G",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 7887,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7887,
+"G",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 13911,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+13911,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 4057,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4057,
+"T",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 2028,
+"ref": "G",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+2028,
+"G",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 12999,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+12999,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 7245,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+7245,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 4364,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+4364,
+"C",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 13735,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13735,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 3860,
+"ref": "G",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+3860,
+"G",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 10109,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+10109,
+"A",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 5923,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+5923,
+"T",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 6157,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+6157,
+"T",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 3193,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+3193,
+"T",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 2058,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+2058,
+"C",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 1954,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+1954,
+"T",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 6749,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+6749,
+"C",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 14012,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+14012,
+"A",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 15257,
+"ref": "G",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+15257,
+"G",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 14850,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+14850,
+"C",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 9823,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+9823,
+"T",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 5891,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+5891,
+"C",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 7999,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7999,
+"T",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 9839,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+9839,
+"C",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 16224,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16224,
+"T",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 14708,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+14708,
+"A",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 2399,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+2399,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 13702,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13702,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 11209,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+11209,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 16023,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16023,
+"G",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 1285,
+"ref": "G",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+1285,
+"G",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 2544,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+2544,
+"C",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 10281,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+10281,
+"C",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 11476,
+"ref": "CGGC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+11473,
+"AGGC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 11476,
+"ref": "C",
+"alt": "CTTA",
+"status": "MAPPED",
+"converted": [
+11476,
+"C",
+"CTTA"
+]
+},
+{
+"build": "rcrs",
+"position": 3068,
+"ref": "GAG",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+3067,
+"TGA",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 3068,
+"ref": "G",
+"alt": "GTA",
+"status": "MAPPED",
+"converted": [
+3068,
+"G",
+"GTA"
+]
+},
+{
+"build": "rcrs",
+"position": 1990,
+"ref": "GACA",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+1990,
+"GACA",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 1990,
+"ref": "G",
+"alt": "GGTG",
+"status": "MAPPED",
+"converted": [
+1989,
+"C",
+"CGGT"
+]
+},
+{
+"build": "rcrs",
+"position": 12643,
+"ref": "TTCT",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+12642,
+"ATTC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 12643,
+"ref": "T",
+"alt": "TGAT",
+"status": "MAPPED",
+"converted": [
+12641,
+"A",
+"AATG"
+]
+},
+{
+"build": "rcrs",
+"position": 11649,
+"ref": "TA",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+11649,
+"TA",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 11649,
+"ref": "T",
+"alt": "TA",
+"status": "MAPPED",
+"converted": [
+11649,
+"T",
+"TA"
+]
+},
+{
+"build": "rcrs",
+"position": 16179,
+"ref": "CA",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16179,
+"CA",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 16179,
+"ref": "C",
+"alt": "CC",
+"status": "MAPPED",
+"converted": [
+16178,
+"T",
+"TC"
+]
+},
+{
+"build": "rcrs",
+"position": 9420,
+"ref": "AC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+9420,
+"AC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 9420,
+"ref": "A",
+"alt": "AC",
+"status": "MAPPED",
+"converted": [
+9420,
+"A",
+"AC"
+]
+},
+{
+"build": "rcrs",
+"position": 13040,
+"ref": "CAG",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+13040,
+"CAG",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 13040,
+"ref": "C",
+"alt": "CTA",
+"status": "MAPPED",
+"converted": [
+13040,
+"C",
+"CTA"
+]
+},
+{
+"build": "rcrs",
+"position": 5453,
+"ref": "ACT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+5453,
+"ACT",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 5453,
+"ref": "A",
+"alt": "ATG",
+"status": "MAPPED",
+"converted": [
+5453,
+"A",
+"ATG"
+]
+},
+{
+"build": "rcrs",
+"position": 4488,
+"ref": "CCC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+4487,
+"ACC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 4488,
+"ref": "C",
+"alt": "CGT",
+"status": "MAPPED",
+"converted": [
+4488,
+"C",
+"CGT"
+]
+},
+{
+"build": "rcrs",
+"position": 11758,
+"ref": "CTAC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+11756,
+"AACT",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 11758,
+"ref": "C",
+"alt": "CTCC",
+"status": "MAPPED",
+"converted": [
+11757,
+"A",
+"ACTC"
+]
+},
+{
+"build": "rcrs",
+"position": 2721,
+"ref": "GA",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+2721,
+"GA",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 2721,
+"ref": "G",
+"alt": "GC",
+"status": "MAPPED",
+"converted": [
+2721,
+"G",
+"GC"
+]
+},
+{
+"build": "rcrs",
+"position": 7602,
+"ref": "AAGT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7602,
+"AAGT",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 7602,
+"ref": "A",
+"alt": "ACAT",
+"status": "MAPPED",
+"converted": [
+7602,
+"A",
+"ACAT"
+]
+},
+{
+"build": "rcrs",
+"position": 5977,
+"ref": "GAG",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+5976,
+"TGA",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 5977,
+"ref": "G",
+"alt": "GGA",
+"status": "MAPPED",
+"converted": [
+5977,
+"G",
+"GGA"
+]
+},
+{
+"build": "rcrs",
+"position": 4775,
+"ref": "AGC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4775,
+"AGC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 4775,
+"ref": "A",
+"alt": "AGG",
+"status": "MAPPED",
+"converted": [
+4775,
+"A",
+"AGG"
+]
+},
+{
+"build": "rcrs",
+"position": 4114,
+"ref": "TTCT",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+4113,
+"GTTC",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 4114,
+"ref": "T",
+"alt": "TATT",
+"status": "MAPPED",
+"converted": [
+4113,
+"G",
+"GTAT"
+]
+},
+{
+"build": "rcrs",
+"position": 13045,
+"ref": "ATA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13044,
+"CAT",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 13045,
+"ref": "A",
+"alt": "ATA",
+"status": "MAPPED",
+"converted": [
+13044,
+"C",
+"CAT"
+]
+},
+{
+"build": "rcrs",
+"position": 15780,
+"ref": "ACCC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+15780,
+"ACCC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 15780,
+"ref": "A",
+"alt": "ATAC",
+"status": "MAPPED",
+"converted": [
+15780,
+"A",
+"ATAC"
+]
+},
+{
+"build": "rcrs",
+"position": 2208,
+"ref": "AG",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+2208,
+"AG",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 2208,
+"ref": "A",
+"alt": "AT",
+"status": "MAPPED",
+"converted": [
+2208,
+"A",
+"AT"
+]
+},
+{
+"build": "rcrs",
+"position": 5320,
+"ref": "CC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+5319,
+"AC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 5320,
+"ref": "C",
+"alt": "CG",
+"status": "MAPPED",
+"converted": [
+5320,
+"C",
+"CG"
+]
+},
+{
+"build": "rcrs",
+"position": 1724,
+"ref": "AC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+1724,
+"AC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 1724,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+1721,
+"C",
+"CA"
+]
+},
+{
+"build": "rcrs",
+"position": 4958,
+"ref": "AGCA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4957,
+"TAGC",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 4958,
+"ref": "A",
+"alt": "AAGA",
+"status": "MAPPED",
+"converted": [
+4957,
+"T",
+"TAAG"
+]
+},
+{
+"build": "rcrs",
+"position": 2306,
+"ref": "AT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+2306,
+"AT",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 2306,
+"ref": "A",
+"alt": "AT",
+"status": "MAPPED",
+"converted": [
+2306,
+"A",
+"AT"
+]
+},
+{
+"build": "rcrs",
+"position": 4869,
+"ref": "CAAA",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+4869,
+"CAAA",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 4869,
+"ref": "C",
+"alt": "CGGG",
+"status": "MAPPED",
+"converted": [
+4869,
+"C",
+"CGGG"
+]
+},
+{
+"build": "rcrs",
+"position": 15538,
+"ref": "CC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+15536,
+"AC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 15538,
+"ref": "C",
+"alt": "CA",
+"status": "MAPPED",
+"converted": [
+15538,
+"C",
+"CA"
+]
+},
+{
+"build": "rcrs",
+"position": 302,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+299,
+"C",
+"CA"
+]
+},
+{
+"build": "rcrs",
+"position": 302,
+"ref": "ACC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+302,
+"ACC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 302,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+302,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 303,
+"ref": "C",
+"alt": "CC",
+"status": "MAPPED",
+"converted": [
+302,
+"A",
+"AC"
+]
+},
+{
+"build": "rcrs",
+"position": 303,
+"ref": "CCC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+302,
+"ACC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 303,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+303,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 310,
+"ref": "T",
+"alt": "TT",
+"status": "MAPPED",
+"converted": [
+309,
+"C",
+"CT"
+]
+},
+{
+"build": "rcrs",
+"position": 310,
+"ref": "TCC",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+310,
+"TCC",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 310,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+310,
+"T",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 311,
+"ref": "C",
+"alt": "CC",
+"status": "MAPPED",
+"converted": [
+310,
+"T",
+"TC"
+]
+},
+{
+"build": "rcrs",
+"position": 311,
+"ref": "CCC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+310,
+"TCC",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 311,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+311,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 514,
+"ref": "C",
+"alt": "CC",
+"status": "MAPPED",
+"converted": [
+513,
+"G",
+"GC"
+]
+},
+{
+"build": "rcrs",
+"position": 514,
+"ref": "CAC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+513,
+"GCA",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 514,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+514,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 515,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+514,
+"C",
+"CA"
+]
+},
+{
+"build": "rcrs",
+"position": 515,
+"ref": "ACA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+513,
+"GCA",
+"G"
+]
+},
+{
+"build": "rcrs",
+"position": 515,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+515,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 523,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+522,
+"C",
+"CA"
+]
+},
+{
+"build": "rcrs",
+"position": 523,
+"ref": "ACC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+523,
+"ACC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 523,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+523,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 3107,
+"ref": "N",
+"alt": "NN",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "rcrs",
+"position": 3107,
+"ref": "NTT",
+"alt": "N",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "rcrs",
+"position": 3107,
+"ref": "N",
+"alt": "A",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "rcrs",
+"position": 3106,
+"ref": "C",
+"alt": "CC",
+"status": "MAPPED",
+"converted": [
+3105,
+"A",
+"AC"
+]
+},
+{
+"build": "rcrs",
+"position": 3106,
+"ref": "CNT",
+"alt": "C",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "rcrs",
+"position": 3106,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+3106,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 16182,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+16179,
+"C",
+"CA"
+]
+},
+{
+"build": "rcrs",
+"position": 16182,
+"ref": "AAC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+16182,
+"AAC",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 16182,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16182,
+"A",
+"C"
+]
+},
+{
+"build": "rcrs",
+"position": 16189,
+"ref": "T",
+"alt": "TT",
+"status": "MAPPED",
+"converted": [
+16188,
+"C",
+"CT"
+]
+},
+{
+"build": "rcrs",
+"position": 16189,
+"ref": "TCC",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+16189,
+"TCC",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 16189,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+16189,
+"T",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 16190,
+"ref": "C",
+"alt": "CC",
+"status": "MAPPED",
+"converted": [
+16189,
+"T",
+"TC"
+]
+},
+{
+"build": "rcrs",
+"position": 16190,
+"ref": "CCC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16189,
+"TCC",
+"T"
+]
+},
+{
+"build": "rcrs",
+"position": 16190,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+16190,
+"C",
+"A"
+]
+},
+{
+"build": "rcrs",
+"position": 5,
+"ref": "X",
+"alt": "A",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "rcrs",
+"position": 10,
+"ref": "T",
+"alt": "T",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "rcrs",
+"position": 16574,
+"ref": "A",
+"alt": "C",
+"status": "REFERENCE_MISMATCH",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 15994,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+15993,
+"A",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 15742,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+15741,
+"T",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 10219,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+10218,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 4723,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+4722,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 11228,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+11227,
+"C",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 8676,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+8675,
+"T",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 5291,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+5290,
+"A",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 757,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+755,
+"G",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 11854,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+11853,
+"C",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 887,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+885,
+"T",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 9768,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+9767,
+"C",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 2983,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+2981,
+"A",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 8557,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+8556,
+"T",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 12017,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+12016,
+"C",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 11656,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+11655,
+"C",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 16473,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16471,
+"G",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 7309,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+7308,
+"A",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 6395,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+6394,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 13130,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+13129,
+"C",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 7430,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7429,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 16148,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+16147,
+"C",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 950,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+948,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 9156,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+9155,
+"A",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 8493,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+8492,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 11282,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+11281,
+"A",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 11454,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+11453,
+"G",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 2640,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+2638,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 3348,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+3347,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 15404,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+15403,
+"C",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 11067,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+11066,
+"C",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 15816,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+15815,
+"C",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 63,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+63,
+"T",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 11273,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+11272,
+"A",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 2779,
+"ref": "G",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+2777,
+"G",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 3930,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+3929,
+"T",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 6532,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+6531,
+"C",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 5850,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+5849,
+"G",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 10896,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+10895,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 12971,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+12970,
+"C",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 13153,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+13152,
+"A",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 2784,
+"ref": "AAAC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+2782,
+"AAAC",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 2784,
+"ref": "A",
+"alt": "ACCC",
+"status": "MAPPED",
+"converted": [
+2782,
+"A",
+"ACCC"
+]
+},
+{
+"build": "hg19",
+"position": 904,
+"ref": "GT",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+902,
+"GT",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 904,
+"ref": "G",
+"alt": "GT",
+"status": "MAPPED",
+"converted": [
+902,
+"G",
+"GT"
+]
+},
+{
+"build": "hg19",
+"position": 4791,
+"ref": "AATA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4789,
+"GAAT",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 4791,
+"ref": "A",
+"alt": "ATGC",
+"status": "MAPPED",
+"converted": [
+4790,
+"A",
+"ATGC"
+]
+},
+{
+"build": "hg19",
+"position": 4294,
+"ref": "AT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4293,
+"AT",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 4294,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+4292,
+"G",
+"GA"
+]
+},
+{
+"build": "hg19",
+"position": 3369,
+"ref": "TGCT",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+3367,
+"ATGC",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 3369,
+"ref": "T",
+"alt": "TCTC",
+"status": "MAPPED",
+"converted": [
+3368,
+"T",
+"TCTC"
+]
+},
+{
+"build": "hg19",
+"position": 6917,
+"ref": "TG",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+6916,
+"TG",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 6917,
+"ref": "T",
+"alt": "TG",
+"status": "MAPPED",
+"converted": [
+6916,
+"T",
+"TG"
+]
+},
+{
+"build": "hg19",
+"position": 6974,
+"ref": "TAT",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+6972,
+"GTA",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 6974,
+"ref": "T",
+"alt": "TCG",
+"status": "MAPPED",
+"converted": [
+6973,
+"T",
+"TCG"
+]
+},
+{
+"build": "hg19",
+"position": 8500,
+"ref": "AAAA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+8496,
+"TAAA",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 8500,
+"ref": "A",
+"alt": "ATCA",
+"status": "MAPPED",
+"converted": [
+8498,
+"A",
+"AATC"
+]
+},
+{
+"build": "hg19",
+"position": 11594,
+"ref": "ACA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+11592,
+"GAC",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 11594,
+"ref": "A",
+"alt": "ATC",
+"status": "MAPPED",
+"converted": [
+11593,
+"A",
+"ATC"
+]
+},
+{
+"build": "hg19",
+"position": 4977,
+"ref": "ATTA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4975,
+"GATT",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 4977,
+"ref": "A",
+"alt": "AATC",
+"status": "MAPPED",
+"converted": [
+4976,
+"A",
+"AATC"
+]
+},
+{
+"build": "hg19",
+"position": 130,
+"ref": "GT",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+130,
+"GT",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 130,
+"ref": "G",
+"alt": "GC",
+"status": "MAPPED",
+"converted": [
+130,
+"G",
+"GC"
+]
+},
+{
+"build": "hg19",
+"position": 4640,
+"ref": "TCA",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+4639,
+"TCA",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 4640,
+"ref": "T",
+"alt": "TAA",
+"status": "MAPPED",
+"converted": [
+4639,
+"T",
+"TAA"
+]
+},
+{
+"build": "hg19",
+"position": 10683,
+"ref": "AGCG",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+10682,
+"AGCG",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 10683,
+"ref": "A",
+"alt": "ATAA",
+"status": "MAPPED",
+"converted": [
+10681,
+"C",
+"CATA"
+]
+},
+{
+"build": "hg19",
+"position": 8144,
+"ref": "TA",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+8143,
+"TA",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 8144,
+"ref": "T",
+"alt": "TG",
+"status": "MAPPED",
+"converted": [
+8143,
+"T",
+"TG"
+]
+},
+{
+"build": "hg19",
+"position": 1384,
+"ref": "AA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+1380,
+"GA",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 1384,
+"ref": "A",
+"alt": "AT",
+"status": "MAPPED",
+"converted": [
+1382,
+"A",
+"AT"
+]
+},
+{
+"build": "hg19",
+"position": 915,
+"ref": "AA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+912,
+"TA",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 915,
+"ref": "A",
+"alt": "AT",
+"status": "MAPPED",
+"converted": [
+913,
+"A",
+"AT"
+]
+},
+{
+"build": "hg19",
+"position": 10671,
+"ref": "CGCC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+10667,
+"TGCC",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 10671,
+"ref": "C",
+"alt": "CCGT",
+"status": "MAPPED",
+"converted": [
+10670,
+"C",
+"CCGT"
+]
+},
+{
+"build": "hg19",
+"position": 15666,
+"ref": "CTCC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+15662,
+"ATCC",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 15666,
+"ref": "C",
+"alt": "CCGC",
+"status": "MAPPED",
+"converted": [
+15664,
+"C",
+"CCCG"
+]
+},
+{
+"build": "hg19",
+"position": 14666,
+"ref": "AT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+14665,
+"AT",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 14666,
+"ref": "A",
+"alt": "AT",
+"status": "MAPPED",
+"converted": [
+14665,
+"A",
+"AT"
+]
+},
+{
+"build": "hg19",
+"position": 3987,
+"ref": "AAT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+3986,
+"AAT",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 3987,
+"ref": "A",
+"alt": "ATG",
+"status": "MAPPED",
+"converted": [
+3986,
+"A",
+"ATG"
+]
+},
+{
+"build": "hg19",
+"position": 2379,
+"ref": "GCCC",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+2377,
+"GCCC",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 2379,
+"ref": "G",
+"alt": "GCTA",
+"status": "MAPPED",
+"converted": [
+2377,
+"G",
+"GCTA"
+]
+},
+{
+"build": "hg19",
+"position": 6971,
+"ref": "TTGT",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+6969,
+"ATTG",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 6971,
+"ref": "T",
+"alt": "TGAC",
+"status": "MAPPED",
+"converted": [
+6970,
+"T",
+"TGAC"
+]
+},
+{
+"build": "hg19",
+"position": 12001,
+"ref": "CA",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+12000,
+"CA",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 12001,
+"ref": "C",
+"alt": "CG",
+"status": "MAPPED",
+"converted": [
+12000,
+"C",
+"CG"
+]
+},
+{
+"build": "hg19",
+"position": 4499,
+"ref": "ACT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+4498,
+"ACT",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 4499,
+"ref": "A",
+"alt": "ACA",
+"status": "MAPPED",
+"converted": [
+4497,
+"T",
+"TAC"
+]
+},
+{
+"build": "hg19",
+"position": 13052,
+"ref": "GGC",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+13051,
+"GGC",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 13052,
+"ref": "G",
+"alt": "GCC",
+"status": "MAPPED",
+"converted": [
+13051,
+"G",
+"GCC"
+]
+},
+{
+"build": "hg19",
+"position": 302,
+"ref": "A",
+"alt": "AA",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 302,
+"ref": "ACC",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 302,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+302,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 303,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 303,
+"ref": "CCC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 303,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 310,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 310,
+"ref": "CTC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 310,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 311,
+"ref": "T",
+"alt": "TT",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 311,
+"ref": "TCC",
+"alt": "T",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 311,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+310,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 514,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+511,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19",
+"position": 514,
+"ref": "AGC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+512,
+"AGC",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 514,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+512,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 515,
+"ref": "G",
+"alt": "GG",
+"status": "MAPPED",
+"converted": [
+512,
+"A",
+"AG"
+]
+},
+{
+"build": "hg19",
+"position": 515,
+"ref": "GCA",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+513,
+"GCA",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 515,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+513,
+"G",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 523,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+520,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19",
+"position": 523,
+"ref": "ACA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+513,
+"GCA",
+"G"
+]
+},
+{
+"build": "hg19",
+"position": 523,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+521,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 3107,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+3104,
+"T",
+"TA"
+]
+},
+{
+"build": "hg19",
+"position": 3107,
+"ref": "ACT",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 3107,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+3105,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 3106,
+"ref": "T",
+"alt": "TT",
+"status": "MAPPED",
+"converted": [
+3103,
+"C",
+"CT"
+]
+},
+{
+"build": "hg19",
+"position": 3106,
+"ref": "TAC",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+3104,
+"TAC",
+"T"
+]
+},
+{
+"build": "hg19",
+"position": 3106,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+3104,
+"T",
+"A"
+]
+},
+{
+"build": "hg19",
+"position": 16182,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+16179,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19",
+"position": 16182,
+"ref": "AAC",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16182,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16181,
+"A",
+"C"
+]
+},
+{
+"build": "hg19",
+"position": 16189,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16189,
+"ref": "CCC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16189,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16190,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16190,
+"ref": "CCC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16190,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 5,
+"ref": "X",
+"alt": "A",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 10,
+"ref": "T",
+"alt": "T",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "hg19",
+"position": 16576,
+"ref": "A",
+"alt": "C",
+"status": "REFERENCE_MISMATCH",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 5291,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+5290,
+"A",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14141,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+14140,
+"A",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13233,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+13232,
+"A",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13805,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13804,
+"G",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 11686,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+11685,
+"T",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 3022,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+3020,
+"C",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 11992,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+11991,
+"T",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 11075,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+11074,
+"C",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 15030,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+15029,
+"T",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 593,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+591,
+"C",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 10863,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+10862,
+"A",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9682,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+9681,
+"A",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2107,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+2105,
+"G",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 7490,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+7489,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2755,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+2753,
+"A",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 8911,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+8910,
+"C",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 5950,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+5949,
+"G",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 4246,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+4245,
+"C",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 8475,
+"ref": "C",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+8474,
+"C",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 4895,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+4894,
+"T",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 16208,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+16206,
+"A",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 10717,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+10716,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9145,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+9144,
+"C",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 6008,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+6007,
+"T",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2373,
+"ref": "T",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+2371,
+"T",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 552,
+"ref": "A",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+550,
+"A",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2903,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+2901,
+"A",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2745,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+2743,
+"T",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 7288,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7287,
+"C",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 8666,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+8665,
+"C",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14870,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+14869,
+"G",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 11114,
+"ref": "T",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+11113,
+"T",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13690,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+13689,
+"A",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 4235,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+4234,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 7814,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7813,
+"C",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 5291,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+5290,
+"A",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 1651,
+"ref": "C",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+1649,
+"C",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 6612,
+"ref": "A",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+6611,
+"A",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9995,
+"ref": "C",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+9994,
+"C",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 6746,
+"ref": "G",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+6745,
+"G",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14606,
+"ref": "AGGC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+14605,
+"AGGC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14606,
+"ref": "A",
+"alt": "ACGG",
+"status": "MAPPED",
+"converted": [
+14605,
+"A",
+"ACGG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 597,
+"ref": "CTC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+594,
+"CCT",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 597,
+"ref": "C",
+"alt": "CAA",
+"status": "MAPPED",
+"converted": [
+595,
+"C",
+"CAA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 606,
+"ref": "ATAC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+604,
+"ATAC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 606,
+"ref": "A",
+"alt": "ACTC",
+"status": "MAPPED",
+"converted": [
+604,
+"A",
+"ACTC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14651,
+"ref": "CA",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+14650,
+"CA",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14651,
+"ref": "C",
+"alt": "CT",
+"status": "MAPPED",
+"converted": [
+14650,
+"C",
+"CT"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 16222,
+"ref": "ACCT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+16220,
+"ACCC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 16222,
+"ref": "A",
+"alt": "ATGC",
+"status": "MAPPED",
+"converted": [
+16220,
+"A",
+"ATGC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 7524,
+"ref": "ATT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+7523,
+"ATT",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 7524,
+"ref": "A",
+"alt": "ACC",
+"status": "MAPPED",
+"converted": [
+7523,
+"A",
+"ACC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13263,
+"ref": "AAC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13262,
+"AAC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13263,
+"ref": "A",
+"alt": "AAC",
+"status": "MAPPED",
+"converted": [
+13262,
+"A",
+"AAC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 469,
+"ref": "CC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+466,
+"TC",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 469,
+"ref": "C",
+"alt": "CG",
+"status": "MAPPED",
+"converted": [
+467,
+"C",
+"CG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14116,
+"ref": "CC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+14114,
+"TC",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14116,
+"ref": "C",
+"alt": "CA",
+"status": "MAPPED",
+"converted": [
+14115,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2770,
+"ref": "AACC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+2768,
+"AACC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2770,
+"ref": "A",
+"alt": "ATGC",
+"status": "MAPPED",
+"converted": [
+2768,
+"A",
+"ATGC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9604,
+"ref": "AA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+9601,
+"TA",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9604,
+"ref": "A",
+"alt": "AT",
+"status": "MAPPED",
+"converted": [
+9603,
+"A",
+"AT"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 6075,
+"ref": "CG",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+6074,
+"CG",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 6075,
+"ref": "C",
+"alt": "CG",
+"status": "MAPPED",
+"converted": [
+6074,
+"C",
+"CG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14610,
+"ref": "TT",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+14608,
+"CT",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14610,
+"ref": "T",
+"alt": "TG",
+"status": "MAPPED",
+"converted": [
+14609,
+"T",
+"TG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 11934,
+"ref": "ACT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+11933,
+"ACT",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 11934,
+"ref": "A",
+"alt": "AGC",
+"status": "MAPPED",
+"converted": [
+11933,
+"A",
+"AGC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 1130,
+"ref": "CTG",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+1128,
+"CTG",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 1130,
+"ref": "C",
+"alt": "CCG",
+"status": "MAPPED",
+"converted": [
+1128,
+"C",
+"CCG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 5997,
+"ref": "AG",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+5996,
+"AG",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 5997,
+"ref": "A",
+"alt": "AG",
+"status": "MAPPED",
+"converted": [
+5996,
+"A",
+"AG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 12507,
+"ref": "TA",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+12506,
+"TA",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 12507,
+"ref": "T",
+"alt": "TT",
+"status": "MAPPED",
+"converted": [
+12505,
+"C",
+"CT"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9141,
+"ref": "CTGT",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+9140,
+"CTGT",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9141,
+"ref": "C",
+"alt": "CCCA",
+"status": "MAPPED",
+"converted": [
+9140,
+"C",
+"CCCA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2979,
+"ref": "GTT",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+2977,
+"GTT",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2979,
+"ref": "G",
+"alt": "GAC",
+"status": "MAPPED",
+"converted": [
+2977,
+"G",
+"GAC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13093,
+"ref": "AGTT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+13092,
+"AGTT",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 13093,
+"ref": "A",
+"alt": "AATA",
+"status": "MAPPED",
+"converted": [
+13089,
+"T",
+"TATA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9820,
+"ref": "GGA",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+9819,
+"GGA",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 9820,
+"ref": "G",
+"alt": "GCA",
+"status": "MAPPED",
+"converted": [
+9819,
+"G",
+"GCA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 5089,
+"ref": "ATTT",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+5088,
+"ATTT",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 5089,
+"ref": "A",
+"alt": "ATGT",
+"status": "MAPPED",
+"converted": [
+5088,
+"A",
+"ATGT"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 4899,
+"ref": "CCA",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+4898,
+"CCA",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 4899,
+"ref": "C",
+"alt": "CCA",
+"status": "MAPPED",
+"converted": [
+4898,
+"C",
+"CCA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14067,
+"ref": "CCTC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+14065,
+"ACCT",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 14067,
+"ref": "C",
+"alt": "CCAC",
+"status": "MAPPED",
+"converted": [
+14063,
+"T",
+"TCAC"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2790,
+"ref": "CC",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+2787,
+"AC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 2790,
+"ref": "C",
+"alt": "CA",
+"status": "MAPPED",
+"converted": [
+2788,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 302,
+"ref": "A",
+"alt": "AA",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 302,
+"ref": "ACC",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 302,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+302,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 303,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 303,
+"ref": "CCC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 303,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 310,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 310,
+"ref": "CTC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 310,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 311,
+"ref": "T",
+"alt": "TT",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 311,
+"ref": "TCC",
+"alt": "T",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 311,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+310,
+"T",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 514,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+511,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 514,
+"ref": "AGC",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+512,
+"AGC",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 514,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+512,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 515,
+"ref": "G",
+"alt": "GG",
+"status": "MAPPED",
+"converted": [
+512,
+"A",
+"AG"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 515,
+"ref": "GCA",
+"alt": "G",
+"status": "MAPPED",
+"converted": [
+513,
+"GCA",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 515,
+"ref": "G",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+513,
+"G",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 523,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+520,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 523,
+"ref": "ACA",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+513,
+"GCA",
+"G"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 523,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+521,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 3107,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+3104,
+"T",
+"TA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 3107,
+"ref": "ACT",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 3107,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+3105,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 3106,
+"ref": "T",
+"alt": "TT",
+"status": "MAPPED",
+"converted": [
+3103,
+"C",
+"CT"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 3106,
+"ref": "TAC",
+"alt": "T",
+"status": "MAPPED",
+"converted": [
+3104,
+"TAC",
+"T"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 3106,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+3104,
+"T",
+"A"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 16182,
+"ref": "A",
+"alt": "AA",
+"status": "MAPPED",
+"converted": [
+16179,
+"C",
+"CA"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 16182,
+"ref": "AAC",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16182,
+"ref": "A",
+"alt": "C",
+"status": "MAPPED",
+"converted": [
+16181,
+"A",
+"C"
+]
+},
+{
+"build": "hg19_plus58",
+"position": 16189,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16189,
+"ref": "CCC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16189,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16190,
+"ref": "C",
+"alt": "CC",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16190,
+"ref": "CCC",
+"alt": "C",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16190,
+"ref": "C",
+"alt": "A",
+"status": "AMBIGUOUS",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 5,
+"ref": "X",
+"alt": "A",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 10,
+"ref": "T",
+"alt": "T",
+"status": "UNSUPPORTED",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16634,
+"ref": "A",
+"alt": "C",
+"status": "REFERENCE_MISMATCH",
+"converted": null
+},
+{
+"build": "hg19_plus58",
+"position": 16574,
+"ref": "T",
+"alt": "A",
+"status": "MAPPED",
+"converted": [
+3,
+"T",
+"A"
+]
+}
+]
