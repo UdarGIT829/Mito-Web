@@ -310,9 +310,24 @@ func _create_view(n: Dictionary) -> void:
 				_commit())
 			rows = [summary, edit, mode, flag_name]
 		"enrich":
-			var note := Label.new()
-			note.text = "Annotation lookups arrive in a later\nphase. Mutations pass through unchanged."
-			rows = [note]
+			var labels := {"gnomad": "gnomAD v3.1 mtDNA (frequency, haplogroups, VEP)",
+				"clinvar": "ClinVar classifications", "ensembl": "Ensembl VEP lookups (Tables tab)"}
+			var info := AnnotationDb.source_info()
+			if info.has("clinvar"):
+				labels["clinvar"] += " (%s)" % info["clinvar"].get("release", "")
+			for source in AnnotationDb.SOURCES:
+				var box := CheckBox.new()
+				box.text = labels[source]
+				box.button_pressed = source in config.get("sources", AnnotationDb.SOURCES)
+				box.toggled.connect(func(on: bool) -> void:
+					var chosen: Array = config.get("sources", AnnotationDb.SOURCES.duplicate()).duplicate()
+					if on and not source in chosen:
+						chosen.append(source)
+					elif not on:
+						chosen.erase(source)
+					config["sources"] = chosen
+					_commit())
+				rows.append(box)
 		"table":
 			var table_name := LineEdit.new()
 			table_name.placeholder_text = "Table name"

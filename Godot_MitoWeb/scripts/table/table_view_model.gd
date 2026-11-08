@@ -138,6 +138,11 @@ func cell_text(row: Dictionary, col: Dictionary, full := false) -> String:
 			if shown.size() < results.size():
 				text += "; … +%d more" % (results.size() - shown.size())
 			return text
+	if col["id"].begins_with("ann:"):
+		var value = annotation_value(row, col["id"].substr(4))
+		if value == null:
+			return ""
+		return String.num(value, 6) if typeof(value) == TYPE_FLOAT else str(value)
 	match col["kind"]:
 		"flag":
 			return "yes" if row.get(col["flag"], false) else "no"
@@ -170,6 +175,54 @@ static func compact_slippage(slippage: Dictionary) -> String:
 	if repeats:
 		text += "  " + "  ".join(repeats)
 	return text
+
+
+## One annotation field of a row: a float for frequencies, a String for
+## text, or null when the allele is not in that source.
+static func annotation_value(row: Dictionary, field: String):
+	var ann: Dictionary = row.get("annotations", {})
+	var g: Dictionary = ann.get("gnomad", {})
+	var c: Dictionary = ann.get("clinvar", {})
+	match field:
+		"gnomad_af_hom": return null if g.is_empty() or g.get("af_hom") == null else float(g["af_hom"])
+		"gnomad_af_het": return null if g.is_empty() or g.get("af_het") == null else float(g["af_het"])
+		"gnomad_max_hl": return null if g.is_empty() or g.get("max_hl") == null else float(g["max_hl"])
+		"hap_defining": return null if g.is_empty() else ("yes" if g.get("hap_defining") else "no")
+		"haplogroups":
+			if g.is_empty():
+				return null
+			var haps: Array = g.get("haplogroups", [])
+			return ", ".join(haps.slice(0, 6).map(func(h): return "%s %s" % [h[0], String.num(float(h[1]), 2)])) + (" …" if haps.size() > 6 else "")
+		"consequence":
+			var terms := AnnotationDb.consequences(ann)
+			var text := ", ".join(terms)
+			if text and not g.get("consequence") and ann.has("ensembl"):
+				text += " (Ensembl live)"
+			return text if text else null
+		"protein":
+			var protein: Array = g.get("protein", []) if g.get("protein") else ann.get("ensembl", {}).get("protein", [])
+			return ", ".join(protein) if protein else null
+		"trna":
+			var parts: Array = []
+			if g.get("mitotip"):
+				parts.append("MitoTIP: " + g["mitotip"])
+			if g.get("pon_mt"):
+				parts.append("PON-mt-tRNA: " + g["pon_mt"])
+			return "; ".join(parts) if parts else null
+		"clinvar": return null if c.is_empty() else c.get("significance", "")
+		"clinvar_review": return null if c.is_empty() else c.get("review", "")
+		"clinvar_condition": return null if c.is_empty() else c.get("condition", "")
+	return null
+
+
+## Rows whose consequence is unknown in the bundle and not yet looked up:
+## [[position, ref, alt], ...] for the Ensembl client.
+func alleles_needing_lookup() -> Array:
+	var out: Array = []
+	for row in view:
+		if AnnotationDb.needs_live_lookup(row["position"], row["event_ref"], row["alt"]):
+			out.append([row["position"], row["event_ref"], row["alt"]])
+	return out
 
 
 ## Calls behind one row, for the details view.
@@ -220,6 +273,8 @@ func describe_filters() -> String:
 					parts.append("%s at least %s" % [col["title"], _num(lo)])
 				elif hi != null:
 					parts.append("%s at most %s" % [col["title"], _num(hi)])
+				if spec.get("include_missing", false):
+					parts[-1] += " (or none)"
 			"text":
 				parts.append("%s contains \"%s\"" % [col["title"], spec["contains"]])
 			"genes":
@@ -249,6 +304,22 @@ func _build_columns() -> void:
 		columns.append({"id": "flag:" + name, "title": name, "kind": "flag", "flag": name})
 		if frame.flag_reasons.has(name):
 			columns.append({"id": "why:" + name, "title": name + ": why not", "kind": "reason", "flag": name})
+	var sources: Array = frame.annotation_sources
+	if "gnomad" in sources:
+		columns.append({"id": "ann:gnomad_af_hom", "title": "gnomAD AF hom", "kind": "number"})
+		columns.append({"id": "ann:gnomad_af_het", "title": "gnomAD AF het", "kind": "number"})
+		columns.append({"id": "ann:gnomad_max_hl", "title": "gnomAD max HL", "kind": "number"})
+		columns.append({"id": "ann:hap_defining", "title": "Haplogroup marker", "kind": "text"})
+		columns.append({"id": "ann:haplogroups", "title": "Haplogroups (AF hom)", "kind": "text"})
+	if "gnomad" in sources or "ensembl" in sources:
+		columns.append({"id": "ann:consequence", "title": "Consequence", "kind": "text"})
+		columns.append({"id": "ann:protein", "title": "Protein change", "kind": "text"})
+	if "gnomad" in sources:
+		columns.append({"id": "ann:trna", "title": "tRNA prediction", "kind": "text"})
+	if "clinvar" in sources:
+		columns.append({"id": "ann:clinvar", "title": "ClinVar", "kind": "text"})
+		columns.append({"id": "ann:clinvar_review", "title": "ClinVar review", "kind": "text"})
+		columns.append({"id": "ann:clinvar_condition", "title": "ClinVar condition", "kind": "text"})
 	columns.append({"id": "slippage", "title": "Slippage (context | ALT repeats)", "kind": "text"})
 	if per_sample_columns:
 		for sample_id in frame.samples:
@@ -267,6 +338,8 @@ func _passes(i: int) -> bool:
 			"number":
 				var value = _sort_key(i, col)
 				if value == null:
+					if spec.get("include_missing", false):
+						continue
 					return false
 				if spec.get("min") != null and value < spec["min"]:
 					return false
@@ -305,6 +378,11 @@ func _passes(i: int) -> bool:
 func _sort_key(i: int, col: Dictionary):
 	var row: Dictionary = rows[i]
 	var s: Dictionary = row["sample_summary"]
+	if col["id"].begins_with("ann:"):
+		var value = annotation_value(row, col["id"].substr(4))
+		if value == null or (typeof(value) == TYPE_STRING and value.is_empty()):
+			return null
+		return value if typeof(value) == TYPE_FLOAT else str(value).to_lower()
 	match col["id"]:
 		"position": return row["position"]
 		"carriers": return s["carrier_count"]

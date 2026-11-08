@@ -55,6 +55,13 @@ func sources() -> Array:
 	return data["sources"]
 
 
+## Live Ensembl results fetched in this workspace: {allele key: {"ensembl": {...}}}.
+func live_annotations() -> Dictionary:
+	if not data.has("live_annotations"):
+		data["live_annotations"] = {}
+	return data["live_annotations"]
+
+
 ## The analysis graph (see GraphModel). Created on first use for older files.
 func graph() -> Dictionary:
 	if not data.has("graph"):

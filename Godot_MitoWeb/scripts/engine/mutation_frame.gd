@@ -18,6 +18,8 @@ var carriers: Array = []  ## Per row: {sample_id: call_index}.
 var flags := {}  ## name -> PackedByteArray parallel to rows.
 var flag_reasons := {}  ## name -> PackedStringArray: why each row failed ("" if it passed).
 var duplicate_calls := 0
+## Annotation sources added by an Enrich step ("gnomad", "clinvar", "ensembl").
+var annotation_sources: Array = []
 
 
 func row_count() -> int:
@@ -105,6 +107,9 @@ func union(other: MutationFrame) -> MutationFrame:
 	var out := _empty_like(universe)
 	out.flags = {}
 	out.flag_reasons = {}
+	for source in other.annotation_sources:
+		if not source in out.annotation_sources:
+			out.annotation_sources.append(source)
 	var merged := {}
 	for frame in [self, other]:
 		for r in frame.row_count():
@@ -131,6 +136,7 @@ func _empty_like(universe: PackedInt32Array) -> MutationFrame:
 	out.store = store
 	out.samples = universe
 	out.duplicate_calls = duplicate_calls
+	out.annotation_sources = annotation_sources.duplicate()
 	for name in flags:
 		out.flags[name] = PackedByteArray()
 	for name in flag_reasons:

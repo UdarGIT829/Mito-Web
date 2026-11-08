@@ -67,6 +67,8 @@ static func row_for(frame: MutationFrame, r: int, summary: Dictionary, features:
 	}
 	for name in frame.flags:
 		row[name] = frame.flags[name][r] == 1
+	if frame.annotation_sources:
+		row["annotations"] = AnnotationDb.lookup(pos, store.allele_ref[allele], store.allele_alt[allele], frame.annotation_sources)
 	var reasons := {}
 	for name in frame.flag_reasons:
 		reasons[name] = frame.flag_reasons[name][r]

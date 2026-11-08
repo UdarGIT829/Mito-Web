@@ -82,7 +82,18 @@ func _evaluate_node(graph: Dictionary, node: Dictionary, store: VariantStore, re
 				return _error(problem)
 			var flag: String = config.get("flag_name", "passes").strip_edges()
 			return _ok(MutationFilters.apply(inputs[0][0], filters, config.get("mode", "drop"), flag if flag else "passes"))
-		"enrich", "table":
+		"enrich":
+			if inputs[0].is_empty():
+				return _error("Connect an input.")
+			var problem := AnnotationDb.ensure_loaded()
+			if problem:
+				return _error(problem)
+			var enriched: MutationFrame = inputs[0][0].take_rows(range(inputs[0][0].row_count()))
+			for source in config.get("sources", AnnotationDb.SOURCES):
+				if not source in enriched.annotation_sources:
+					enriched.annotation_sources.append(source)
+			return _ok(enriched)
+		"table":
 			if inputs[0].is_empty():
 				return _error("Connect an input.")
 			return _ok(inputs[0][0])
@@ -130,6 +141,12 @@ static func _ok(frame: MutationFrame) -> Dictionary:
 	var summary := "%d mutation%s · %d sample%s" % [
 		frame.row_count(), "" if frame.row_count() == 1 else "s",
 		frame.samples.size(), "" if frame.samples.size() == 1 else "s"]
+	if frame.annotation_sources:
+		var annotated := 0
+		for allele in frame.alleles:
+			if not AnnotationDb.lookup(frame.store.allele_pos[allele], frame.store.allele_ref[allele], frame.store.allele_alt[allele], frame.annotation_sources).is_empty():
+				annotated += 1
+		summary += " · %d annotated" % annotated
 	for name in frame.flags:
 		var passing := 0
 		for v in frame.flags[name]:

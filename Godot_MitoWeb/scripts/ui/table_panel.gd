@@ -26,6 +26,9 @@ var _node_id := ""
 var _model: TableViewModel
 var _model_frame: MutationFrame
 var _dirty := true
+var _lookup: Button
+var _ensembl: EnsemblClient
+var _model_annotations_revision := -1
 
 
 func _ready() -> void:
@@ -47,6 +50,9 @@ func _ready() -> void:
 	_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_info.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	bar.add_child(_info)
+	_lookup = _button("Look up missing consequences", _lookup_missing)
+	_lookup.tooltip_text = "Asks the Ensembl VEP service about mutations in this table that the bundled gnomAD data does not cover. Results are saved in the workspace."
+	bar.add_child(_lookup)
 	bar.add_child(_button("Copy all (TSV)", func() -> void:
 		if _model:
 			DisplayServer.clipboard_set(_model.export_text("\t"))
@@ -125,6 +131,16 @@ func _ready() -> void:
 	_details.add_child(_details_tree)
 	add_child(_details)
 
+	_ensembl = EnsemblClient.new()
+	add_child(_ensembl)
+	_ensembl.progress.connect(func(done: int, total: int) -> void:
+		status_message.emit("Ensembl: %d of %d looked up…" % [done, total]))
+	_ensembl.finished.connect(func(results: Dictionary, error: String) -> void:
+		if results:
+			Workspace.add_live_annotations(results)
+		var found := results.values().filter(func(r): return not r["consequence"].is_empty()).size()
+		status_message.emit(("Ensembl: %d looked up, %d with consequences. " % [results.size(), found]) + error)
+		_lookup.disabled = false)
 	Workspace.changed.connect(func() -> void:
 		_dirty = true
 		if is_visible_in_tree():
@@ -170,8 +186,10 @@ func _sync() -> void:
 		_clear_filters.visible = false
 		_filter_bar.visible = false
 		_page_label.text = ""
+		_lookup.visible = false
 		return
-	if frame != _model_frame:
+	if frame != _model_frame or Workspace.annotations_revision != _model_annotations_revision:
+		_model_annotations_revision = Workspace.annotations_revision
 		var previous := _model
 		_model = TableViewModel.new(frame)
 		_model_frame = frame
@@ -185,6 +203,7 @@ func _sync() -> void:
 			if not _model.column(previous.sort["column"]).is_empty():
 				_model.sort = previous.sort
 			_model.refresh()
+	_lookup.visible = "ensembl" in frame.annotation_sources
 	_per_sample.set_pressed_no_signal(_model.per_sample_columns)
 	_per_sample.disabled = frame.samples.size() > TableViewModel.PER_SAMPLE_MAX
 	_per_sample.tooltip_text = "Not available above %d samples." % TableViewModel.PER_SAMPLE_MAX if _per_sample.disabled else ""
@@ -271,12 +290,19 @@ func _on_title_clicked(column_index: int, _mouse_button: int) -> void:
 			var hi := _spin_text(spec.get("max"))
 			box.add_child(_pair("At least", lo))
 			box.add_child(_pair("At most", hi))
+			var keep_missing := CheckBox.new()
+			keep_missing.text = "Also keep rows with no value"
+			keep_missing.tooltip_text = "e.g. variants not observed in gnomAD"
+			keep_missing.button_pressed = spec.get("include_missing", false)
+			box.add_child(keep_missing)
 			read_spec = func() -> Dictionary:
 				var out := {}
 				if lo.text.strip_edges().is_valid_float():
 					out["min"] = lo.text.to_float()
 				if hi.text.strip_edges().is_valid_float():
 					out["max"] = hi.text.to_float()
+				if out and keep_missing.button_pressed:
+					out["include_missing"] = true
 				return out
 		"text", "reason":
 			var text := LineEdit.new()
@@ -405,3 +431,15 @@ static func _choice(items: Array, selected: int) -> OptionButton:
 		o.add_item(item)
 	o.select(maxi(selected, 0))
 	return o
+
+
+func _lookup_missing() -> void:
+	if _model == null or _ensembl.busy:
+		return
+	var alleles := _model.alleles_needing_lookup()
+	if alleles.is_empty():
+		status_message.emit("Every mutation in this table already has a consequence.")
+		return
+	_lookup.disabled = true
+	status_message.emit("Asking Ensembl about %d mutations…" % alleles.size())
+	_ensembl.lookup(alleles)

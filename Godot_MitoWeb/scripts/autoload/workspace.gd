@@ -20,6 +20,8 @@ var importing := false
 ## Increases whenever imported samples or calls change, so cached analysis
 ## results know to recompute. Not saved.
 var data_revision := 0
+## Increases when live annotations are added, so tables re-read them.
+var annotations_revision := 0
 var _evaluator := GraphEvaluator.new()
 var _last_results := {}
 var _importer: VcfImporter
@@ -34,6 +36,7 @@ func _ready() -> void:
 	add_child(_autosave_timer)
 	if not _load_autosave():
 		model = WorkspaceModel.new()
+	AnnotationDb.live = model.live_annotations()
 
 
 func is_storage_persistent() -> bool:
@@ -83,9 +86,19 @@ func undo_imports(source_ids: Array) -> void:
 
 ## Evaluated analysis graph: {node id: {frame, error, summary}}. Cached per
 ## node, so calling this often is cheap.
+## Stores live Ensembl results in the workspace.
+func add_live_annotations(results: Dictionary) -> void:
+	var live := model.live_annotations()
+	for k in results:
+		live[k] = {"ensembl": results[k]}
+	annotations_revision += 1
+	model.touch()
+	_mark_changed()
+
+
 func graph_results() -> Dictionary:
 	if not importing:
-		_last_results = _evaluator.evaluate(model.graph(), model.store, data_revision)
+		_last_results = _evaluator.evaluate(model.graph(), model.store, data_revision * 1000000 + annotations_revision)
 	return _last_results
 
 
@@ -207,6 +220,7 @@ func _load_autosave() -> bool:
 
 
 func _mark_changed() -> void:
+	AnnotationDb.live = model.live_annotations()
 	changed.emit()
 	if not importing:
 		_autosave_timer.start()
