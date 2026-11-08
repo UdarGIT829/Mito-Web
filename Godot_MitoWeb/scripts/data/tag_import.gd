@@ -3,7 +3,7 @@ extends RefCounted
 ## Assigns tags to imported samples from a table (CSV or TSV) such as a lab
 ## metadata sheet or a haplogroup list:
 ##   sample,cell_line,treatment,haplogroup
-##   C10_EV_PCR...,C10,Treated,J1c
+##   LineB_EV_PCR...,LineB,Treated,J1c
 ## One column identifies the sample (matched to sample name, then subject);
 ## each chosen column's value becomes a tag, optionally prefixed with the
 ## column name ("haplogroup=J1c").
@@ -37,7 +37,7 @@ static func parse(text: String) -> Dictionary:
 ## samples as one unit.
 ##
 ## attribute_columns become per-sample values (sample["attributes"][column
-## name]): numbers stay numbers (SLEDAI 8), other text stays text (sex F).
+## name]): numbers stay numbers (score 8), other text stays text (sex F).
 ## haplogroup_column: the result lists [sample, text] pairs in
 ## "haplogroups" for the caller to apply (see Workspace.import_table).
 static func apply(samples: Array, table: Dictionary, match_column: int, tag_columns: Array, prefix: bool, subject_column: int = -1,

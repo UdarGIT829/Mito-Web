@@ -15,7 +15,7 @@ chrM	3107	.	N	C	.	PASS	DP=10	GT:AF	0/1:0.5
 chr1	100	.	A	G	.	PASS	DP=10	GT:AF	0/1:0.5
 """
 
-## Mimics the Illumina NCRef exports: no ID column, quoted sample values,
+## Mimics some Illumina exports: no ID column, quoted sample values,
 ## CRLF line endings, VF instead of AF.
 const QUOTED_VCF := "##fileformat=VCFv4.1\r\n#CHROM\tPOS\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tX.bam\r\nchrM\t150\tC\tT\t100\tPASS\t5\tGT:VF\t\"0/1:0.078\"\r\n"
 
@@ -155,7 +155,7 @@ func test_sequence_features() -> void:
 	check(not SequenceFeatures.is_minimal_motif("AA"), "AA is not a minimal motif")
 	var rcrs := ReferenceSequence.get_build(ReferenceSequence.RCRS).sequence
 	check(SequenceFeatures.reference_context(rcrs, 1, 3) == [rcrs.substr(16566, 3), rcrs.substr(1, 3)], "context wraps around the origin")
-	check(VcfImporter.default_sample_name("PL20-19-A_S16.vcf.gz") == "PL20-19-A", "Illumina _S suffix is stripped")
+	check(VcfImporter.default_sample_name("S19-A_S16.vcf.gz") == "S19-A", "Illumina _S suffix is stripped")
 
 
 func test_mapper_matches_python() -> void:
@@ -192,7 +192,7 @@ func test_import_single_sample() -> void:
 
 func test_import_quoted_illumina() -> void:
 	var store := VariantStore.new()
-	var result := await _import("PL-20-01_NCRef.vcf", QUOTED_VCF, store, ReferenceSequence.RCRS)
+	var result := await _import("P01_run1.vcf", QUOTED_VCF, store, ReferenceSequence.RCRS)
 	check(result["ok"] and result["calls"] == 1, "quoted Illumina VCF imports")
 	check(is_equal_approx(store.calls["af"][0], 0.078), "AF read from VF")
 	check(store.calls["values"][0] == "0/1:0.078", "quotes removed from the stored value")

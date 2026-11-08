@@ -108,7 +108,7 @@ func test_annotation_rules() -> void:
 
 
 func test_tag_import() -> void:
-	var csv := "﻿sample,cell line,treatment,\"note, quoted\"\r\nS1,C10,Treated,\"a, b\"\r\ns2,AP4,Untreated,\r\nNOPE,X,Y,\r\n"
+	var csv := "﻿sample,cell line,treatment,\"note, quoted\"\r\nS1,LineB,Treated,\"a, b\"\r\ns2,LineA,Untreated,\r\nNOPE,X,Y,\r\n"
 	var parsed := TagImport.parse(csv)
 	check(parsed["ok"] and parsed["header"] == ["sample", "cell line", "treatment", "note, quoted"], "CSV header with BOM and quotes")
 	check(parsed["rows"][0][3] == "a, b", "quoted cell with comma")
@@ -120,15 +120,15 @@ func test_tag_import() -> void:
 	]
 	var result := TagImport.apply(samples, parsed, 0, [1, 2], false)
 	check(result["matched"] == 2 and result["unmatched"] == ["NOPE"], "matches by name, case-insensitively; reports unmatched rows")
-	check(Array(samples[0]["tags"]) == ["EV", "C10", "Treated"], "tags added after existing ones")
+	check(Array(samples[0]["tags"]) == ["EV", "LineB", "Treated"], "tags added after existing ones")
 	var again := TagImport.apply(samples, parsed, 0, [1, 2], false)
 	check(again["tags_added"] == 0, "importing twice adds nothing")
 	TagImport.apply(samples, tsv, 0, [1], true)
-	var by_subject: Array = [{"name": "PL-20-19_NCRef", "subject": "19", "tags": PackedStringArray()},
-		{"name": "PL20-19-A", "subject": "19", "tags": PackedStringArray()}]
-	var subject_table := TagImport.parse("subject,group\n19,Lupus\n")
-	check(TagImport.apply(by_subject, subject_table, 0, [1], true)["matched"] == 2 and Array(by_subject[1]["tags"]) == ["group=Lupus"], "a subject id tags all its samples, with prefix")
+	var by_subject: Array = [{"name": "P19_run1", "subject": "19", "tags": PackedStringArray()},
+		{"name": "S19-A", "subject": "19", "tags": PackedStringArray()}]
+	var subject_table := TagImport.parse("subject,group\n19,Cohort\n")
+	check(TagImport.apply(by_subject, subject_table, 0, [1], true)["matched"] == 2 and Array(by_subject[1]["tags"]) == ["group=Cohort"], "a subject id tags all its samples, with prefix")
 	check(not TagImport.parse("only a header\n")["ok"], "a table without data rows is rejected")
-	var lines: Array = [{"name": "C10_EV", "subject": "C10_EV", "tags": PackedStringArray()}, {"name": "C10_cell", "subject": "C10_cell", "tags": PackedStringArray()}]
-	TagImport.apply(lines, TagImport.parse("sample,line\nC10_EV,C10\nC10_cell,C10\n"), 0, [], false, 1)
-	check(lines.all(func(x): return x["subject"] == "C10"), "subject set from a column")
+	var lines: Array = [{"name": "LineB_EV", "subject": "LineB_EV", "tags": PackedStringArray()}, {"name": "LineB_cell", "subject": "LineB_cell", "tags": PackedStringArray()}]
+	TagImport.apply(lines, TagImport.parse("sample,line\nLineB_EV,LineB\nLineB_cell,LineB\n"), 0, [], false, 1)
+	check(lines.all(func(x): return x["subject"] == "LineB"), "subject set from a column")

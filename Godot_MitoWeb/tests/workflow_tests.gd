@@ -45,7 +45,7 @@ func _labels(f: MutationFrame) -> Array:
 
 func test_builtins() -> void:
 	var ids: Array = Workflows.builtin().map(func(w): return w["id"])
-	check(ids == ["treated_vs_untreated", "haplogroup_markers", "lupus_lineages", "lupus_mutations", "cohort_vs_population"], "built-in workflows")
+	check(ids == ["treated_vs_untreated", "haplogroup_markers", "cohort_vs_population"], "built-in workflows")
 	var wf := Workflows.find_builtin("treated_vs_untreated")
 	check(Workflows.resolve_params(wf, {}) == {"tag_a": "Treated", "tag_b": "Untreated"}, "defaults fill missing settings")
 	var g := Workflows.build(wf, {"tag_a": "EV", "tag_b": "Cell"})
@@ -100,6 +100,10 @@ func test_files_and_saving() -> void:
 	check(g["nodes"].size() == graph["nodes"].size() and g["nodes"][0]["position"] is Vector2, "positions restored as vectors")
 	check(g["edges"].all(func(e): return typeof(e["to_port"]) == TYPE_INT), "ports restored as integers")
 	check(back["workflow"]["title"] == "U markers" and back["workflow"]["description"] == "Recreates U", "title and description kept")
+	saved["lineage_rules"] = [["L3", "African"], ["N", "Other"]]
+	var with_rules := Workflows.from_file_text(Workflows.to_file_text(saved))
+	check(with_rules["workflow"].get("lineage_rules") == [["L3", "African"], ["N", "Other"]], "workflow files carry lineage rules")
+	saved.erase("lineage_rules")
 	var results := GraphEvaluator.new().evaluate(g, store, 1)
 	check(results.values().all(func(r): return r["error"] == "" or "No samples" in r["error"]), "an imported workflow evaluates")
 	check(not Workflows.from_file_text("{\"format\": \"other\"}")["ok"] and not Workflows.from_file_text("nonsense")["ok"], "other files are rejected")

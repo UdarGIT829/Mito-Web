@@ -31,7 +31,7 @@ const FILTERED := [[73, "A", "G", "0.99"], [150, "C", "T", "0.98"], [750, "A", "
 
 func test_same_content() -> void:
 	var model := WorkspaceModel.new()
-	var text := _vcf("AP4_EV_PCR", STRICT)
+	var text := _vcf("LineA_EV_PCR", STRICT)
 	check(model.add_source("a.vcf", text.to_utf8_buffer())[1], "first copy added")
 	check(not model.add_source("a.vcf.gz", text.to_utf8_buffer().compress(FileAccess.COMPRESSION_GZIP))[1], "gzipped copy of the same content is not added")
 	check(not model.add_source("a_crlf.vcf", text.replace("\n", "\r\n").to_utf8_buffer())[1], "CRLF copy is not added")
@@ -40,18 +40,18 @@ func test_same_content() -> void:
 
 func test_same_sample() -> void:
 	var model := WorkspaceModel.new()
-	var strict: Dictionary = model.add_source("AP4.strict.vcf", _vcf("AP4_EV_PCR", STRICT).to_utf8_buffer())[0]
-	var filtered: Dictionary = model.add_source("AP4.filtered.vcf", _vcf("AP4_EV_PCR", FILTERED).to_utf8_buffer())[0]
-	var other: Dictionary = model.add_source("C10.vcf", _vcf("C10_EV_PCR", FILTERED).to_utf8_buffer())[0]
+	var strict: Dictionary = model.add_source("LineA.strict.vcf", _vcf("LineA_EV_PCR", STRICT).to_utf8_buffer())[0]
+	var filtered: Dictionary = model.add_source("LineA.filtered.vcf", _vcf("LineA_EV_PCR", FILTERED).to_utf8_buffer())[0]
+	var other: Dictionary = model.add_source("LineB.vcf", _vcf("LineB_EV_PCR", FILTERED).to_utf8_buffer())[0]
 	var report := model.duplicate_report()
 	check(report.keys() == [filtered["id"]], "same sample column in another call set is flagged; other samples are not")
 	check(report[filtered["id"]]["of"] == strict["id"] and "100% of calls shared" in report[filtered["id"]]["reason"], "reason names the original and the overlap (%s)" % report[filtered["id"]]["reason"])
 	# Generic column names (Illumina sample numbers) need shared calls too.
 	var generic := WorkspaceModel.new()
-	generic.add_source("PL20-19-A_S16.vcf", _vcf("16", STRICT).to_utf8_buffer())
-	generic.add_source("PL20-53-A_S16.vcf", _vcf("16", [[3243, "A", "G", "0.5"], [9999, "C", "T", "0.4"]]).to_utf8_buffer())
+	generic.add_source("S19-A_S16.vcf", _vcf("16", STRICT).to_utf8_buffer())
+	generic.add_source("S53-A_S16.vcf", _vcf("16", [[3243, "A", "G", "0.5"], [9999, "C", "T", "0.4"]]).to_utf8_buffer())
 	check(generic.duplicate_report().is_empty(), "a generic column name alone (\"16\") is not a duplicate")
-	generic.add_source("PL20-19-A_copy.vcf", _vcf("16", FILTERED).to_utf8_buffer())
+	generic.add_source("S19-A_copy.vcf", _vcf("16", FILTERED).to_utf8_buffer())
 	check(generic.duplicate_report().size() == 1, "generic name plus shared calls is a duplicate")
 	var multi := WorkspaceModel.new()
 	multi.add_source("cohort.vcf", EngineTests.VCF.to_utf8_buffer())
@@ -61,8 +61,8 @@ func test_same_sample() -> void:
 
 func test_imported_original_and_removal() -> void:
 	var model := WorkspaceModel.new()
-	var first: Dictionary = model.add_source("AP4.filtered.vcf", _vcf("AP4_EV_PCR", FILTERED).to_utf8_buffer())[0]
-	var second: Dictionary = model.add_source("AP4.strict.vcf", _vcf("AP4_EV_PCR", STRICT).to_utf8_buffer())[0]
+	var first: Dictionary = model.add_source("LineA.filtered.vcf", _vcf("LineA_EV_PCR", FILTERED).to_utf8_buffer())[0]
+	var second: Dictionary = model.add_source("LineA.strict.vcf", _vcf("LineA_EV_PCR", STRICT).to_utf8_buffer())[0]
 	for source in [first, second]:
 		var result: Dictionary = await VcfImporter.new().import_source(source, model.store)
 		model.mark_imported(source["id"], result)

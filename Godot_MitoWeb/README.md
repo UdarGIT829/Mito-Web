@@ -6,8 +6,9 @@ Pages. There is no server: uploaded files and projects stay in the user's
 browser (`user://`, which is backed by IndexedDB). The exported
 `*.mitoweb.json` workspace file is the durable save.
 
-The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
-`web_viewer.py`) is the reference implementation being ported.
+Try it with the built-in example data (Files tab, "Load example data"): the
+1000 Genomes phase 3 mitochondrial genotypes of 2,534 people with their
+population labels.
 
 ## Layout
 
@@ -17,7 +18,7 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/autoload/workspace.gd` | Open workspace, imports, autosave to `user://` |
 | `scripts/autoload/web_files.gd` | Browser upload/download bridge; desktop file-dialog fallback |
 | `scripts/io/` | gzip/BGZF decompression, VCF reading |
-| `scripts/genome/` | Bundled references, rCRS mapper (port of `mito_viewer/mapping`), repeat profiles |
+| `scripts/genome/` | Bundled references, rCRS mapper, repeat profiles |
 | `scripts/data/` | Columnar `VariantStore`, VCF importer, zip/manifest uploads, tag and window imports |
 | `scripts/engine/` | Analysis engine: sample selection, `MutationFrame`, filters, comparison, table rows, gene loci, patient tests (`GroupTests`, `PatientCompare`) |
 | `scripts/graph/` | Analysis graph data (`GraphModel`), cached evaluation (`GraphEvaluator`), workflows (`Workflows`) |
@@ -37,8 +38,8 @@ settings, so files arrive ready to import:
 ```csv
 # lines starting with # are comments
 file,sample,subject,build,tags
-AP4_EV_PCR.vcf,,AP4,rcrs,EV;PCR
-PL20-19-A_S16.vcf,,PL-20-19,hg19_plus58,lupusN;A
+lineA_ev.vcf,,lineA,rcrs,EV;Treated
+patient07_run2.vcf,,P07,hg19_plus58,cohort;rerun
 ALL.chrMT.phase3.vcf.gz,HG00096,HG00096,rcrs,1000G;EUR;GBR
 ```
 
@@ -184,7 +185,7 @@ Samples tab, "Import from a table": a CSV/TSV with a header row. One column
 names the sample (matched to sample name, then subject, so one row can cover
 all of a patient's samples). Other columns can become:
 
-- **values**: per-sample attributes such as clinical scores (SLEDAI 8, SDI 2,
+- **values**: per-sample attributes such as clinical scores (activity score 8, damage score 2,
   Sex F). Numbers stay numbers. Used by Compare Patients nodes.
 - **tags**: labels for grouping (optionally `column=value`).
 - **a haplogroup set by hand** (one column): overrides the classifier, e.g.
@@ -195,7 +196,7 @@ Tables with numeric columns default to values, text-only tables to tags.
 A table (CSV/TSV that is not a manifest) uploaded on the Files tab, or
 inside a zip, is applied the same way automatically, including to files not
 imported yet: their values and hand-set haplogroups are attached on import.
-The lupus bundle carries its clinical table, so one upload sets everything.
+A zip can therefore carry a cohort's VCFs and its clinical table together.
 Values and tags are also written into the files' import settings, so they
 survive Undo import and re-import. "Set haplogroup…" sets or clears a
 haplogroup by hand for the selected samples (or a patient's row);
@@ -212,9 +213,10 @@ major haplogroups of the samples, nested as in PhyloTree), coloured by
 lineage: a solid band where a rule sets it, a faint one where it is
 inherited, "split from" where a clade leaves its parent's lineage, with
 sample counts and a colour legend. It updates as you edit. The built-in preset
-is the pSLE 2026 paper's: African = L; Amerindian = A2, B2, C1b, C1c, C1d,
+has four maternal lineages: African = L; Amerindian = A2, B2, C1b, C1c, C1d,
 C4c, D1, D4h3a, X2a; Caucasian = H, HV, J, T, V, U, K, W, X, I; Asian = the
-rest of M and N.
+rest of M and N. A workflow file can carry its own lineage rules, applied on
+insert when a project has none.
 
 ## Compare Patients and the Patients tab
 
@@ -230,26 +232,16 @@ subject's samples count once) on imported values. Each measure is one row:
 
 Tests follow Stata 18's defaults (Wilcoxon uses the normal approximation with
 tie correction, as `ranksum`; percentiles as `summarize, detail`), and are
-checked against the paper and scipy in `tests/patient_tests.gd`. The Patients
+checked against published Stata results and scipy in `tests/patient_tests.gd`. The Patients
 tab lists every patient's haplogroup, lineage and values (disagreeing samples
 highlighted) and shows each node's results table, exportable as CSV.
 
-The **Lupus lineages (pSLE 2026)** workflow recreates Udar et al., J Clin Med
-2026;15:86, Tables 2-5 plus duration-vs-activity correlations, from
-haplogroups and a clinical table with columns Sex, Age, Age_at_Dx, Duration,
-SLEDAI, SDI, LN_II, LN_III_IV, LN_V, CKD_ESRD. On the 25 patients of the
-paper's Table 1 it reproduces every value that does not depend on the 13th
-Amerindian patient missing from that table.
-
-### Lupus expansions and quality checks
+### Computed values and quality checks
 
 - **Computed values** for Compare Patients: per-patient mutation counts from
   the group's own mutations (all; somatic AF < 0.50; somatic with a 5% floor
   that drops amplicon noise; indeterminate; germline), and the patient's
   haplogroup, major haplogroup and lineage, all usable like imported values.
-- **Lupus: mutations and outcomes** workflow: mutation counts by lineage,
-  their Spearman correlation with SLEDAI-2K and SDI, and the somatic
-  mutations found only in Amerindian or only in African patients, annotated.
 - **Cohort vs 1000 Genomes** workflow: lineage shares in the cohort against
   1000 Genomes MXL (Mexican Ancestry, Los Angeles), the other admixed
   American populations and the rest, in non-overlapping groups.

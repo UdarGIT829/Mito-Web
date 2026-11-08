@@ -1,33 +1,52 @@
+# Mito Web is a public repository. Nothing below may ever be committed:
+# sequencing data, databases, spreadsheets, clinical tables or upload bundles.
+
+# Data files (only the public example bundle is allowed)
+*.vcf
+*.vcf.gz
+*.bgz
+*.bam
+*.bai
+*.cram
+*.fastq
+*.fastq.gz
+*.fq.gz
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.xlsx
+*.xls
+*.csv
+*.tsv
+*.pdf
+*.zip
+!Godot_MitoWeb/examples/*.zip
+
+# Local data folders
+*_Data/
+upload_bundles/
+variant_calls/
+api_testing_results/
+schema/
+docs/
+
+# Local Python reference implementation (kept off the public branch)
+/*.py
+/mito_viewer/
+/prototypes/
+/templates/
+/scripts/
+/reference/
+/roadmap.json
+/tests/
+pyproject.toml
 venv/
 __pycache__/
 *.pyc
+.ruff_cache/
 
-*.sqlite
-!tests/fixtures/test_database.sqlite
-tests/fixtures/*.building
-*.xlsx
-*.csv
-
-bams/
-fastq/
-variant_calls/
-QC_metrics/
-wet_lab_summary_PDFs/
-schema/
-LupusN_Data/
-
+# Editors and local output
 .obsidian/
-docs/
 file.txt
-/tests/
-pyproject.toml
-
-# Local web export output
 /build/
-# Lab-derived diagnostic output (never publish)
-api_testing_results/
-*.sqlite-shm
-*.sqlite-wal
-
-# Upload bundles built from lab data (never publish)
-upload_bundles/
