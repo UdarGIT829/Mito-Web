@@ -89,6 +89,13 @@ func _build_ui() -> void:
 	analysis.open_stats.connect(func(node_id: String) -> void:
 		_tabs.current_tab = stats.get_index()
 		stats.show_node(node_id))
+	var patients := PatientsPanel.new()
+	patients.name = "Patients"
+	patients.status_message.connect(_set_status)
+	_tabs.add_child(patients)
+	analysis.open_patients.connect(func(node_id: String) -> void:
+		_tabs.current_tab = patients.get_index()
+		patients.show_node(node_id))
 
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 8)

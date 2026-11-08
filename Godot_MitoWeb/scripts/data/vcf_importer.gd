@@ -201,6 +201,8 @@ func import_source(source: Dictionary, store: VariantStore) -> Dictionary:
 			"tags": PackedStringArray(planned["tags"]),
 			"build": build,
 		}
+		if planned.get("attributes"):
+			sample["attributes"] = planned["attributes"].duplicate()
 		new_samples.append(sample)
 		targets.append([ci.get(planned["column"], -1) if planned["column"] else -1, sample["id"]])
 	if targets.is_empty():

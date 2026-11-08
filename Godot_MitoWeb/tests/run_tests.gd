@@ -62,6 +62,7 @@ func _run() -> void:
 	await preload("res://tests/workflow_tests.gd").new().run(self)
 	await preload("res://tests/bundle_tests.gd").new().run(self)
 	await preload("res://tests/duplicate_tests.gd").new().run(self)
+	await preload("res://tests/patient_tests.gd").new().run(self)
 	print("%d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures else 0)
 

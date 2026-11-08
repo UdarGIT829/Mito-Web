@@ -41,7 +41,72 @@ static func builtin() -> Array:
 			],
 			"build": func(p: Dictionary) -> Dictionary: return haplogroup_markers_graph(str(p["haplogroup"]), float(p["common"]), float(p["rare"]), str(p["scope"])),
 		},
+		_lupus_entry(),
 	]
+
+
+## Appended to builtin() (kept separate for readability).
+static func _lupus_entry() -> Dictionary:
+	return {
+		"id": "lupus_lineages",
+		"title": "Lupus lineages (pSLE 2026)",
+		"description": "Recreates Udar et al., J Clin Med 2026;15:86: patients grouped by maternal lineage from their mtDNA haplogroup (African, Amerindian, Caucasian, Asian), then compared on demographics (Table 2), SLEDAI-2K and SDI (Table 3), activity thresholds (Table 4), lupus nephritis (Table 5) and duration vs activity (Spearman). Medians use Kruskal-Wallis and pairwise Wilcoxon rank-sum, percentages Fisher's exact test, means ANOVA, as in the paper (Stata 18 defaults). Results are on the Patients tab.",
+		"needs": "Haplogroups (assigned, or set by hand from a table) and per-patient values from Samples > Import from a table, with columns Sex, Age, Age_at_Dx, Duration, SLEDAI, SDI, LN_II, LN_III_IV, LN_V, CKD_ESRD. Lineage rules are set to the paper's if none exist.",
+		"needs_haplogroups": true,
+		"lineage_preset": "psle_2026",
+		"params": [
+			{"id": "tag", "label": "Patients tag", "type": "tag", "default": "lupusN"},
+		],
+		"build": func(p: Dictionary) -> Dictionary: return lupus_graph(str(p["tag"])),
+	}
+
+
+## The lupus lineage comparison: one group per lineage, connected to one
+## Compare Patients node per results table of the paper.
+static func lupus_graph(tag: String) -> Dictionary:
+	var g := GraphModel.new_graph()
+	var lineage_notes := {
+		"African": "L haplogroups (L0-L6).",
+		"Amerindian": "Native American founder clades: A2, B2, C1b, C1c, C1d, C4c, D1, D4h3a, X2a.",
+		"Caucasian": "H, HV, J, T, V, U, K, W, X, I.",
+		"Asian": "Other M and N haplogroups, e.g. B4, D4, D5, N.",
+	}
+	var groups: Array = []
+	var y := 0
+	for lineage in ["African", "Amerindian", "Caucasian", "Asian"]:
+		var n := GraphModel.add_node(g, "data_provider", Vector2(0, y), {"criteria": {"tags_all": [tag, Lineages.PREFIX + lineage]}})
+		GraphModel.describe(n, lineage, "Patients tagged %s whose lineage is %s: %s" % [tag, lineage, lineage_notes[lineage]])
+		groups.append(n)
+		y += 380
+	var tables := [
+		["Table 2: Demographics", "Sex, age, age at diagnosis and SLE duration by lineage (exact test for sex, ANOVA for the rest).", [
+			{"label": "Female, n (%)", "attribute": "Sex", "summary": "percent", "condition": {"op": "=", "value": "F"}, "pairwise": false},
+			{"label": "Current age (years)", "attribute": "Age", "summary": "mean", "pairwise": false},
+			{"label": "Age at diagnosis (years)", "attribute": "Age_at_Dx", "summary": "mean", "pairwise": false},
+			{"label": "SLE duration (years)", "attribute": "Duration", "summary": "mean", "pairwise": false}]],
+		["Table 3: Activity and damage", "SLEDAI-2K and SDI by lineage: Kruskal-Wallis across all four, Wilcoxon rank-sum for each pair; non-zero SDI with Fisher's exact test.", [
+			{"label": "SLEDAI-2K", "attribute": "SLEDAI", "summary": "median", "pairwise": true},
+			{"label": "SDI", "attribute": "SDI", "summary": "median", "pairwise": true},
+			{"label": "Non-zero SDI, n (%)", "attribute": "SDI", "summary": "percent", "condition": {"op": ">", "value": 0.0}, "pairwise": true}]],
+		["Table 4: Activity thresholds", "Active disease and organ damage by lineage with Fisher's exact test. The paper's percentages for \"SLEDAI > 6\" and \"SDI > 1\" match SLEDAI-2K >= 6 and SDI > 0 in Table 1.", [
+			{"label": "SLEDAI-2K >= 6, n (%)", "attribute": "SLEDAI", "summary": "percent", "condition": {"op": ">=", "value": 6.0}, "pairwise": true},
+			{"label": "SDI > 0, n (%)", "attribute": "SDI", "summary": "percent", "condition": {"op": ">", "value": 0.0}, "pairwise": true}]],
+		["Table 5: Lupus nephritis", "Lupus nephritis class and kidney damage by lineage (all patients, unbiopsied counted as no).", [
+			{"label": "Class II (mesangial)", "attribute": "LN_II", "summary": "percent", "condition": {"op": "=", "value": "yes"}, "pairwise": false},
+			{"label": "Class III/IV (proliferative)", "attribute": "LN_III_IV", "summary": "percent", "condition": {"op": "=", "value": "yes"}, "pairwise": false},
+			{"label": "Class V (membranous)", "attribute": "LN_V", "summary": "percent", "condition": {"op": "=", "value": "yes"}, "pairwise": false},
+			{"label": "CKD/ESRD", "attribute": "CKD_ESRD", "summary": "percent", "condition": {"op": "=", "value": "yes"}, "pairwise": false}]],
+		["Duration and activity", "Spearman correlation of disease duration with SLEDAI-2K and SDI, per lineage and overall.", [
+			{"label": "Duration vs SLEDAI-2K", "attribute": "Duration", "summary": "correlation", "with": "SLEDAI", "pairwise": false},
+			{"label": "Duration vs SDI", "attribute": "Duration", "summary": "correlation", "with": "SDI", "pairwise": false}]],
+	]
+	for k in tables.size():
+		var t: Array = tables[k]
+		var compare := GraphModel.add_node(g, "patient_compare", Vector2(560 + 360 * (k / 3), 480 * (k % 3)), {"name": t[0], "measures": t[2]})
+		GraphModel.describe(compare, t[0], t[1])
+		for group in groups:
+			GraphModel.connect_nodes(g, group["id"], 0, compare["id"], 0)
+	return g
 
 
 static func find_builtin(id: String) -> Dictionary:

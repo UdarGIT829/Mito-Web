@@ -7,13 +7,14 @@ extends VBoxContainer
 signal status_message(text: String)
 signal open_table(node_id: String)
 signal open_stats(node_id: String)
+signal open_patients(node_id: String)
 
 const FRAME_COLOR := Color(0.45, 0.8, 1.0)
 const EXCLUDE_COLOR := Color(1.0, 0.45, 0.4)
 const ERROR_COLOR := Color(1, 0.5, 0.45)
 const OK_COLOR := Color(0.7, 0.95, 0.75)
 const NOTE_COLOR := Color(0.85, 0.85, 0.7)
-const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "germline_somatic", "enrich", "annotation_filter", "table", "statistics"]
+const ADD_ORDER := ["data_provider", "tag_filter", "comparison", "logical_filter", "germline_somatic", "enrich", "annotation_filter", "table", "statistics", "patient_compare"]
 
 var _graph_edit: GraphEdit
 var _add_menu: MenuButton
@@ -23,6 +24,8 @@ var _filter_dialog: FilterDialog
 var _annotation_dialog: AnnotationFilterDialog
 var _confirm: ConfirmationDialog
 var _workflow_dialog: WorkflowDialog
+var _measures_dialog: MeasuresDialog
+var _measures_node := ""
 var _results := {}
 var _graph_ref: Dictionary = {}
 var _views := {}  # node id -> {"node": GraphNode, "status": Label, ...}
@@ -84,6 +87,17 @@ func _ready() -> void:
 	add_child(_filter_dialog)
 	_annotation_dialog = AnnotationFilterDialog.new()
 	add_child(_annotation_dialog)
+	_measures_dialog = MeasuresDialog.new()
+	_measures_dialog.measures_changed.connect(func(measures: Array) -> void:
+		var target := GraphModel.node(Workspace.model.graph(), _measures_node)
+		if target.is_empty():
+			return
+		target["config"]["measures"] = measures
+		var view: Dictionary = _views.get(_measures_node, {})
+		if view.has("measures_label"):
+			view["measures_label"].text = _measures_text(measures)
+		_commit())
+	add_child(_measures_dialog)
 	_workflow_dialog = WorkflowDialog.new()
 	_workflow_dialog.insert_requested.connect(insert_graph)
 	_workflow_dialog.status_message.connect(func(text: String) -> void: status_message.emit(text))
@@ -177,7 +191,12 @@ func insert_graph(source: Dictionary, replace: bool, title: String) -> void:
 	GraphModel.merge(g, source)
 	_commit(true)
 	_fit_view.call_deferred()
-	status_message.emit("Inserted the workflow \"%s\". Open its tables on the Tables tab." % title)
+	var where: Array = []
+	if source["nodes"].any(func(n): return n["type"] == "table"):
+		where.append("its tables on the Tables tab")
+	if source["nodes"].any(func(n): return n["type"] == "patient_compare"):
+		where.append("its results on the Patients tab")
+	status_message.emit("Inserted the workflow \"%s\".%s" % [title, (" Open " + " and ".join(where) + ".") if where else ""])
 
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
@@ -497,6 +516,27 @@ func _create_view(n: Dictionary) -> void:
 			custom_info.visible = window_spec.get("mode") == "custom"
 			view["custom_info"] = custom_info
 			rows = [stats_name, mode, size_row, range_row, wrap, load_windows, custom_info, view_button]
+		"patient_compare":
+			var compare_name := LineEdit.new()
+			compare_name.placeholder_text = "Name (optional)"
+			compare_name.text = config.get("name", "")
+			compare_name.text_changed.connect(func(text: String) -> void:
+				config["name"] = text
+				Workspace.graph_edited())
+			var measures_label := Label.new()
+			measures_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			measures_label.custom_minimum_size.x = 230
+			measures_label.text = _measures_text(config.get("measures", []))
+			view["measures_label"] = measures_label
+			var edit_measures := Button.new()
+			edit_measures.text = "Edit measures…"
+			edit_measures.pressed.connect(func() -> void:
+				_measures_node = n["id"]
+				_measures_dialog.open(config.get("measures", []), PatientCompare.attribute_names(Workspace.model.store)))
+			var view_results := Button.new()
+			view_results.text = "View results"
+			view_results.pressed.connect(func() -> void: open_patients.emit(n["id"]))
+			rows = [compare_name, measures_label, edit_measures, view_results]
 		"table":
 			var table_name := LineEdit.new()
 			table_name.placeholder_text = "Table name"
@@ -644,6 +684,12 @@ func _evaluate() -> void:
 	var elapsed := Time.get_ticks_msec() - started
 	if elapsed > 500:
 		status_message.emit("Graph updated in %.1f s." % (elapsed / 1000.0))
+
+
+static func _measures_text(measures: Array) -> String:
+	if measures.is_empty():
+		return "No measures yet"
+	return ", ".join(measures.map(func(m): return m.get("label", m.get("attribute", ""))))
 
 
 static func _pair_box(a: Control, b: Control) -> HBoxContainer:
