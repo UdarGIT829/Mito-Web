@@ -187,7 +187,7 @@ func _build_haplogroup_dialog() -> void:
 	_hg_dialog.ok_button_text = "Assign"
 	var box := VBoxContainer.new()
 	_hg_dialog.add_child(box)
-	var note := _plain("Each sample is matched against PhyloTree Build 17 with HaploGrep's weighted\nKulczynski score. Results become tags (haplogroup=…, macro haplogroup=…)\nthat tag filters can use. Calls without an AF (genotype-only data) always count.")
+	var note := _plain("Each sample is matched against PhyloTree Build 17 with HaploGrep's weighted\nKulczynski score. Results become tags (haplogroup=…, macro haplogroup=…, and haplogroup clade=…\nfor every major group it descends from) that tag filters can use. Calls without an AF (genotype-only data) always count.")
 	box.add_child(note)
 	var row := HBoxContainer.new()
 	row.add_child(_plain("Use calls with AF at least"))

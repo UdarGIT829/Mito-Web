@@ -15,7 +15,8 @@ func run(runner) -> void:
 	store = VariantStore.new()
 	var raw: PackedByteArray = EngineTests.VCF.to_utf8_buffer()
 	var inspected := VcfImporter.inspect("synthetic.vcf", raw)
-	var tags := [["macro haplogroup=J", "Treated"], ["macro haplogroup=H", "Untreated"], ["macro haplogroup=J"], []]
+	var tags := [["macro haplogroup=J", "haplogroup clade=J", "haplogroup clade=R", "Treated"],
+		["macro haplogroup=H", "haplogroup clade=H", "haplogroup clade=R", "Untreated"], ["macro haplogroup=J", "haplogroup clade=J", "haplogroup clade=R"], []]
 	for i in 4:
 		inspected["plan"]["samples"][i]["tags"] = PackedStringArray(tags[i])
 	await VcfImporter.new().import_source({"id": 1, "name": "synthetic.vcf", "raw": raw, "plan": inspected["plan"]}, store)
@@ -51,7 +52,8 @@ func test_builtins() -> void:
 	var titles: Array = g["nodes"].map(func(n): return n["title"])
 	check("EV-exclusive" in titles and "Cell-exclusive" in titles, "settings change the graph (tags EV / Cell)")
 	check(GraphModel.validate(g) == "", "built graph is valid")
-	check(Workflows.haplogroups_in(store) == [["J", 2], ["H", 1]], "haplogroups present, most common first")
+	check(Workflows.haplogroups_in(store) == [["R", 3], ["J", 2], ["H", 1]], "clades present, most common first")
+	check(Workflows.haplogroups_in(store, HaplogroupClassifier.MACRO_PREFIX) == [["J", 2], ["H", 1]], "major haplogroups present")
 
 
 func test_haplogroup_graph() -> void:
@@ -67,6 +69,13 @@ func test_haplogroup_graph() -> void:
 	check(gained.flags.has("PhyloTree marker") and gained.flags["PhyloTree marker"][0] == 1, "rows are flagged against PhyloTree markers (8860G is one)")
 	var titles: Array = g["nodes"].map(func(n): return n["title"])
 	check("In J" in titles and "Everyone else" in titles and "Gained in J" in titles, "nodes are named for the haplogroup")
+	# A clade includes its descendants: R = S1, S2, S3; everyone else = S4 only.
+	var r := Workflows.build(wf, {"haplogroup": "R", "common": 95, "rare": 60})
+	var r_results := GraphEvaluator.new().evaluate(r, store, 1)
+	var in_r: Dictionary = r["nodes"].filter(func(n): return n["title"] == "In R")[0]
+	check(r_results[in_r["id"]]["frame"].samples.size() == 3, "clade R includes its descendant haplogroups (J, H)")
+	var macro_r := Workflows.build(wf, {"haplogroup": "R", "scope": "macro"})
+	check(macro_r["nodes"].any(func(n): return n["type"] == "tag_filter" and n["config"]["tags"] == ["macro haplogroup=R"]), "major-haplogroup-only scope uses the macro tag")
 
 
 func test_merge() -> void:

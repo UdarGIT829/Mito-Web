@@ -161,7 +161,7 @@ func assign_haplogroups(af_min: float) -> String:
 	_mark_changed()
 	var macros := counts.keys()
 	macros.sort_custom(func(a, b): return counts[a] > counts[b])
-	return "Assigned haplogroups to %d samples (%s). Tags: haplogroup=…, macro haplogroup=…" % [ids.size(),
+	return "Assigned haplogroups to %d samples (%s). Tags: haplogroup=…, macro haplogroup=…, haplogroup clade=…" % [ids.size(),
 		", ".join(macros.slice(0, 6).map(func(m): return "%s %d" % [m, counts[m]]))]
 
 

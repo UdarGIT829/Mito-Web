@@ -91,3 +91,10 @@ func test_from_calls() -> void:
 	check(store.sample_by_id(ids[1])["haplogroup"]["name"] == "J1c", "a lower cut-off lets AF 0.3 calls in")
 	check(Array(store.sample_by_id(ids[0])["tags"]).filter(func(x): return x.begins_with("haplogroup=")).size() == 1, "re-running replaces haplogroup tags")
 	check(SampleQuery.select(store, {"tags_any": ["macro haplogroup=J"]}).size() == 2, "tags are usable in sample selection")
+	check(["haplogroup clade=J", "haplogroup clade=R", "haplogroup clade=N", "haplogroup clade=L3"].all(func(t): return t in s1["tags"]) and not "haplogroup clade=H" in s1["tags"], "J1c is in clades J, R, N, L3 (not H)")
+	# The tree is stored rooted at rCRS; clades must follow the true root.
+	var expect := {"H1": ["H", "HV", "R", "N", "L3"], "H2a2a1": ["H", "HV", "R", "N", "L3"], "K1a": ["K", "U", "R", "N", "L3"],
+		"B4a": ["B", "R", "N", "L3"], "D4": ["D", "M", "L3"], "A2": ["A", "N", "L3"], "L3b": ["L3"], "L0a1": ["L0"], "L2a1": ["L2"]}
+	for name in expect:
+		var got := Array(HaplogroupClassifier.clades(HaplogroupClassifier.node_index(name)))
+		check(got == expect[name], "clades of %s (got %s)" % [name, got])
