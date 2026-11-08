@@ -28,3 +28,6 @@ pyproject.toml
 api_testing_results/
 *.sqlite-shm
 *.sqlite-wal
+
+# Upload bundles built from lab data (never publish)
+upload_bundles/
