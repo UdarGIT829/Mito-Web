@@ -50,6 +50,7 @@ func _run() -> void:
 	await preload("res://tests/annotation_tests.gd").new().run(self)
 	await preload("res://tests/classification_tests.gd").new().run(self)
 	await preload("res://tests/stats_tests.gd").new().run(self)
+	await preload("res://tests/analysis_tests.gd").new().run(self)
 	print("%d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures else 0)
 

@@ -92,7 +92,28 @@ func _ready() -> void:
 	_eval_timer.timeout.connect(_evaluate)
 	add_child(_eval_timer)
 	Workspace.changed.connect(_on_workspace_changed)
+	WebFiles.files_picked.connect(_on_files_picked)
+	Workspace.graph_rebuild_requested.connect(_rebuild)
 	_rebuild()
+
+
+func _on_files_picked(purpose: String, files: Array) -> void:
+	if not purpose.begins_with("windows:") or files.is_empty():
+		return
+	var node_id := purpose.trim_prefix("windows:")
+	var n := GraphModel.node(Workspace.model.graph(), node_id)
+	if n.is_empty():
+		return
+	var parsed := WindowImport.parse(files[0]["bytes"].get_string_from_utf8())
+	if not parsed["ok"]:
+		status_message.emit(parsed["error"])
+		return
+	n["config"]["window"]["mode"] = "custom"
+	n["config"]["window"]["intervals"] = parsed["intervals"]
+	if _views.has(node_id) and _views[node_id].has("custom_info"):
+		_views[node_id]["custom_info"].text = "%d windows loaded" % parsed["intervals"].size()
+	status_message.emit("Loaded %d windows from %s." % [parsed["intervals"].size(), files[0]["name"]])
+	_commit()
 
 
 func _on_workspace_changed() -> void:
@@ -417,7 +438,13 @@ func _create_view(n: Dictionary) -> void:
 			stats_name.text_changed.connect(func(text: String) -> void:
 				config["name"] = text
 				Workspace.graph_edited())
-			var mode := _option(["Sliding windows", "Genes and regions"], 1 if window_spec.get("mode") == "regions" else 0)
+			var mode := _option(["Sliding windows", "Genes and regions", "Imported list"], {"regions": 1, "custom": 2}.get(window_spec.get("mode"), 0))
+			var load_windows := Button.new()
+			load_windows.text = "Load windows (CSV/BED)…"
+			load_windows.tooltip_text = "A table with start and end columns (1-based; start > end wraps the origin), or BED lines."
+			load_windows.pressed.connect(func() -> void: WebFiles.pick_files("windows:" + n["id"], ".csv,.tsv,.txt,.bed", false))
+			var custom_info := Label.new()
+			custom_info.text = "%d windows loaded" % window_spec.get("intervals", []).size()
 			var size := _number_edit(int(window_spec.get("size", 500)))
 			var step := _number_edit(int(window_spec.get("step", 500)))
 			var lo := _number_edit(int(window_spec.get("range_start", 1)))
@@ -428,13 +455,15 @@ func _create_view(n: Dictionary) -> void:
 			wrap.button_pressed = window_spec.get("wrap", false)
 			var sliding_rows: Array = []
 			var apply_spec := func(_x = null) -> void:
-				window_spec["mode"] = "regions" if mode.selected == 1 else "sliding"
+				window_spec["mode"] = ["sliding", "regions", "custom"][mode.selected]
 				for pair in [[size, "size"], [step, "step"], [lo, "range_start"], [hi, "range_end"]]:
 					if pair[0].text.strip_edges().is_valid_int():
 						window_spec[pair[1]] = pair[0].text.to_int()
 				window_spec["wrap"] = wrap.button_pressed
 				for r in sliding_rows:
 					r.visible = mode.selected == 0
+				load_windows.visible = mode.selected == 2
+				custom_info.visible = mode.selected == 2
 				_commit()
 			mode.item_selected.connect(apply_spec)
 			for edit in [size, step, lo, hi]:
@@ -447,8 +476,11 @@ func _create_view(n: Dictionary) -> void:
 			var range_row := _labeled("Range", _pair_box(lo, hi))
 			sliding_rows.append_array([size_row, range_row, wrap])  # in place: the lambda above holds this array
 			for r in sliding_rows:
-				r.visible = window_spec.get("mode") != "regions"
-			rows = [stats_name, mode, size_row, range_row, wrap, view_button]
+				r.visible = window_spec.get("mode", "sliding") == "sliding"
+			load_windows.visible = window_spec.get("mode") == "custom"
+			custom_info.visible = window_spec.get("mode") == "custom"
+			view["custom_info"] = custom_info
+			rows = [stats_name, mode, size_row, range_row, wrap, load_windows, custom_info, view_button]
 		"table":
 			var table_name := LineEdit.new()
 			table_name.placeholder_text = "Table name"

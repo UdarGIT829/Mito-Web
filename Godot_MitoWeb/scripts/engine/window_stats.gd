@@ -23,6 +23,14 @@ const MEASURE_LABELS := {"mutations": "Distinct mutations", "calls": "Carrier ca
 static func validate(spec: Dictionary) -> String:
 	if spec.get("mode", "sliding") == "regions":
 		return ""
+	if spec.get("mode") == "custom":
+		var intervals: Array = spec.get("intervals", [])
+		if intervals.is_empty():
+			return "Load a window list (CSV with start/end, or BED)."
+		for iv in intervals:
+			if typeof(iv) != TYPE_ARRAY or iv.size() < 3 or int(iv[1]) < 1 or int(iv[1]) > LENGTH or int(iv[2]) < 1 or int(iv[2]) > LENGTH:
+				return "The window list has an invalid interval."
+		return ""
 	var size = spec.get("size", 500)
 	var step = spec.get("step", size)
 	var lo = spec.get("range_start", 1)
@@ -45,6 +53,8 @@ static func validate(spec: Dictionary) -> String:
 static func windows(spec: Dictionary) -> Array:
 	if spec.get("mode", "sliding") == "regions":
 		return region_windows()
+	if spec.get("mode") == "custom":
+		return custom_windows(spec.get("intervals", []))
 	var size: int = int(spec.get("size", 500))
 	var step: int = int(spec.get("step", size))
 	var lo: int = int(spec.get("range_start", 1))
@@ -67,6 +77,51 @@ static func windows(spec: Dictionary) -> Array:
 			break
 		start += step
 	return out
+
+
+## Windows from [label, start, end] intervals; start > end wraps past the
+## end of the genome to position 1.
+static func custom_windows(intervals: Array) -> Array:
+	var out: Array = []
+	for iv in intervals:
+		var s := int(iv[1])
+		var e := int(iv[2])
+		var segments: Array = [[s, e]] if s <= e else [[s, LENGTH], [1, e]]
+		out.append({"label": str(iv[0]), "segments": segments, "length": _length(segments), "start": s})
+	return out
+
+
+## Candidate windows for a scan: every size, stepped by a quarter of the
+## size, around the whole (circular) genome.
+static func scan_windows(sizes: Array) -> Array:
+	var out: Array = []
+	for size in sizes:
+		out.append_array(windows({"size": int(size), "step": maxi(int(size) / 4, 1), "wrap": true}))
+	return out
+
+
+## Greedy choice of non-overlapping windows, best first (by `order`).
+static func pick_non_overlapping(candidates: Array, order: Array, limit: int) -> Array:
+	var taken := PackedByteArray()
+	taken.resize(LENGTH + 1)
+	var chosen: Array = []
+	for i in order:
+		var w: Dictionary = candidates[i]
+		var free := true
+		for segment in w["segments"]:
+			for p in range(segment[0], segment[1] + 1):
+				if taken[p]:
+					free = false
+					break
+		if not free:
+			continue
+		for segment in w["segments"]:
+			for p in range(segment[0], segment[1] + 1):
+				taken[p] = 1
+		chosen.append(i)
+		if chosen.size() >= limit:
+			break
+	return chosen
 
 
 ## The 37 NC_012920.1 genes, the control region (16024–576, wrapping the

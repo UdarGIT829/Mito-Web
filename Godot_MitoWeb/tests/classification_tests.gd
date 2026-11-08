@@ -129,3 +129,6 @@ func test_tag_import() -> void:
 	var subject_table := TagImport.parse("subject,group\n19,Lupus\n")
 	check(TagImport.apply(by_subject, subject_table, 0, [1], true)["matched"] == 2 and Array(by_subject[1]["tags"]) == ["group=Lupus"], "a subject id tags all its samples, with prefix")
 	check(not TagImport.parse("only a header\n")["ok"], "a table without data rows is rejected")
+	var lines: Array = [{"name": "C10_EV", "subject": "C10_EV", "tags": PackedStringArray()}, {"name": "C10_cell", "subject": "C10_cell", "tags": PackedStringArray()}]
+	TagImport.apply(lines, TagImport.parse("sample,line\nC10_EV,C10\nC10_cell,C10\n"), 0, [], false, 1)
+	check(lines.all(func(x): return x["subject"] == "C10"), "subject set from a column")

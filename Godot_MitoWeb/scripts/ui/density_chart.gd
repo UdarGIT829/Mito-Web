@@ -29,6 +29,9 @@ var y_title := ""
 var range_start := 1
 var range_end := WindowStats.LENGTH
 var _hover := -1
+## Windows to shade (1 = significant), e.g. adjusted p < 0.05.
+var highlight := PackedByteArray()
+const HIGHLIGHT := Color(1, 1, 1, 0.07)
 
 
 func _init() -> void:
@@ -45,6 +48,7 @@ func set_data(new_windows: Array, new_series: Array, is_regions: bool, title: St
 	range_start = lo
 	range_end = hi
 	_hover = -1
+	highlight = PackedByteArray()
 	queue_redraw()
 
 
@@ -107,6 +111,15 @@ func _draw() -> void:
 			draw_string(font, Vector2(x0 + 2, track_y + 11), name, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 2, fs - 2, TEXT_SECONDARY)
 		k += 1
 	draw_string(font, Vector2(4, track_y + 11), "genes", HORIZONTAL_ALIGNMENT_RIGHT, MARGIN_LEFT - 10, fs - 2, TEXT_SECONDARY)
+	# Significant windows, shaded behind the data.
+	for wi in mini(highlight.size(), windows.size()):
+		if highlight[wi]:
+			for segment in windows[wi]["segments"]:
+				if segment[1] < range_start or segment[0] > range_end:
+					continue
+				var x0 := _x_for(maxi(segment[0], range_start), plot)
+				var x1 := _x_for(mini(segment[1], range_end), plot)
+				draw_rect(Rect2(x0, plot.position.y, maxf(x1 - x0, 2), plot.size.y), HIGHLIGHT)
 	# Series.
 	for si in series.size():
 		var color: Color = SERIES[si % SERIES.size()]

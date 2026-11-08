@@ -12,6 +12,7 @@ var _tag_table := {}
 var _tag_match: OptionButton
 var _tag_columns: CheckListButton
 var _tag_prefix: CheckBox
+var _tag_subject: OptionButton
 var _tag_preview: Label
 
 
@@ -106,6 +107,10 @@ func _build_tag_dialog() -> void:
 	grid.add_child(_plain("Columns that become tags"))
 	_tag_columns = CheckListButton.new("Choose columns")
 	grid.add_child(_tag_columns)
+	grid.add_child(_plain("Set subject from column"))
+	_tag_subject = OptionButton.new()
+	_tag_subject.tooltip_text = "e.g. a cell line or donor column, so a subject's samples can be analysed as one unit."
+	grid.add_child(_tag_subject)
 	_tag_prefix = CheckBox.new()
 	_tag_prefix.text = "Prefix tags with the column name (e.g. haplogroup=H1)"
 	form.add_child(_tag_prefix)
@@ -115,10 +120,11 @@ func _build_tag_dialog() -> void:
 	_tag_dialog.confirmed.connect(func() -> void:
 		var header: Array = _tag_table["header"]
 		var columns: Array = _tag_columns.get_selected().map(func(name): return header.find(name))
-		if columns.is_empty():
+		if columns.is_empty() and _tag_subject.selected == 0:
 			return
-		var result := Workspace.import_tags(_tag_table, _tag_match.selected, columns, _tag_prefix.button_pressed)
-		var message := "Tagged %d sample(s) with %d new tag(s)." % [result["matched"], result["tags_added"]]
+		var result := Workspace.import_tags(_tag_table, _tag_match.selected, columns, _tag_prefix.button_pressed, _tag_subject.selected - 1)
+		var message := "Tagged %d sample(s) with %d new tag(s)%s." % [result["matched"], result["tags_added"],
+			"; subjects set from %s" % _tag_subject.get_item_text(_tag_subject.selected) if _tag_subject.selected > 0 else ""]
 		if result["unmatched"]:
 			message += " No sample matched %d row(s): %s" % [result["unmatched"].size(), ", ".join(result["unmatched"].slice(0, 5))]
 		_summary.text = message)
@@ -137,6 +143,10 @@ func _on_files_picked(purpose: String, files: Array) -> void:
 	_tag_match.clear()
 	for name in header:
 		_tag_match.add_item(name)
+	_tag_subject.clear()
+	_tag_subject.add_item("(keep subjects)")
+	for name in header:
+		_tag_subject.add_item(name)
 	_tag_columns.set_items(header.slice(1))
 	_tag_columns.set_selected(header.slice(1))
 	_tag_preview.text = "%d rows. First row: %s" % [parsed["rows"].size(), ", ".join(parsed["rows"][0])]

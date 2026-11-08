@@ -120,7 +120,7 @@ func test_workspace_round_trip() -> void:
 	check(loaded["ok"], "workspace with graph loads")
 	if loaded["ok"]:
 		var g: Dictionary = loaded["model"].graph()
-		check(g["nodes"].size() == 12 and g["edges"].size() == 14, "graph survives save/load")
+		check(g["nodes"].size() == 13 and g["edges"].size() == 16, "graph survives save/load")
 		check(g["nodes"][0]["position"] is Vector2, "node positions keep their type")
 	var legacy := WorkspaceModel.new()
 	legacy.data.erase("graph")

@@ -141,6 +141,7 @@ func _evaluate_node(graph: Dictionary, node: Dictionary, store: VariantStore, re
 				var counted := WindowStats.count(inputs[0][i], window_list)
 				counted["label"] = label
 				counted["node_id"] = sources[i]
+				counted["frame"] = inputs[0][i]
 				groups.append(counted)
 			return {"frame": null, "error": "", "stats": {"windows": window_list, "groups": groups},
 				"summary": "%d windows · %d group%s" % [window_list.size(), groups.size(), "" if groups.size() == 1 else "s"]}
