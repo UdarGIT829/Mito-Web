@@ -36,10 +36,10 @@ const TYPES := {
 	},
 	"enrich": {
 		"title": "Enrich with Annotations",
-		"help": "Adds ClinVar / MITOMAP / Ensembl annotations (coming in a later phase; passes data through for now).",
+		"help": "Adds public annotations: gnomAD mtDNA frequencies, haplogroup markers and consequences, ClinVar classifications, and Ensembl VEP lookups you run from the Tables tab.",
 		"inputs": [{"name": "Mutations", "multi": false}],
 		"outputs": 1,
-		"config": {},
+		"config": {"sources": ["gnomad", "clinvar", "ensembl"]},
 	},
 	"table": {
 		"title": "Table",
@@ -169,7 +169,7 @@ static func validate(graph) -> String:
 
 
 ## The worked example from the project design: treated vs untreated
-## exclusive mutations, each with a table.
+## exclusive mutations (annotated), and those in both, each with a table.
 static func example_graph() -> Dictionary:
 	var g := new_graph()
 	var source := add_node(g, "data_provider", Vector2(0, 160))
@@ -180,16 +180,20 @@ static func example_graph() -> Dictionary:
 	treated_only["title"] = "Treated-exclusive"
 	var untreated_only := add_node(g, "comparison", Vector2(700, 380))
 	untreated_only["title"] = "Untreated-exclusive"
-	var t1 := add_node(g, "table", Vector2(1040, 0), {"name": "Treated-exclusive"})
-	var t2 := add_node(g, "table", Vector2(1040, 220), {"name": "In both"})
-	var t3 := add_node(g, "table", Vector2(1040, 420), {"name": "Untreated-exclusive"})
+	var e1 := add_node(g, "enrich", Vector2(1040, 0))
+	var e3 := add_node(g, "enrich", Vector2(1040, 400))
+	var t1 := add_node(g, "table", Vector2(1420, 0), {"name": "Treated-exclusive"})
+	var t2 := add_node(g, "table", Vector2(1040, 230), {"name": "In both"})
+	var t3 := add_node(g, "table", Vector2(1420, 420), {"name": "Untreated-exclusive"})
 	for f in [treated, both, untreated]:
 		connect_nodes(g, source["id"], 0, f["id"], 0)
 	connect_nodes(g, treated["id"], 0, treated_only["id"], 0)
 	connect_nodes(g, both["id"], 0, treated_only["id"], 1)
 	connect_nodes(g, untreated["id"], 0, untreated_only["id"], 0)
 	connect_nodes(g, both["id"], 0, untreated_only["id"], 1)
-	connect_nodes(g, treated_only["id"], 0, t1["id"], 0)
+	connect_nodes(g, treated_only["id"], 0, e1["id"], 0)
+	connect_nodes(g, e1["id"], 0, t1["id"], 0)
 	connect_nodes(g, both["id"], 0, t2["id"], 0)
-	connect_nodes(g, untreated_only["id"], 0, t3["id"], 0)
+	connect_nodes(g, untreated_only["id"], 0, e3["id"], 0)
+	connect_nodes(g, e3["id"], 0, t3["id"], 0)
 	return g

@@ -23,6 +23,8 @@ The Python code elsewhere in this repository (`mito_viewer/`, `main.py`,
 | `scripts/graph/` | Analysis graph data (`GraphModel`) and cached evaluation (`GraphEvaluator`) |
 | `scripts/table/` | `TableViewModel`: columns, column filters, sorting, paging, export |
 | `scripts/ui/` | Files, Samples, Analysis (GraphEdit) and Tables tabs; filter dialog |
+| `scripts/annotations/` | Annotation bundle lookup (`AnnotationDb`) and live Ensembl VEP client |
+| `annotations/` | Public annotation bundle (built by `tools/build_annotations.py`) |
 | `reference/` | rCRS (NC_012920.1) and UCSC hg19 chrM FASTA |
 | `tests/` | Headless tests; `fixtures/mapper_cases.json` is generated from the Python mapper |
 
@@ -72,7 +74,7 @@ carries a `MutationFrame`.
 | Filter on Tag | Mutations with a carrier having any of the tags, or every tag across carriers; can also narrow the samples |
 | Logical Comparison | Include inputs (in every / in any), minus every Exclude input |
 | Logical Filter | `MutationFilters` settings; removes failing rows or adds a pass/fail column |
-| Enrich with Annotations | Pass-through until annotations are added |
+| Enrich with Annotations | Adds gnomAD, ClinVar and live Ensembl annotation columns to the tables after it |
 | Table | Names a point in the graph to view on the Tables tab |
 
 Results are cached per node; an edit recomputes only that node and what is
@@ -89,6 +91,25 @@ Logical Filter in flag mode come with a "why not" column. Double-click a row
 for its calls: AF, FILTER, the allele as written in the VCF, placement on
 rCRS, repeats and reference context. Copy (TSV) and Download CSV export
 every filtered row, not just the current page.
+
+## Annotations
+
+`annotations/mito_annotations.json.gz` (~0.35 MB) is built only from public
+bulk releases, never from user data:
+
+| Source | Fields | License |
+|---|---|---|
+| gnomAD v3.1 mtDNA, 56,434 genomes (Laricchia et al. 2022) | AF hom/het, max heteroplasmy, PhyloTree haplogroup-marker flag, per-haplogroup AF hom, VEP consequence and protein change, MitoTIP and PON-mt-tRNA | CC0 1.0 |
+| ClinVar GRCh38 VCF, MT records | significance, review status, condition, variation ID (release date stored) | Public domain (NCBI) |
+
+Alleles are normalized exactly like imported calls, which a test checks for
+every bundle key. Refresh with `python3 tools/build_annotations.py`.
+
+For mutations gnomAD does not cover, the Tables tab can ask the Ensembl VEP
+REST API (`distance=0`, batches of 200); results are saved in the workspace.
+MITOMAP is not included: it has no bulk download and its service does not
+accept requests from web pages. Absence from a source is never treated as a
+classification.
 
 ## Commands
 
