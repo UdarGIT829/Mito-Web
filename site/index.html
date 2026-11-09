@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mito Web · Viraat Udar</title>
+<meta name="description" content="Mitochondrial DNA variant analysis that runs entirely in the browser: upload VCFs, assign haplogroups, and build analyses as a node graph. Nothing is uploaded to a server.">
+<meta property="og:title" content="Mito Web: mitochondrial DNA analysis in your browser">
+<meta property="og:description" content="Upload VCFs, assign PhyloTree haplogroups, and compare groups with a node graph of filters, annotations and statistics. No server, no install. Live demo with 1000 Genomes data.">
+<meta property="og:image" content="https://udargit829.github.io/Mito-Web/screenshots/graph.jpg">
+<style>
+  :root {
+    --ink: #1b1f27;
+    --muted: #5b6372;
+    --line: #e3e6ec;
+    --bg: #ffffff;
+    --soft: #f5f7fa;
+    --accent: #2457d6;
+    --accent-ink: #ffffff;
+    --max: 1040px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header { border-bottom: 1px solid var(--line); }
+  header .wrap { display: flex; justify-content: space-between; align-items: center; height: 60px; }
+  header .name { font-weight: 600; text-decoration: none; color: var(--ink); }
+  header nav a { margin-left: 22px; text-decoration: none; color: var(--muted); font-size: 15px; }
+  header nav a:hover { color: var(--ink); }
+
+  /* Hero */
+  .hero { padding-top: 64px; padding-bottom: 40px; }
+  .eyebrow { font-size: 14px; color: var(--muted); letter-spacing: .02em; margin: 0 0 12px; }
+  h1 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.15; margin: 0 0 18px; letter-spacing: -.01em; }
+  .lede { font-size: 20px; color: var(--muted); max-width: 720px; margin: 0 0 30px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-block; padding: 12px 20px; border-radius: 8px;
+    font-weight: 600; font-size: 16px; text-decoration: none;
+    border: 1px solid var(--line); color: var(--ink); background: var(--bg);
+  }
+  .btn:hover { border-color: #c6ccd6; background: var(--soft); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+  .hero-shot { margin: 44px 0 0; }
+  .hero-shot img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(20, 30, 50, .12); display: block; }
+  .hero-shot figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; }
+
+  /* Sections */
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 26px; margin: 0 0 18px; }
+  h3 { font-size: 18px; margin: 0 0 6px; }
+  p { margin: 0 0 14px; }
+  .narrow { max-width: 760px; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 26px; }
+  .step { background: var(--soft); border-radius: 10px; padding: 22px; }
+  .step .num { font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+  .step p { font-size: 15.5px; color: var(--muted); margin: 0; }
+
+  .results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 26px; }
+  .result { border: 1px solid var(--line); border-radius: 10px; padding: 22px; }
+  .result .stat { font-size: 30px; font-weight: 700; line-height: 1.1; margin: 4px 0 8px; }
+  .result p { font-size: 15.5px; color: var(--muted); margin: 0; }
+
+  .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 26px; }
+  .gallery figure { margin: 0; }
+  .gallery img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block; }
+  .gallery figure.wide { grid-column: 1 / -1; }
+  .gallery figcaption { font-size: 14.5px; color: var(--muted); margin-top: 8px; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .tags span { font-size: 14px; padding: 5px 11px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); }
+
+  footer { border-top: 1px solid var(--line); padding: 36px 0 56px; color: var(--muted); font-size: 15px; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; }
+  footer .credits { flex-basis: 100%; font-size: 13.5px; }
+
+  @media (max-width: 760px) {
+    header nav { display: none; }
+    .steps, .results, .gallery { grid-template-columns: 1fr; }
+    .hero { padding-top: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="name" href="https://udargit829.github.io/">Viraat Udar</a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#results">Results</a>
+      <a href="#screens">Screenshots</a>
+      <a href="https://github.com/UdarGIT829/Mito-Web">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero wrap">
+    <p class="eyebrow">Genomics tool · Godot 4 · 2026</p>
+    <h1>Mitochondrial DNA analysis that never leaves your browser.</h1>
+    <p class="lede">Upload VCF files and Mito Web places every call on the mitochondrial reference, assigns each sample a haplogroup, and lets you build an analysis as a graph of filters, comparisons, annotations and statistics. There is no server: your data stays on your computer.</p>
+    <div class="buttons">
+      <a class="btn primary" href="demo/">Try the live demo</a>
+      <a class="btn" href="https://github.com/UdarGIT829/Mito-Web">Source code</a>
+    </div>
+    <figure class="hero-shot">
+      <img src="screenshots/graph.jpg" alt="The Analysis tab: a node graph that finds the variants defining haplogroup J, with counts on every node" width="1600" height="900">
+      <figcaption>The "Recreate haplogroup markers" workflow on 1000 Genomes data: it finds the variants that define haplogroup J from the samples alone. In the demo, press Load example data and try it.</figcaption>
+    </figure>
+  </div>
+
+  <section>
+    <div class="wrap"><div class="narrow">
+      <h2>The problem</h2>
+      <p>Studying mitochondrial variants usually means a chain of separate tools: a variant caller's output in several reference builds, a haplogroup classifier, an annotation service, and statistics in R or Stata. Most of them run on a server or the command line.</p>
+      <p>Research data often can't be uploaded anywhere. Mito Web began as a server-based tool for a research collaboration and was <strong>rebuilt to run entirely in the browser</strong>, so anyone can use it on their own data without it being hosted or shared.</p>
+    </div></div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="narrow">A Godot application compiled to WebAssembly. Files are read in the browser and kept in its storage; a workspace file saves a project.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="num">1 · IMPORT</div>
+          <h3>Calls on one reference</h3>
+          <p>VCFs (or a zip of them) from rCRS, hg19 or hg19+58 are projected onto the rCRS reference with a conservative mapper, trimmed and left-normalized, so identities agree across builds. A manifest can set each file's sample, build and tags.</p>
+        </div>
+        <div class="step">
+          <div class="num">2 · ANALYZE</div>
+          <h3>A graph of steps</h3>
+          <p>Nodes for sample groups, filters, comparisons, germline/somatic classes by allele fraction, gnomAD and ClinVar annotation, density statistics and patient comparisons. Results are cached per node; preset workflows build whole analyses.</p>
+        </div>
+        <div class="step">
+          <div class="num">3 · CLASSIFY &amp; TEST</div>
+          <h3>Haplogroups and statistics</h3>
+          <p>PhyloTree 17 haplogroups scored the HaploGrep 3 way, with a mixture check for contamination or swapped files. Permutation tests along the genome, and Kruskal-Wallis, Wilcoxon, Fisher's exact, ANOVA and Spearman between patient groups.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="wrap">
+      <h2>Results</h2>
+      <p class="narrow">Checked against the established tools on public data.</p>
+      <div class="results">
+        <div class="result">
+          <h3>Haplogroups</h3>
+          <div class="stat">100%</div>
+          <p>Agreement with HaploGrep 3.3.2 on all 2,534 people in the 1000 Genomes Project's mitochondrial data.</p>
+        </div>
+        <div class="result">
+          <h3>Markers recreated</h3>
+          <div class="stat">175</div>
+          <p>Haplogroup-defining variants found from the data alone across all 27 clades present, every one a known PhyloTree marker.</p>
+        </div>
+        <div class="result">
+          <h3>Statistics</h3>
+          <div class="stat">Stata-checked</div>
+          <p>Patient-group tests follow Stata 18's defaults and are tested against published Stata results and scipy.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <h2>Screenshots</h2>
+      <div class="gallery">
+        <figure>
+          <img src="screenshots/samples.jpg" alt="Samples tab listing 1000 Genomes samples with their tags, haplogroup and score, mixture check and call counts" loading="lazy" width="1600" height="900">
+          <figcaption>Every sample's haplogroup, with its score and a mixture check.</figcaption>
+        </figure>
+        <figure>
+          <img src="screenshots/table.jpg" alt="Tables tab showing the seven variants that define haplogroup J, each confirmed as a PhyloTree marker, with gnomAD frequencies" loading="lazy" width="1600" height="900">
+          <figcaption>The seven variants that define haplogroup J, each confirmed against PhyloTree.</figcaption>
+        </figure>
+        <figure class="wide">
+          <img src="screenshots/stats.jpg" alt="Statistics tab: mutation density along the mitochondrial genome for African-exclusive, European-exclusive and somatic calls" loading="lazy" width="1600" height="900">
+          <figcaption>Mutation density along the genome, African vs European exclusive variants in 1000 Genomes, with window tables and permutation tests.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Built with</h2>
+      <div class="tags">
+        <span>Godot 4 (GDScript)</span><span>WebAssembly</span><span>GitHub Actions</span><span>PhyloTree 17</span><span>HaploGrep 3 method</span><span>gnomAD v3.1</span><span>ClinVar</span><span>Ensembl VEP</span><span>1000 Genomes</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Viraat Udar · M.S. Computer Science, CSU Fullerton</span>
+    <span><a href="https://github.com/UdarGIT829">github.com/UdarGIT829</a></span>
+    <span class="credits">Code under the MIT License. Example data: the 1000 Genomes Project (Nature 2015). Haplogroups: PhyloTree Build 17 via genepi/phylotree-rcrs-17 (MIT), scored with the HaploGrep 3 method. Annotations: gnomAD v3.1 mtDNA (CC0), ClinVar (NCBI), Ensembl VEP. Built with the Godot Engine (MIT).</span>
+  </div>
+</footer>
+
+</body>
+</html>

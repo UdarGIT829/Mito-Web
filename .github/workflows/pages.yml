@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "Godot_MitoWeb/**"
+      - "site/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -59,11 +60,19 @@ jobs:
         timeout-minutes: 10
         run: ~/godot --headless --path Godot_MitoWeb --script res://tests/run_tests.gd
 
+      # The project page (site/) is the site root; the app lives under demo/.
       - name: Export web build
         run: |
-          mkdir -p build/web
-          ~/godot --headless --path Godot_MitoWeb --export-release "Web" ../build/web/index.html
-          test -f build/web/index.wasm
+          mkdir -p build/web/demo
+          ~/godot --headless --path Godot_MitoWeb --export-release "Web" ../build/web/demo/index.html
+          test -f build/web/demo/index.wasm
+
+      - name: Add the project page
+        run: |
+          cp site/index.html build/web/
+          cp -r site/screenshots build/web/
+          cp LICENSE build/web/
+          test -f build/web/index.html
 
       - uses: actions/upload-pages-artifact@v5
         with:
