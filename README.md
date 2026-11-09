@@ -1,6 +1,6 @@
 # Mito Web
 
-**Open it: https://udargit829.github.io/Mito-Web/**
+**Open it: https://udargit829.github.io/Mito-Web/demo/** · Project page: https://udargit829.github.io/Mito-Web/
 
 Mitochondrial DNA variant analysis that runs entirely in your browser. Upload
 VCF files (or a zip of them) and Mito Web places every call on the rCRS
@@ -39,7 +39,10 @@ the listed variants, sent to the Ensembl VEP service.
 
 The app is the Godot project in [`Godot_MitoWeb/`](Godot_MitoWeb/README.md),
 which documents its features, file formats and layout. Each push to `main`
-runs the tests and deploys the site with GitHub Actions.
+runs the tests and deploys the site with GitHub Actions: the project page
+([`site/`](site/)) at the root and the app under `demo/`. The page's
+screenshots come from `site/tools/take_screenshots.sh`, which uses only the
+public example data in a disposable copy of the app.
 
 This repository is public: never commit sequencing data, databases, clinical
 tables or upload bundles. `Godot_MitoWeb/tools/check_public.py` enforces this
