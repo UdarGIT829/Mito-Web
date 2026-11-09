@@ -70,7 +70,7 @@ jobs:
       - name: Add the project page
         run: |
           cp site/index.html build/web/
-          cp -r site/screenshots build/web/
+          cp -r site/screenshots site/assets build/web/
           cp LICENSE build/web/
           test -f build/web/index.html
 
