@@ -38,6 +38,40 @@ func _ready() -> void:
 	WebFiles.estimate_storage()
 	if not Workspace.is_storage_persistent():
 		_set_status("Browser storage is unavailable (private window?). Export your workspace to keep your work.")
+	elif _first_visit():
+		_open_example.call_deferred()
+
+
+const FIRST_VISIT_FILE := "user://first_visit.cfg"
+
+## True once per browser: on the web build, the first time the app opens with
+## an empty workspace. Later visits (including after New project) start empty.
+func _first_visit() -> bool:
+	if not OS.has_feature("web") or not Workspace.model.sources().is_empty():
+		return false
+	var cfg := ConfigFile.new()
+	if cfg.load(FIRST_VISIT_FILE) == OK:
+		return false
+	cfg.set_value("example", "shown", true)
+	cfg.save(FIRST_VISIT_FILE)
+	return true
+
+
+## First visit: show the app working instead of an empty screen. Loads the
+## public 1000 Genomes example, assigns haplogroups, prepares the "Recreate
+## haplogroup markers" workflow, and opens the Samples tab.
+func _open_example() -> void:
+	Workspace.rename("1000 Genomes example")
+	(_tabs.get_child(0) as FilesPanel)._load_example()
+	if not Workspace.importing:
+		return                                  # the example is missing from this build
+	await Workspace.import_finished
+	_set_status("Assigning haplogroups to the example's 2,534 people…")
+	await Workspace.assign_haplogroups(0.75)
+	var analysis: GraphPanel = _tabs.get_child(2)
+	analysis.insert_graph(Workflows.haplogroup_markers_graph("J", 90.0, 5.0, "clade"), true, "Recreate haplogroup markers")
+	_tabs.current_tab = 1
+	_set_status("Example: 1000 Genomes, 2,534 people with haplogroups. Try the Analysis tab; New project uses your own files.")
 
 
 func _build_ui() -> void:
