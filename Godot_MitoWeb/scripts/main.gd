@@ -13,6 +13,8 @@ var _cancel: Button
 var _confirm: ConfirmationDialog
 var _header_buttons: Array = []
 var _about: AcceptDialog
+var _header: HBoxContainer
+var _tour: GuidedTour
 
 const REPOSITORY := "https://github.com/UdarGIT829/Mito-Web"
 const ABOUT_TEXT := """[b]Mito Web[/b] analyses mitochondrial DNA variants (VCF files) in your browser: import onto rCRS, haplogroups, an analysis graph, tables, statistics and patient comparisons.
@@ -36,6 +38,8 @@ func _ready() -> void:
 	WebFiles.storage_estimated.connect(_on_storage_estimated)
 	_refresh()
 	WebFiles.estimate_storage()
+	if OS.has_feature("web"):
+		_build_tour()
 	if not Workspace.is_storage_persistent():
 		_set_status("Browser storage is unavailable (private window?). Export your workspace to keep your work.")
 	elif _first_visit():
@@ -72,6 +76,64 @@ func _open_example() -> void:
 	analysis.insert_graph(Workflows.haplogroup_markers_graph("J", 90.0, 5.0, "clade"), true, "Recreate haplogroup markers")
 	_tabs.current_tab = 1
 	_set_status("Example: 1000 Genomes, 2,534 people with haplogroups. Try the Analysis tab; New project uses your own files.")
+	if _tour != null:
+		_tour.start_if_new()
+
+
+## The guided tour (web only): starts once after the example loads; the "?"
+## at the end of the header reopens it.
+func _build_tour() -> void:
+	_tour = GuidedTour.new()
+	add_child(_tour)
+	var help := _tour.add_help_button(_header)
+	var samples_table := func() -> Rect2: return GuidedTour.rect_of(_first_tree(_tabs.get_child(1)))
+	var show_tab := func(i: int) -> void: _tabs.current_tab = i
+	var graph := func() -> Rect2: return GuidedTour.rect_of(_tabs.get_child(2).get("_graph_edit"))
+	_tour.steps = [
+		{"title": "Real DNA data, in your browser",
+		 "text": "This is the public [b]1000 Genomes Project[/b]: mitochondrial DNA for 2,534 people from around the world, loaded as an example. Each row is one person.",
+		 "before": show_tab.bind(1), "target": samples_table},
+		{"title": "Maternal lineages",
+		 "text": "The app read each person's DNA variants and assigned a [b]haplogroup[/b], their maternal lineage (the number in brackets is its confidence). This is the kind of analysis behind my two published papers.",
+		 "before": show_tab.bind(1), "target": samples_table},
+		{"title": "Analyses as a graph",
+		 "text": "Analyses are steps you connect. This one is set up already: it finds the DNA positions that define haplogroup J. Scroll right to its Table node and press [b]View table[/b] to see them.",
+		 "before": func() -> void:
+			show_tab.call(2)
+			_zoom_graph.call_deferred(), "target": graph},
+		{"title": "Tables, statistics, patients",
+		 "text": "Results open in these tabs: sortable tables, statistics that compare groups (for example African and European ancestry), and side-by-side patient comparisons.",
+		 "before": show_tab.bind(2), "target": func() -> Rect2: return GuidedTour.tab_rect(_tabs, 3).merge(GuidedTour.tab_rect(_tabs, 5))},
+		{"title": "Private by design",
+		 "text": "Everything runs in your browser; files never leave your computer. [b]New project[/b] starts empty, so you can upload your own VCF files.",
+		 "target": func() -> Rect2: return GuidedTour.rect_of(_header)},
+		{"title": "That's the tour",
+		 "text": "Reopen it any time with this [b]?[/b] button.",
+		 "target": func() -> Rect2: return GuidedTour.rect_of(help)},
+	]
+
+
+## Zooms the analysis graph in on its top-left nodes, so the tour's step about
+## it is readable (the fitted view of a full workflow is tiny).
+func _zoom_graph() -> void:
+	var ge: GraphEdit = _tabs.get_child(2).get("_graph_edit")
+	if ge == null:
+		return
+	var corner := Vector2(INF, INF)
+	for child in ge.get_children():
+		if child is GraphNode:
+			corner = corner.min((child as GraphNode).position_offset)
+	if corner.x == INF:
+		return
+	ge.zoom = 0.8
+	ge.scroll_offset = corner * ge.zoom - Vector2(30, 30)
+
+
+func _first_tree(root: Node) -> Control:
+	for child in root.find_children("*", "Tree", true, false):
+		if (child as Control).is_visible_in_tree():
+			return child
+	return null
 
 
 func _build_ui() -> void:
@@ -85,6 +147,7 @@ func _build_ui() -> void:
 	margin.add_child(root)
 
 	var header := HBoxContainer.new()
+	_header = header
 	header.add_theme_constant_override("separation", 8)
 	root.add_child(header)
 	var title := Label.new()
